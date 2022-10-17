@@ -70,6 +70,8 @@ const (
 	TaskCode_SysViewInit TaskCode = 3
 	// FrontendInit frontend.InitSysTenant
 	TaskCode_FrontendInit TaskCode = 4
+	// MetricLogMerge export.
+	TaskCode_MetricLogMerge TaskCode = 5
 )
 
 var TaskCode_name = map[int32]string{

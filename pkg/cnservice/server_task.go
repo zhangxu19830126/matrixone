@@ -17,12 +17,12 @@ package cnservice
 import (
 	"context"
 	"fmt"
-
 	"github.com/matrixorigin/matrixone/pkg/config"
 	"github.com/matrixorigin/matrixone/pkg/frontend"
 	logservicepb "github.com/matrixorigin/matrixone/pkg/pb/logservice"
 	"github.com/matrixorigin/matrixone/pkg/pb/task"
 	"github.com/matrixorigin/matrixone/pkg/taskservice"
+	"github.com/matrixorigin/matrixone/pkg/util/export"
 	ie "github.com/matrixorigin/matrixone/pkg/util/internalExecutor"
 	"github.com/matrixorigin/matrixone/pkg/util/metric"
 	"github.com/matrixorigin/matrixone/pkg/util/sysview"
@@ -156,6 +156,10 @@ func (s *service) registerExecutors() {
 		},
 	}
 
+	taskExecutors := map[task.TaskCode]taskservice.TaskExecutor{
+		task.TaskCode_MetricLogMerge: export.MergeTaskExecutorFactory(export.WithFileService(s.fileService)),
+	}
+
 	for code, exec := range executors {
 		s.task.runner.RegisterExecutor(uint32(code),
 			func(ctx context.Context, task task.Task) error {
@@ -164,5 +168,9 @@ func (s *service) registerExecutors() {
 				}
 				return nil
 			})
+	}
+
+	for code, exec := range taskExecutors {
+		s.task.runner.RegisterExecutor(uint32(code), exec)
 	}
 }
