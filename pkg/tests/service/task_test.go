@@ -179,7 +179,13 @@ func TestTaskSchedulerCanReallocateTask(t *testing.T) {
 	err = c.CloseCNService(uuid1)
 	require.NoError(t, err)
 
-	waitTaskRescheduled(t, ctx, taskService, uuid1)
+	cn2, err := c.GetCNServiceIndexed(1)
+	require.NoError(t, err)
+	taskService1, ok := cn2.GetTaskService()
+	require.True(t, ok)
+	require.NoError(t, err)
+
+	waitTaskRescheduled(t, ctx, taskService1, uuid1)
 
 	err = c.Close()
 	require.NoError(t, err)
@@ -212,17 +218,17 @@ func TestTaskRunner(t *testing.T) {
 	indexed, err := c.GetCNServiceIndexed(0)
 	require.NoError(t, err)
 
-	indexed.GetTaskRunner().RegisterExecutor(1, taskExecutor)
+	indexed.GetTaskRunner().RegisterExecutor(uint32(task.TaskCode_TestOnly), taskExecutor)
 
 	taskService, ok := indexed.GetTaskService()
 	require.True(t, ok)
 
-	err = taskService.Create(context.TODO(), task.TaskMetadata{ID: "a", Executor: 1})
+	err = taskService.Create(context.TODO(), task.TaskMetadata{ID: "a", Executor: uint32(task.TaskCode_TestOnly)})
 	require.NoError(t, err)
 	tasks, err := taskService.QueryTask(context.TODO(),
 		taskservice.WithTaskStatusCond(taskservice.EQ, task.TaskStatus_Created))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(tasks))
+	require.Equal(t, 5, len(tasks))
 
 	waitTaskScheduled(t, ctx, taskService)
 
