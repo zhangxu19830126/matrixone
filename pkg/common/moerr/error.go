@@ -689,6 +689,11 @@ func NewTxnClosed() *Error {
 	return newWithDepth(Context(), ErrTxnClosed)
 }
 
+func NewTxnClosed2(msg string, args ...any) *Error {
+	xmsg := fmt.Sprintf(msg, args...)
+	return newWithDepth(Context(), ErrTxnClosed, xmsg)
+}
+
 func NewTxnWriteConflict(msg string, args ...any) *Error {
 	xmsg := fmt.Sprintf(msg, args...)
 	return newWithDepth(Context(), ErrTxnWriteConflict, xmsg)

@@ -259,7 +259,7 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
-		return moerr.NewTxnClosed()
+		return moerr.NewTxnClosed2(op.Txn().DebugString())
 	}
 	defer e.delTransaction(txn)
 	if txn.readOnly {
