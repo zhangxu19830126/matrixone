@@ -26,10 +26,12 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/txn/storage/memorystorage/memtable"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
+	"go.uber.org/zap"
 )
 
 func New(
@@ -259,6 +261,7 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Info("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed2(op.Txn().DebugString())
 	}
 	defer e.delTransaction(txn)

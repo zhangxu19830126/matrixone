@@ -28,7 +28,43 @@ import (
 func LogTxnCreated(
 	logger *zap.Logger,
 	txnMeta txn.TxnMeta) {
-	if ce := logger.Check(zap.DebugLevel, "txn created"); ce != nil {
+	if ce := logger.Check(zap.InfoLevel, "txn created"); ce != nil {
+		ce.Write(zap.String("txn", txnMeta.DebugString()))
+	}
+}
+
+// LogTxnRead read
+func LogTxnRead(
+	logger *zap.Logger,
+	txnMeta txn.TxnMeta) {
+	if ce := logger.Check(zap.InfoLevel, "txn read"); ce != nil {
+		ce.Write(zap.String("txn", txnMeta.DebugString()))
+	}
+}
+
+// LogTxnWrite write
+func LogTxnWrite(
+	logger *zap.Logger,
+	txnMeta txn.TxnMeta) {
+	if ce := logger.Check(zap.InfoLevel, "txn write"); ce != nil {
+		ce.Write(zap.String("txn", txnMeta.DebugString()))
+	}
+}
+
+// LogTxnCommit commit
+func LogTxnCommit(
+	logger *zap.Logger,
+	txnMeta txn.TxnMeta) {
+	if ce := logger.Check(zap.InfoLevel, "txn commit"); ce != nil {
+		ce.Write(zap.String("txn", txnMeta.DebugString()))
+	}
+}
+
+// LogTxnRollback commit
+func LogTxnRollback(
+	logger *zap.Logger,
+	txnMeta txn.TxnMeta) {
+	if ce := logger.Check(zap.InfoLevel, "txn rollback"); ce != nil {
 		ce.Write(zap.String("txn", txnMeta.DebugString()))
 	}
 }
