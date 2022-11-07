@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -27,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	_ "net/http/pprof"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/cnservice"
@@ -55,6 +58,10 @@ var (
 func main() {
 	flag.Parse()
 	maybePrintVersion()
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	if *cpuProfilePathFlag != "" {
 		stop := startCPUProfile()

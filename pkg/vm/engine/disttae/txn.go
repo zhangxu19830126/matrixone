@@ -16,6 +16,7 @@ package disttae
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -156,6 +157,13 @@ func (txn *Transaction) getDatabaseId(ctx context.Context, name string) (uint64,
 			catalog.MoDatabaseSchema[catalog.MO_DATABASE_DAT_NAME_IDX],
 			catalog.MoDatabaseSchema[catalog.MO_DATABASE_ACCOUNT_ID_IDX],
 		}, key, genDatabaseIdExpr(accountId, name))
+	{
+		if name != "mo_task" {
+			fmt.Printf("+++++++%v failed to get database %v: %v: %v\n",
+				txn.meta.SnapshotTS,
+				name, len(rows), err)
+		}
+	}
 	if err != nil {
 		return 0, err
 	}

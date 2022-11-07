@@ -236,6 +236,9 @@ func (s *Scope) remoteRun(c *Compile) error {
 			return err
 		}
 
+		{
+			fmt.Printf("++%p: %v: %v\n", s, len(m.Data), m.IsEndMessage())
+		}
 		if m.IsEndMessage() {
 			anaData := m.GetAnalyse()
 			if len(anaData) > 0 {
