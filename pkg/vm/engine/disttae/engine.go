@@ -67,6 +67,7 @@ var _ engine.Engine = new(Engine)
 func (e *Engine) Create(ctx context.Context, name string, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Error("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed()
 	}
 	sql := getSql(ctx)
@@ -94,6 +95,7 @@ func (e *Engine) Database(ctx context.Context, name string,
 	op client.TxnOperator) (engine.Database, error) {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Error("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return nil, moerr.NewTxnClosed()
 	}
 	key := genDatabaseKey(ctx, name)
@@ -129,6 +131,7 @@ func (e *Engine) Database(ctx context.Context, name string,
 func (e *Engine) Databases(ctx context.Context, op client.TxnOperator) ([]string, error) {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Error("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return nil, moerr.NewTxnClosed()
 	}
 	return txn.getDatabaseList(ctx)
@@ -139,6 +142,7 @@ func (e *Engine) Delete(ctx context.Context, name string, op client.TxnOperator)
 
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Error("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed()
 	}
 	key := genDatabaseKey(ctx, name)
@@ -290,6 +294,7 @@ func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 func (e *Engine) Rollback(ctx context.Context, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Error("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return nil // compatible with existing logic
 		//	return moerr.NewTxnClosed()
 	}
