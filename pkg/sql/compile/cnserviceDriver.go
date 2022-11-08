@@ -146,7 +146,7 @@ func pipelineMessageHandle(ctx context.Context, message morpc.Message, cs morpc.
 	}
 	refactorScope(c, c.ctx, s)
 
-	err = s.ParallelRun(c, true)
+	err = s.ParallelRun(c, s.IsRemote)
 	if err != nil {
 		return nil, err
 	}
@@ -479,10 +479,11 @@ func generateScope(proc *process.Process, p *pipeline.Pipeline, ctx *scopeContex
 	var err error
 
 	s := &Scope{
-		Magic:  int(p.GetPipelineType()),
-		IsEnd:  p.IsEnd,
-		IsJoin: p.IsJoin,
-		Plan:   p.Qry,
+		Magic:    int(p.GetPipelineType()),
+		IsEnd:    p.IsEnd,
+		IsJoin:   p.IsJoin,
+		Plan:     p.Qry,
+		IsRemote: true,
 	}
 	dsc := p.GetDataSource()
 	if dsc != nil {
