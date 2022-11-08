@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/dispatch"
 
@@ -70,6 +71,14 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (bool, error) {
 		}
 		if bat != nil {
 			bat.Cnt = 1
+		}
+		{
+			var buf bytes.Buffer
+			buf.WriteString(fmt.Sprintf("+++++++++%p read %p\n", proc, bat))
+			if bat != nil {
+				buf.WriteString(fmt.Sprintf("\t%v\n", bat.Attrs))
+			}
+			fmt.Printf("%s\n", buf.String())
 		}
 		// processing the batch according to the instructions
 		proc.Reg.InputBatch = bat

@@ -15,6 +15,8 @@
 package compile
 
 import (
+	"fmt"
+
 	"github.com/matrixorigin/matrixone/pkg/cnservice/cnclient"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
@@ -145,6 +147,9 @@ func (s *Scope) ParallelRun(c *Compile, remote bool) error {
 		return s.MergeRun(c)
 	}
 	mcpu := s.NodeInfo.Mcpu
+	{
+		mcpu = 1
+	}
 	if remote {
 		var err error
 
@@ -182,6 +187,10 @@ func (s *Scope) ParallelRun(c *Compile, remote bool) error {
 		ss[i].Proc = process.NewWithAnalyze(s.Proc, c.ctx, 0, c.anal.Nodes())
 	}
 	newScope := newParallelScope(c, s, ss)
+	{
+		fmt.Printf("++++++begin read run+++++++%p: %s\n", s, DebugShowScopes([]*Scope{newScope}))
+		defer fmt.Printf("+++end read run: %p\n", s)
+	}
 	return newScope.MergeRun(c)
 }
 
@@ -213,6 +222,7 @@ func (s *Scope) JoinRun(c *Compile) error {
 	if mcpu < 1 {
 		mcpu = 1
 	}
+	mcpu = 1
 	chp := s.PreScopes
 	for i := range chp {
 		chp[i].IsEnd = true
@@ -223,13 +233,16 @@ func (s *Scope) JoinRun(c *Compile) error {
 			Magic: Merge,
 		}
 		ss[i].Proc = process.NewWithAnalyze(s.Proc, c.ctx, 2, c.anal.Nodes())
-		ss[i].Proc.Reg.MergeReceivers[1].Ch = make(chan *batch.Batch, 10)
+		ss[i].Proc.Reg.MergeReceivers[1].Ch = make(chan *batch.Batch, 1)
 	}
 	left, right := c.newLeftScope(s, ss), c.newRightScope(s, ss)
 	s = newParallelScope(c, s, ss)
 	s.PreScopes = append(s.PreScopes, chp...)
 	s.PreScopes = append(s.PreScopes, left)
 	s.PreScopes = append(s.PreScopes, right)
+	{
+		fmt.Printf("join run: %s\n", DebugShowScopes([]*Scope{s}))
+	}
 	return s.MergeRun(c)
 }
 

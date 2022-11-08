@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"sync/atomic"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -88,6 +87,10 @@ func (c *Compile) GetAffectedRows() uint64 {
 func (c *Compile) Run(_ uint64) (err error) {
 	if c.scope == nil {
 		return nil
+	}
+
+	{
+		fmt.Printf("%s\n", DebugShowScopes([]*Scope{c.scope}))
 	}
 
 	// XXX PrintScope has a none-trivial amount of logging
@@ -1190,7 +1193,8 @@ func (c *Compile) newRightScope(s *Scope, ss []*Scope) *Scope {
 
 // Number of cpu's available on the current machine
 func (c *Compile) NumCPU() int {
-	return runtime.NumCPU()
+	//	return runtime.NumCPU()
+	return 1
 }
 
 func (c *Compile) initAnalyze(qry *plan.Query) {
@@ -1249,6 +1253,11 @@ func (c *Compile) generateNodes(n *plan.Node) (engine.Nodes, error) {
 	}
 	if len(ranges) == 0 {
 		return nodes, nil
+	}
+	{
+		if n.ObjRef.SchemaName == "tpch" {
+			nodes = nodes[:0]
+		}
 	}
 	step := len(ranges) / len(c.cnList)
 	if step <= 0 {

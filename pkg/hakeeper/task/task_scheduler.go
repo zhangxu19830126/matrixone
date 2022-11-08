@@ -86,6 +86,7 @@ func (s *scheduler) Create(ctx context.Context, tasks []task.TaskMetadata) error
 	s.logger.Debug("new tasks created", zap.Int("created", len(tasks)))
 	v, err := ts.GetStorage().Query(ctx)
 	if len(v) == 0 && err == nil {
+		return nil
 		panic("created tasks cannot read")
 	}
 	s.logger.Debug("new tasks created, query", zap.Int("created", len(v)), zap.Error(err))

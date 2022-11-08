@@ -50,14 +50,35 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 	for {
 		switch ctr.state {
 		case Build:
+			/*
+				{
+					fmt.Printf("++++++begin join build: %p+++++\n", proc)
+				}
+			*/
 			if err := ctr.build(ap, proc, anal); err != nil {
 				ctr.state = End
 				ctr.mp.Free()
 				return true, err
 			}
+			/*
+				{
+					fmt.Printf("++++++end join build: %p+++++\n", proc)
+				}
+			*/
 			ctr.state = Probe
 		case Probe:
 			bat := <-proc.Reg.MergeReceivers[0].Ch
+			/*
+				{
+					var buf bytes.Buffer
+
+					buf.WriteString(fmt.Sprintf("++++++begin join probe: %p: %p+++++\n", proc, bat))
+					if bat != nil {
+						buf.WriteString(fmt.Sprintf("\t%v\n", bat.Attrs))
+					}
+					fmt.Printf("%s", buf.String())
+				}
+			*/
 			if bat == nil {
 				ctr.state = End
 				ctr.mp.Free()

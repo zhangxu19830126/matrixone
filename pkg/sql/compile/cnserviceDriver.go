@@ -146,9 +146,19 @@ func pipelineMessageHandle(ctx context.Context, message morpc.Message, cs morpc.
 	}
 	refactorScope(c, c.ctx, s)
 
+	{
+		fmt.Printf("+++++++++begin run %p: %v\n", s,
+			s.DataSource)
+	}
 	err = s.ParallelRun(c, true)
 	if err != nil {
+		{
+			fmt.Printf("++++++run %p err: %v\n", s, err)
+		}
 		return nil, err
+	}
+	{
+		fmt.Printf("+++++++++end run %p\n", s)
 	}
 	// encode analysis info and return.
 	anas := &pipeline.AnalysisList{
@@ -236,9 +246,6 @@ func (s *Scope) remoteRun(c *Compile) error {
 			return err
 		}
 
-		{
-			fmt.Printf("++%p: %v: %v\n", s, len(m.Data), m.IsEndMessage())
-		}
 		if m.IsEndMessage() {
 			anaData := m.GetAnalyse()
 			if len(anaData) > 0 {
@@ -250,6 +257,10 @@ func (s *Scope) remoteRun(c *Compile) error {
 				}
 				mergeAnalyseInfo(c.anal, ana)
 			}
+			{
+				fmt.Printf("+++++begin to send end: %s\n", DebugShowScopes([]*Scope{s}))
+			}
+			sendToConnectOperator(arg, nil)
 			sendToConnectOperator(arg, nil)
 			break
 		}

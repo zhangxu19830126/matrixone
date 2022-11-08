@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -315,6 +316,9 @@ func (e *Engine) Nodes() (engine.Nodes, error) {
 	}
 
 	var nodes engine.Nodes
+	{
+		fmt.Printf("++++++nodes: %v\n", len(clusterDetails.CNStores))
+	}
 	for _, store := range clusterDetails.CNStores {
 		nodes = append(nodes, engine.Node{
 			Mcpu: 10, // TODO

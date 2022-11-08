@@ -29,5 +29,8 @@ func DebugCtlTaskFramwork(disable bool) {
 }
 
 func taskFrameworkDisabled() bool {
+	if disableTaskFramework.Load() == nil {
+		return false
+	}
 	return disableTaskFramework.Load().(bool)
 }
