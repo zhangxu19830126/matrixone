@@ -116,6 +116,9 @@ func CnServerMessageHandler(ctx context.Context, message morpc.Message,
 	}
 	backMessage := messageAcquirer().(*pipeline.Message)
 	backMessage.Id = message.GetID()
+	{
+		fmt.Printf("++++write end %p: %v\n", ctx, backMessage.Id)
+	}
 	backMessage.Sid = pipeline.MessageEnd
 	backMessage.Err = errData
 	backMessage.Analyse = analysis
@@ -146,9 +149,18 @@ func pipelineMessageHandle(ctx context.Context, message morpc.Message, cs morpc.
 	}
 	refactorScope(c, c.ctx, s)
 
+	/*
+		{
+			fmt.Printf("+++++++++begin run %p: %v\n", s,
+				s.DataSource)
+		}
+	*/
 	{
-		fmt.Printf("+++++++++begin run %p: %v\n", s,
-			s.DataSource)
+		fmt.Printf("+++++%p:%v begin handle message: %s\n", ctx,
+			message.GetID(), DebugShowScopes([]*Scope{s}))
+		if s.IsJoin {
+			fmt.Printf("********isjoin: %p: %p\n", ctx, c)
+		}
 	}
 	err = s.ParallelRun(c, true)
 	if err != nil {
@@ -158,8 +170,13 @@ func pipelineMessageHandle(ctx context.Context, message morpc.Message, cs morpc.
 		return nil, err
 	}
 	{
-		fmt.Printf("+++++++++end run %p\n", s)
+		fmt.Printf("+++++end handle message: %s\n", DebugShowScopes([]*Scope{s}))
 	}
+	/*
+		{
+			fmt.Printf("+++++++++end run %p\n", s)
+		}
+	*/
 	// encode analysis info and return.
 	anas := &pipeline.AnalysisList{
 		List: make([]*plan.AnalyzeInfo, len(c.proc.AnalInfos)),
@@ -176,6 +193,9 @@ func pipelineMessageHandle(ctx context.Context, message morpc.Message, cs morpc.
 // 2. Message with end flag and the result of analysis
 // 3. Batch Message with batch data
 func (s *Scope) remoteRun(c *Compile) error {
+	{
+		fmt.Printf("+++begin remote run %p: %s\n", s, DebugShowScopes([]*Scope{s}))
+	}
 	// encode the scope
 	// the last instruction of remote-run scope must be `connect`, it doesn't need serialization work.
 	// just ignore this instruction when doing serialization work and recover at the end in order to receive the returned batch.
@@ -231,6 +251,9 @@ func (s *Scope) remoteRun(c *Compile) error {
 		return errReceive
 	}
 	var val morpc.Message
+	{
+		fmt.Printf("+++++++begin loop %p\n", s)
+	}
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -240,9 +263,16 @@ func (s *Scope) remoteRun(c *Compile) error {
 
 		m, ok := val.(*pipeline.Message)
 		if !ok {
+			sendToConnectOperator(arg, nil)
+			panic("++++")
 			return moerr.NewInternalError("unexpected mo-rpc address %s", s.NodeInfo.Addr)
 		}
+		{
+			fmt.Printf("++++++recv id = %v\n", m.GetID())
+		}
 		if err := pipeline.DecodeMessageError(m); err != nil {
+			panic("++++")
+			sendToConnectOperator(arg, nil)
 			return err
 		}
 
@@ -258,18 +288,25 @@ func (s *Scope) remoteRun(c *Compile) error {
 				mergeAnalyseInfo(c.anal, ana)
 			}
 			{
-				fmt.Printf("+++++begin to send end: %s\n", DebugShowScopes([]*Scope{s}))
+				fmt.Printf("+++++begin to send end %p: %s\n", s, DebugShowScopes([]*Scope{s}))
 			}
-			sendToConnectOperator(arg, nil)
 			sendToConnectOperator(arg, nil)
 			break
 		}
 		// decoded message
 		bat, errBatch := decodeBatch(c.proc, m)
 		if errBatch != nil {
+			panic("++++")
+			sendToConnectOperator(arg, nil)
 			return errBatch
 		}
+		{
+			fmt.Printf("+++begin send id = %v; %p-%p: %s\n", m.GetID(), s, bat, DebugShowScopes([]*Scope{s}))
+		}
 		sendToConnectOperator(arg, bat)
+		{
+			fmt.Printf("+++end send %p: %p\n", s, bat)
+		}
 	}
 
 	return nil
@@ -375,7 +412,7 @@ func refactorScope(c *Compile, _ context.Context, s *Scope) {
 	s.Instructions = append(s.Instructions, vm.Instruction{
 		Op:  vm.Output,
 		Idx: -1, // useless
-		Arg: &output.Argument{Data: nil, Func: c.fill},
+		Arg: &output.Argument{Data: c, Func: c.fill},
 	})
 	c.proc = s.Proc
 	c.scope = s
@@ -1077,12 +1114,18 @@ func newCompile(ctx context.Context, message morpc.Message, pHelper *processHelp
 	c.fill = func(_ any, b *batch.Batch) error {
 		encodeData, errEncode := types.Encode(b)
 		if errEncode != nil {
+			fmt.Printf("+++++++errrCOde: %v\n", errEncode)
+			panic(errEncode)
 			return errEncode
 		}
 		m := mHelper.acquirer().(*pipeline.Message)
 		m.Id = message.GetID()
 		m.Data = encodeData
-		return cs.Write(ctx, m)
+		err := cs.Write(ctx, m)
+		{
+			fmt.Printf("+++write back %p-%p: %v; id = %v; %v\n", ctx, b, len(b.Vecs), m.Id, err)
+		}
+		return err
 	}
 	return c
 }

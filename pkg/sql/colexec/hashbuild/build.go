@@ -16,6 +16,7 @@ package hashbuild
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/hashmap"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
@@ -61,9 +62,8 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 		switch ctr.state {
 		case Build:
 			if err := ctr.build(ap, proc, anal); err != nil {
-				ctr.state = End
-				ctr.mp.Free()
-				return true, err
+				ap.Free(proc, true)
+				return false, err
 			}
 			ctr.state = End
 		default:
@@ -76,6 +76,7 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 			} else {
 				proc.SetInputBatch(nil)
 			}
+			ap.Free(proc, false)
 			return true, nil
 		}
 	}
@@ -86,6 +87,16 @@ func (ctr *container) build(ap *Argument, proc *process.Process, anal process.An
 
 	for {
 		bat := <-proc.Reg.MergeReceivers[0].Ch
+		{
+			var buf bytes.Buffer
+
+			buf.WriteString(fmt.Sprintf("++++hash build %p: %p\n", proc, bat))
+			if bat != nil {
+				buf.WriteString(fmt.Sprintf("\t%v: %v\n", bat.Attrs, len(bat.Vecs)))
+			}
+			fmt.Printf("%s\n", buf.String())
+
+		}
 		if bat == nil {
 			break
 		}
@@ -95,8 +106,6 @@ func (ctr *container) build(ap *Argument, proc *process.Process, anal process.An
 		anal.Input(bat)
 		anal.Alloc(int64(bat.Size()))
 		if ctr.bat, err = ctr.bat.Append(proc.Mp(), bat); err != nil {
-			bat.Clean(proc.Mp())
-			ctr.bat.Clean(proc.Mp())
 			return err
 		}
 		bat.Clean(proc.Mp())
@@ -104,10 +113,10 @@ func (ctr *container) build(ap *Argument, proc *process.Process, anal process.An
 	if ctr.bat == nil || ctr.bat.Length() == 0 || !ap.NeedHashMap {
 		return nil
 	}
-	if err := ctr.evalJoinCondition(ctr.bat, ap.Conditions, proc); err != nil {
+	ctr.cleanEvalVectors(proc.Mp())
+	if err = ctr.evalJoinCondition(ctr.bat, ap.Conditions, proc); err != nil {
 		return err
 	}
-	defer ctr.freeJoinCondition(proc)
 
 	if ctr.idx != nil {
 		return ctr.indexBuild()
@@ -167,11 +176,7 @@ func (ctr *container) evalJoinCondition(bat *batch.Batch, conds []*plan.Expr, pr
 	for i, cond := range conds {
 		vec, err := colexec.EvalExpr(bat, proc, cond)
 		if err != nil || vec.ConstExpand(proc.Mp()) == nil {
-			for j := 0; j < i; j++ {
-				if ctr.evecs[j].needFree {
-					vector.Clean(ctr.evecs[j].vec, proc.Mp())
-				}
-			}
+			ctr.cleanEvalVectors(proc.Mp())
 			return err
 		}
 		ctr.vecs[i] = vec
@@ -193,12 +198,4 @@ func (ctr *container) evalJoinCondition(bat *batch.Batch, conds []*plan.Expr, pr
 		}
 	}
 	return nil
-}
-
-func (ctr *container) freeJoinCondition(proc *process.Process) {
-	for i := range ctr.evecs {
-		if ctr.evecs[i].needFree {
-			ctr.evecs[i].vec.Free(proc.Mp())
-		}
-	}
 }

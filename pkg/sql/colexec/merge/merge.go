@@ -41,19 +41,17 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 			proc.SetInputBatch(nil)
 			return true, nil
 		}
-		bat := <-proc.Reg.MergeReceivers[ap.ctr.i].Ch
+		reg := proc.Reg.MergeReceivers[ap.ctr.i]
+		bat := <-reg.Ch
 		{
-			fmt.Printf("+++++merge recv %p\n", bat)
-		}
-		/*
-			reg := proc.Reg.MergeReceivers[ap.ctr.i]
-			var bat *batch.Batch = nil
-			select {
-			case <-reg.Ctx.Done():
-			case bat = <-reg.Ch:
-			}
-		*/
+			var buf bytes.Buffer
 
+			buf.WriteString(fmt.Sprintf("++++merge read %p: %p\n", proc, bat))
+			if bat != nil {
+				buf.WriteString(fmt.Sprintf("\t%v: %v\n", bat.Attrs, len(bat.Vecs)))
+			}
+			fmt.Printf("%s\n", buf.String())
+		}
 		if bat == nil {
 			proc.Reg.MergeReceivers = append(proc.Reg.MergeReceivers[:ap.ctr.i], proc.Reg.MergeReceivers[ap.ctr.i+1:]...)
 			if ap.ctr.i >= len(proc.Reg.MergeReceivers) {

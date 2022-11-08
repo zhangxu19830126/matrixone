@@ -16,6 +16,7 @@ package output
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -30,6 +31,9 @@ func Prepare(_ *process.Process, _ any) error {
 
 func Call(_ int, proc *process.Process, arg any) (bool, error) {
 	ap := arg.(*Argument)
+	{
+		fmt.Printf("++++output %p: %p: %p\n", proc, proc.Reg.InputBatch, ap.Data)
+	}
 	if bat := proc.Reg.InputBatch; bat != nil && len(bat.Zs) > 0 {
 		if err := ap.Func(ap.Data, bat); err != nil {
 			bat.Clean(proc.Mp())

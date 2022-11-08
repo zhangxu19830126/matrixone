@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/connector"
+	"github.com/matrixorigin/matrixone/pkg/sql/colexec/dispatch"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -170,6 +171,18 @@ func debugShowScopes(ss []*Scope, gap int, rmp map[*process.WaitRegister]int) st
 				arg := instruction.Arg.(*connector.Argument)
 				if receiverId, okk := mp[arg.Reg]; okk {
 					receiver = fmt.Sprintf("%d", receiverId)
+				}
+				str += fmt.Sprintf(" to MergeReceiver %s", receiver)
+			} else if id == vm.Dispatch {
+				var receiver string
+
+				arg := instruction.Arg.(*dispatch.Argument)
+				for _, reg := range arg.Regs {
+					if receiverId, okk := mp[reg]; okk {
+						receiver += fmt.Sprintf("%d", receiverId)
+					} else {
+						receiver += "unknown"
+					}
 				}
 				str += fmt.Sprintf(" to MergeReceiver %s", receiver)
 			}

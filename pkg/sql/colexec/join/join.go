@@ -16,6 +16,7 @@ package join
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/hashmap"
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
@@ -50,41 +51,31 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 	for {
 		switch ctr.state {
 		case Build:
-			/*
-				{
-					fmt.Printf("++++++begin join build: %p+++++\n", proc)
-				}
-			*/
-			if err := ctr.build(ap, proc, anal); err != nil {
-				ctr.state = End
-				ctr.mp.Free()
-				return true, err
+			{
+				fmt.Printf("++++++begin join build: %p+++++\n", proc)
 			}
-			/*
-				{
-					fmt.Printf("++++++end join build: %p+++++\n", proc)
-				}
-			*/
+			if err := ctr.build(ap, proc, anal); err != nil {
+				ap.Free(proc, true)
+				return false, err
+			}
+			{
+				fmt.Printf("++++++end join build: %p+++++\n", proc)
+			}
 			ctr.state = Probe
+
 		case Probe:
 			bat := <-proc.Reg.MergeReceivers[0].Ch
-			/*
-				{
-					var buf bytes.Buffer
+			{
+				var buf bytes.Buffer
 
-					buf.WriteString(fmt.Sprintf("++++++begin join probe: %p: %p+++++\n", proc, bat))
-					if bat != nil {
-						buf.WriteString(fmt.Sprintf("\t%v\n", bat.Attrs))
-					}
-					fmt.Printf("%s", buf.String())
+				buf.WriteString(fmt.Sprintf("++++++begin join probe: %p: %p+++++\n", proc, bat))
+				if bat != nil {
+					buf.WriteString(fmt.Sprintf("\t%v-%v\n", bat.Length(), len(bat.Vecs)))
 				}
-			*/
+				fmt.Printf("%s", buf.String())
+			}
 			if bat == nil {
 				ctr.state = End
-				ctr.mp.Free()
-				if ctr.bat != nil {
-					ctr.bat.Clean(proc.Mp())
-				}
 				continue
 			}
 			if bat.Length() == 0 {
@@ -95,13 +86,16 @@ func Call(idx int, proc *process.Process, arg any) (bool, error) {
 				continue
 			}
 			if err := ctr.probe(bat, ap, proc, anal); err != nil {
-				ctr.state = End
-				ctr.mp.Free()
-				proc.SetInputBatch(nil)
-				return true, err
+				ap.Free(proc, true)
+				{
+					fmt.Printf("+++++probe failed: %p\n", err)
+				}
+				return false, err
 			}
 			return false, nil
+
 		default:
+			ap.Free(proc, false)
 			proc.SetInputBatch(nil)
 			return true, nil
 		}
@@ -131,14 +125,15 @@ func (ctr *container) probe(bat *batch.Batch, ap *Argument, proc *process.Proces
 	}
 
 	idxFlg := false
+	ctr.cleanEvalVectors(proc.Mp())
 	if err := ctr.evalJoinCondition(bat, ap.Conditions[0], proc, &idxFlg); err != nil {
 		return err
 	}
-	defer ctr.freeJoinCondition(proc)
 
 	mSels := ctr.mp.Sels()
 	if idxFlg {
 		if err := ctr.indexProbe(ap, bat, rbat, mSels, proc); err != nil {
+			rbat.Clean(proc.Mp())
 			return err
 		}
 		rbat.ExpandNulls()
@@ -193,6 +188,9 @@ func (ctr *container) probe(bat *batch.Batch, ap *Argument, proc *process.Proces
 	}
 	rbat.ExpandNulls()
 	anal.Output(rbat)
+	{
+		fmt.Printf("\t+++++join probe out %p: %p\n", proc, rbat)
+	}
 	proc.SetInputBatch(rbat)
 	return nil
 }
@@ -220,20 +218,16 @@ func (ctr *container) indexProbe(ap *Argument, bat, rbat *batch.Batch, mSels [][
 			for j, rp := range ap.Result {
 				if rp.Rel == 0 {
 					if err := vector.UnionOne(rbat.Vecs[j], bat.Vecs[rp.Pos], int64(i), proc.Mp()); err != nil {
-						rbat.Clean(proc.Mp())
 						return err
 					}
 					if err := populateIndex(rbat.Vecs[j], bat.Vecs[rp.Pos], int64(i), proc.Mp()); err != nil {
-						rbat.Clean(proc.Mp())
 						return err
 					}
 				} else {
 					if err := vector.UnionOne(rbat.Vecs[j], ctr.bat.Vecs[rp.Pos], sel, proc.Mp()); err != nil {
-						rbat.Clean(proc.Mp())
 						return err
 					}
 					if err := populateIndex(rbat.Vecs[j], ctr.bat.Vecs[rp.Pos], sel, proc.Mp()); err != nil {
-						rbat.Clean(proc.Mp())
 						return err
 					}
 				}
@@ -248,11 +242,7 @@ func (ctr *container) evalJoinCondition(bat *batch.Batch, conds []*plan.Expr, pr
 	for i, cond := range conds {
 		vec, err := colexec.EvalExpr(bat, proc, cond)
 		if err != nil || vec.ConstExpand(proc.Mp()) == nil {
-			for j := 0; j < i; j++ {
-				if ctr.evecs[j].needFree {
-					vector.Clean(ctr.evecs[j].vec, proc.Mp())
-				}
-			}
+			ctr.cleanEvalVectors(proc.Mp())
 			return err
 		}
 		ctr.vecs[i] = vec
@@ -270,14 +260,6 @@ func (ctr *container) evalJoinCondition(bat *batch.Batch, conds []*plan.Expr, pr
 		}
 	}
 	return nil
-}
-
-func (ctr *container) freeJoinCondition(proc *process.Process) {
-	for i := range ctr.evecs {
-		if ctr.evecs[i].needFree {
-			ctr.evecs[i].vec.Free(proc.Mp())
-		}
-	}
 }
 
 func (ctr *container) dictEncoding(m *mpool.MPool) (bool, error) {
