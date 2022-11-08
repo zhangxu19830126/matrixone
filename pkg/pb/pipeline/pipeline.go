@@ -38,7 +38,7 @@ func (m *Message) DebugString() string {
 	me := moerr.Error{}
 	_ = me.UnmarshalBinary(m.Err)
 	errStr := me.Error()
-	return fmt.Sprintf("sid: %v, cmd: %v, data: %s, err: %s", m.Sid, m.Cmd, m.Data, errStr)
+	return fmt.Sprintf("sid: %v, cmd: %v, data: %d bytes, err: %s", m.Sid, m.Cmd, len(m.Data), errStr)
 }
 
 func (m *Message) IsEndMessage() bool {

@@ -266,6 +266,12 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 					for idx := range sendResponses {
 						v, err := sendResponses[idx].GetTimeoutFromContext()
 						if err != nil {
+							if c := s.logger.Check(zap.DebugLevel, "write responses timeout"); c != nil {
+								d, _ := sendResponses[idx].Ctx.Deadline()
+								c.Write(zap.Time("ctx-deadline", d),
+									zap.Uint64("request-id",
+										sendResponses[idx].Message.GetID()))
+							}
 							continue
 						}
 						timeout += v
@@ -279,7 +285,7 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 								sendResponses[idx].Message.DebugString()))
 						}
 						if err := cs.conn.Write(sendResponses[idx], goetty.WriteOptions{}); err != nil {
-							s.logger.Error("write response failed",
+							s.logger.Error("write responses failed",
 								zap.Uint64("request-id", sendResponses[idx].Message.GetID()),
 								zap.Error(err))
 							return
