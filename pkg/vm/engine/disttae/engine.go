@@ -26,12 +26,14 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/txn/storage/memorystorage/memtable"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
+	"go.uber.org/zap"
 )
 
 func New(
@@ -67,6 +69,7 @@ var _ engine.Engine = new(Engine)
 func (e *Engine) Create(ctx context.Context, name string, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Fatal("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed()
 	}
 	sql := getSql(ctx)
@@ -94,6 +97,8 @@ func (e *Engine) Database(ctx context.Context, name string,
 	op client.TxnOperator) (engine.Database, error) {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Fatal("transaction not found",
+			zap.String("txn", op.Txn().DebugString()))
 		return nil, moerr.NewTxnClosed()
 	}
 	key := genDatabaseKey(ctx, name)
@@ -129,6 +134,7 @@ func (e *Engine) Database(ctx context.Context, name string,
 func (e *Engine) Databases(ctx context.Context, op client.TxnOperator) ([]string, error) {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Fatal("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return nil, moerr.NewTxnClosed()
 	}
 	return txn.getDatabaseList(ctx)
@@ -139,6 +145,7 @@ func (e *Engine) Delete(ctx context.Context, name string, op client.TxnOperator)
 
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Fatal("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed()
 	}
 	key := genDatabaseKey(ctx, name)
@@ -273,6 +280,7 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	txn := e.getTransaction(op)
 	if txn == nil {
+		logutil.Fatal("transaction not found", zap.String("txn", op.Txn().DebugString()))
 		return moerr.NewTxnClosed()
 	}
 	defer e.delTransaction(txn)
@@ -389,6 +397,7 @@ func (e *Engine) newTransaction(op client.TxnOperator, txn *Transaction) {
 	defer e.Unlock()
 	heap.Push(e.txnHeap, txn)
 	e.txns[string(op.Txn().ID)] = txn
+	logutil.Info("transaction added", zap.String("txn", txn.meta.DebugString()))
 }
 
 func (e *Engine) getTransaction(op client.TxnOperator) *Transaction {
@@ -412,6 +421,7 @@ func (e *Engine) delTransaction(txn *Transaction) {
 		}
 	}
 	delete(e.txns, string(txn.meta.ID))
+	logutil.Info("transaction removed", zap.String("txn", txn.meta.DebugString()))
 }
 
 /*

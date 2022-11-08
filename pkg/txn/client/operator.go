@@ -229,6 +229,10 @@ func (tc *txnOperator) ApplySnapshot(data []byte) error {
 }
 
 func (tc *txnOperator) Read(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	tc.mu.RLock()
+	util.LogTxnRead(tc.logger, tc.mu.txn)
+	tc.mu.RUnlock()
+
 	for idx := range requests {
 		requests[idx].Method = txn.TxnMethod_Read
 	}
@@ -242,14 +246,26 @@ func (tc *txnOperator) Read(ctx context.Context, requests []txn.TxnRequest) (*rp
 }
 
 func (tc *txnOperator) Write(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	tc.mu.RLock()
+	util.LogTxnWrite(tc.logger, tc.mu.txn)
+	tc.mu.RUnlock()
+
 	return tc.doWrite(ctx, requests, false)
 }
 
 func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	tc.mu.RLock()
+	util.LogTxnCommit(tc.logger, tc.mu.txn)
+	tc.mu.RUnlock()
+
 	return tc.doWrite(ctx, requests, true)
 }
 
 func (tc *txnOperator) Commit(ctx context.Context) error {
+	tc.mu.RLock()
+	util.LogTxnCommit(tc.logger, tc.mu.txn)
+	tc.mu.RUnlock()
+
 	if tc.option.readyOnly {
 		return nil
 	}
@@ -265,6 +281,10 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 }
 
 func (tc *txnOperator) Rollback(ctx context.Context) error {
+	tc.mu.RLock()
+	util.LogTxnRollback(tc.logger, tc.mu.txn)
+	tc.mu.RUnlock()
+
 	tc.mu.Lock()
 	defer func() {
 		tc.mu.closed = true
