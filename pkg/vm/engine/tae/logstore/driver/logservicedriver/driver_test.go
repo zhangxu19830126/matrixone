@@ -16,6 +16,7 @@ package logservicedriver
 
 import (
 	// "sync"
+
 	"testing"
 	// "github.com/lni/vfs"
 	// "github.com/matrixorigin/matrixone/pkg/logservice"
@@ -187,3 +188,56 @@ func TestTruncate(t *testing.T) {
 
 	// assert.NoError(t, driver.Close())
 }
+
+// func Test1(t *testing.T) {
+// 	errs := make(map[string]string)
+// 	stack := make(map[string]string)
+// 	data, _ := os.ReadFile("/Users/zhangxu/Downloads/manually_integrate_test_reports/failed_1/w.log")
+// 	for _, line := range strings.Split(string(data), "\n") {
+// 		if line == "" {
+// 			continue
+// 		}
+
+// 		id := line[143:179]
+// 		msg := line[84:97]
+// 		if _, ok := errs[id]; ok {
+// 			continue
+// 		}
+
+// 		if _, ok := stack[id]; ok {
+// 			if msg != "read response" {
+// 				errs[id] = id
+// 				t.Log(id)
+// 				continue
+// 			}
+// 			delete(stack, id)
+// 		} else {
+// 			if msg != "write request" {
+// 				errs[id] = id
+// 				t.Log(id)
+// 				continue
+// 			}
+// 			stack[id] = msg
+// 		}
+// 	}
+// 	assert.Fail(t, "")
+// }
+
+// func Test2(t *testing.T) {
+// 	v := make([]byte, 100)
+// 	v[0] = 29
+
+// 	s := (*reflect.SliceHeader)(unsafe.Pointer(&v))
+// 	t.Log(s.Cap)
+// 	t.Log(s.Len)
+
+// 	v2 := v[5:]
+// 	s2 := (*reflect.SliceHeader)(unsafe.Pointer(&v2))
+// 	t.Log(s2.Cap)
+// 	t.Log(s2.Len)
+
+// 	p := (*int)(unsafe.Pointer(uintptr(unsafe.Pointer(&v2[0])) - unsafe.Sizeof(v2[0])))
+// 	assert.Equal(t, 30, *p)
+
+// 	assert.Equal(t, fmt.Sprintf("%p", v), fmt.Sprintf("%p", &v))
+// }
