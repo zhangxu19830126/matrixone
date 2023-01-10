@@ -18,9 +18,11 @@ import (
 	"bytes"
 	"context"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/runtime"
+	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/txn"
 	"github.com/matrixorigin/matrixone/pkg/txn/rpc"
@@ -115,6 +117,8 @@ type txnOperator struct {
 		closed       bool
 		txn          txn.TxnMeta
 		cachedWrites map[uint64][]txn.TxnRequest
+		startAt      time.Time
+		stopper      *stopper.Stopper
 	}
 }
 
@@ -125,12 +129,15 @@ func newTxnOperator(
 	options ...TxnOption) *txnOperator {
 	tc := &txnOperator{rt: rt, sender: sender}
 	tc.mu.txn = txnMeta
+	tc.mu.startAt = time.Now()
+	tc.mu.stopper = stopper.NewStopper("txn")
 	tc.txnID = txnMeta.ID
 	for _, opt := range options {
 		opt(tc)
 	}
 	tc.adjust()
 	util.LogTxnCreated(tc.rt.Logger(), txnMeta)
+	tc.mu.stopper.RunTask(tc.checkTimeout)
 	return tc
 }
 
@@ -153,6 +160,17 @@ func newTxnOperatorWithSnapshot(
 	tc.adjust()
 	util.LogTxnCreated(tc.rt.Logger(), tc.mu.txn)
 	return tc, nil
+}
+
+func (tc *txnOperator) checkTimeout(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(time.Minute * 10):
+		tc.mu.Lock()
+		defer tc.mu.Unlock()
+		panic(tc.mu.txn.DebugString())
+	}
 }
 
 func (tc *txnOperator) adjust() {
@@ -254,8 +272,15 @@ func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnReq
 	return tc.doWrite(ctx, requests, true)
 }
 
+func (tc *txnOperator) maybeStop() {
+	if tc.mu.stopper != nil {
+		tc.mu.stopper.Stop()
+	}
+}
+
 func (tc *txnOperator) Commit(ctx context.Context) error {
 	util.LogTxnCommit(tc.rt.Logger(), tc.getTxnMeta(false))
+	defer tc.maybeStop()
 
 	if tc.option.readyOnly {
 		return nil
@@ -273,6 +298,7 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 
 func (tc *txnOperator) Rollback(ctx context.Context) error {
 	util.LogTxnRollback(tc.rt.Logger(), tc.getTxnMeta(false))
+	defer tc.maybeStop()
 
 	tc.mu.Lock()
 	defer func() {

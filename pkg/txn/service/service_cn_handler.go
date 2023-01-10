@@ -377,6 +377,9 @@ func (s *service) startAsyncRollbackTask(txnMeta txn.TxnMeta) {
 }
 
 func (s *service) Debug(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	util.LogTxnHandleRequest(s.logger, request)
+	defer util.LogTxnHandleResult(s.logger, response)
+
 	data, err := s.storage.Debug(ctx, request.Txn, request.CNRequest.OpCode, request.CNRequest.Payload)
 	if err != nil {
 		response.TxnError = txn.WrapError(err, moerr.ErrTAEDebug)
