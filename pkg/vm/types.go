@@ -68,6 +68,10 @@ const (
 	OnDuplicateKey
 	PreInsert
 
+	// LockOp is used in pessimistic transactions and are added during
+	// the construction of a pipeline when insert, delete are performed.
+	LockOp
+
 	// LastInstructionOp is not a true operator and must set at last.
 	// It was used by unit testing to ensure that
 	// all functions related to instructions can reach 100% coverage.
