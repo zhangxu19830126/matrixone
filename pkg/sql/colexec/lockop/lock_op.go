@@ -1,4 +1,4 @@
-// Copyright 2021 Matrix Origin
+// Copyright 2023 Matrix Origin
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ func String(
 	v any,
 	buf *bytes.Buffer) {
 	arg := v.(*Argument)
-	buf.WriteString(fmt.Sprintf("table(%d)-pk(%d)",
-		arg.TableID,
-		arg.PrimaryKeyIndex))
+	buf.WriteString(fmt.Sprintf("lock-%s(%d)",
+		arg.TableName,
+		arg.TableID))
 }
 
 func Prepare(
@@ -41,7 +41,7 @@ func Prepare(
 func Call(
 	idx int,
 	proc *process.Process,
-	arg any,
+	v any,
 	isFirst bool,
 	isLast bool) (bool, error) {
 	bat := proc.InputBatch()
@@ -52,5 +52,8 @@ func Call(
 		return false, nil
 	}
 
+	arg := v.(*Argument)
+	pv := bat.GetVector(arg.PrimaryKeyIndex)
+	arg.rows = arg.fetcher(pv, arg.rows)
 	return false, nil
 }

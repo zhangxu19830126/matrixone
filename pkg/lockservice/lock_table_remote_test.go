@@ -41,7 +41,7 @@ func TestLockRemote(t *testing.T) {
 		},
 		func(l *remoteLockTable, s Server) {
 			txnID := []byte("txn1")
-			txn := newActiveTxn(txnID, string(txnID), newFixedSlicePool(32), "")
+			txn := newActiveTxn(txnID, string(txnID), NewFixedSlicePool(32), "")
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1000)
 			defer cancel()
 			assert.NoError(t, l.lock(ctx, txn, [][]byte{{1}}, pb.LockOptions{}))
@@ -66,7 +66,7 @@ func TestUnlockRemote(t *testing.T) {
 		},
 		func(l *remoteLockTable, s Server) {
 			txnID := []byte("txn1")
-			txn := newActiveTxn(txnID, string(txnID), newFixedSlicePool(32), "")
+			txn := newActiveTxn(txnID, string(txnID), NewFixedSlicePool(32), "")
 			l.unlock(txn, nil)
 		},
 		func(lt pb.LockTable) {},
@@ -108,7 +108,7 @@ func TestUnlockRemoteWithRetry(t *testing.T) {
 		},
 		func(l *remoteLockTable, s Server) {
 			txnID := []byte("txn1")
-			txn := newActiveTxn(txnID, string(txnID), newFixedSlicePool(32), "")
+			txn := newActiveTxn(txnID, string(txnID), NewFixedSlicePool(32), "")
 			l.unlock(txn, nil)
 			<-c
 		},
@@ -161,7 +161,7 @@ func TestRemoteWithBindChanged(t *testing.T) {
 		},
 		func(l *remoteLockTable, s Server) {
 			txnID := []byte("txn1")
-			txn := newActiveTxn(txnID, string(txnID), newFixedSlicePool(32), "")
+			txn := newActiveTxn(txnID, string(txnID), NewFixedSlicePool(32), "")
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 			assert.Error(t, ErrLockTableBindChanged,

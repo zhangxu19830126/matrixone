@@ -30,7 +30,7 @@ type service struct {
 	cfg              Config
 	tables           sync.Map // tableid -> locktable
 	activeTxnHolder  activeTxnHolder
-	fsp              *fixedSlicePool
+	fsp              *FixedSlicePool
 	deadlockDetector *detector
 	stopper          *stopper.Stopper
 	stopOnce         sync.Once
@@ -47,7 +47,7 @@ func NewLockService(cfg Config) LockService {
 	cfg.adjust()
 	s := &service{
 		cfg: cfg,
-		fsp: newFixedSlicePool(int(cfg.MaxFixedSliceSize)),
+		fsp: NewFixedSlicePool(int(cfg.MaxFixedSliceSize)),
 		stopper: stopper.NewStopper("lock-service",
 			stopper.WithLogger(getLogger().RawLogger())),
 	}
@@ -225,7 +225,7 @@ type activeTxnHolder interface {
 }
 
 type mapBasedTxnHolder struct {
-	fsp *fixedSlicePool
+	fsp *FixedSlicePool
 	mu  struct {
 		sync.RWMutex
 		// remoteServices known remote service
@@ -236,7 +236,7 @@ type mapBasedTxnHolder struct {
 	}
 }
 
-func newMapBasedTxnHandler(fsp *fixedSlicePool) activeTxnHolder {
+func newMapBasedTxnHandler(fsp *FixedSlicePool) activeTxnHolder {
 	h := &mapBasedTxnHolder{}
 	h.fsp = fsp
 	h.mu.activeTxns = make(map[string]*activeTxn, 1024)

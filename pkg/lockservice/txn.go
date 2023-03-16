@@ -30,7 +30,7 @@ type activeTxn struct {
 	sync.RWMutex
 	txnID         []byte
 	txnKey        string
-	fsp           *fixedSlicePool
+	fsp           *FixedSlicePool
 	blockedWaiter *waiter
 	holdLocks     map[uint64]*cowSlice
 	remoteService string
@@ -39,7 +39,7 @@ type activeTxn struct {
 func newActiveTxn(
 	txnID []byte,
 	txnKey string,
-	fsp *fixedSlicePool,
+	fsp *FixedSlicePool,
 	remoteService string) *activeTxn {
 	txn := txnPool.Get().(*activeTxn)
 	txn.Lock()
@@ -172,7 +172,7 @@ func (txn *activeTxn) fetchWhoWaitingMe(
 
 		locks := cs.slice()
 		hasDeadLock := false
-		locks.iter(func(lockKey []byte) bool {
+		locks.Iter(func(lockKey []byte) bool {
 			l.getLock(
 				txnID,
 				lockKey,

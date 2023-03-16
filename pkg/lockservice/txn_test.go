@@ -25,7 +25,7 @@ import (
 
 func TestLockAdded(t *testing.T) {
 	id := []byte("t1")
-	fsp := newFixedSlicePool(2)
+	fsp := NewFixedSlicePool(2)
 	txn := newActiveTxn(id, string(id), fsp, "")
 
 	txn.lockAdded(1, [][]byte{[]byte("k1")}, false)
@@ -37,17 +37,17 @@ func TestLockAdded(t *testing.T) {
 	sp := txn.holdLocks[1]
 	s := sp.slice()
 	defer s.unref()
-	assert.Equal(t, 2, s.len())
+	assert.Equal(t, 2, s.Len())
 
 	sp2 := txn.holdLocks[2]
 	s2 := sp2.slice()
 	defer s2.unref()
-	assert.Equal(t, 2, s2.len())
+	assert.Equal(t, 2, s2.Len())
 }
 
 func TestClose(t *testing.T) {
 	id := []byte("t1")
-	fsp := newFixedSlicePool(2)
+	fsp := NewFixedSlicePool(2)
 	txn := newActiveTxn(id, string(id), fsp, "")
 	tables := map[uint64]lockTable{
 		1: newLocalLockTable(pb.LockTable{Table: 1}, nil),

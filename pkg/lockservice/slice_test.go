@@ -21,29 +21,29 @@ import (
 )
 
 func TestNewFixedSlicePool(t *testing.T) {
-	assert.Equal(t, 1, len(newFixedSlicePool(1).slices))
-	assert.Equal(t, 2, len(newFixedSlicePool(2).slices))
-	assert.Equal(t, 3, len(newFixedSlicePool(3).slices))
-	assert.Equal(t, 3, len(newFixedSlicePool(4).slices))
-	assert.Equal(t, 4, len(newFixedSlicePool(5).slices))
-	assert.Equal(t, 4, len(newFixedSlicePool(6).slices))
-	assert.Equal(t, 4, len(newFixedSlicePool(7).slices))
-	assert.Equal(t, 4, len(newFixedSlicePool(8).slices))
+	assert.Equal(t, 1, len(NewFixedSlicePool(1).slices))
+	assert.Equal(t, 2, len(NewFixedSlicePool(2).slices))
+	assert.Equal(t, 3, len(NewFixedSlicePool(3).slices))
+	assert.Equal(t, 3, len(NewFixedSlicePool(4).slices))
+	assert.Equal(t, 4, len(NewFixedSlicePool(5).slices))
+	assert.Equal(t, 4, len(NewFixedSlicePool(6).slices))
+	assert.Equal(t, 4, len(NewFixedSlicePool(7).slices))
+	assert.Equal(t, 4, len(NewFixedSlicePool(8).slices))
 }
 
 func TestAcquire(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs := fsp.acquire(1)
-	assert.Equal(t, 1, fs.cap())
-	fs.close()
+	fsp := NewFixedSlicePool(16)
+	fs := fsp.Acquire(1)
+	assert.Equal(t, 1, fs.Cap())
+	fs.Close()
 
-	fs = fsp.acquire(3)
-	assert.Equal(t, 4, fs.cap())
-	fs.close()
+	fs = fsp.Acquire(3)
+	assert.Equal(t, 4, fs.Cap())
+	fs.Close()
 
-	fs = fsp.acquire(5)
-	assert.Equal(t, 8, fs.cap())
-	fs.close()
+	fs = fsp.Acquire(5)
+	assert.Equal(t, 8, fs.Cap())
+	fs.Close()
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -51,13 +51,13 @@ func TestAcquire(t *testing.T) {
 		}
 		assert.Fail(t, "must panic")
 	}()
-	fsp.acquire(1024)
+	fsp.Acquire(1024)
 }
 
 func TestRelease(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs := fsp.acquire(1)
-	fsp.release(fs)
+	fsp := NewFixedSlicePool(16)
+	fs := fsp.Acquire(1)
+	fsp.Release(fs)
 	assert.Equal(t, uint64(1), fsp.releaseV.Load())
 
 	defer func() {
@@ -66,51 +66,51 @@ func TestRelease(t *testing.T) {
 		}
 		assert.Fail(t, "must panic")
 	}()
-	fs = fsp.acquire(1)
+	fs = fsp.Acquire(1)
 	fs.values = make([][]byte, 1024)
-	fsp.release(fs)
+	fsp.Release(fs)
 }
 
 func TestFixedSliceAppend(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs := fsp.acquire(4)
-	defer fs.close()
+	fsp := NewFixedSlicePool(16)
+	fs := fsp.Acquire(4)
+	defer fs.Close()
 
 	for i := byte(0); i < 4; i++ {
-		fs.append([][]byte{{i}})
-		assert.Equal(t, int(i+1), fs.len())
+		fs.Append([][]byte{{i}})
+		assert.Equal(t, int(i+1), fs.Len())
 	}
 }
 
 func TestFixedSliceJoin(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs1 := fsp.acquire(4)
-	defer fs1.close()
+	fsp := NewFixedSlicePool(16)
+	fs1 := fsp.Acquire(4)
+	defer fs1.Close()
 
-	fs2 := fsp.acquire(1)
-	defer fs2.close()
-	fs2.append([][]byte{{1}})
+	fs2 := fsp.Acquire(1)
+	defer fs2.Close()
+	fs2.Append([][]byte{{1}})
 
-	fs1.join(fs2, [][]byte{{2}})
-	assert.Equal(t, 2, fs1.len())
-	assert.Equal(t, [][]byte{{1}, {2}}, fs1.values[:fs1.len()])
+	fs1.Join(fs2, [][]byte{{2}})
+	assert.Equal(t, 2, fs1.Len())
+	assert.Equal(t, [][]byte{{1}, {2}}, fs1.values[:fs1.Len()])
 }
 
 func TestFxiedSliceRefAndUnRef(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs := fsp.acquire(1)
+	fsp := NewFixedSlicePool(16)
+	fs := fsp.Acquire(1)
 	assert.Equal(t, int32(1), fs.atomic.ref.Load())
 	fs.ref()
 	assert.Equal(t, int32(2), fs.atomic.ref.Load())
-	fs.append([][]byte{{1}})
+	fs.Append([][]byte{{1}})
 
 	fs.unref()
 	assert.Equal(t, int32(1), fs.atomic.ref.Load())
-	assert.Equal(t, 1, fs.len())
+	assert.Equal(t, 1, fs.Len())
 
 	fs.unref()
 	assert.Equal(t, int32(0), fs.atomic.ref.Load())
-	assert.Equal(t, 0, fs.len())
+	assert.Equal(t, 0, fs.Len())
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -122,23 +122,23 @@ func TestFxiedSliceRefAndUnRef(t *testing.T) {
 }
 
 func TestFxiedSliceIter(t *testing.T) {
-	fsp := newFixedSlicePool(16)
-	fs := fsp.acquire(4)
-	defer fs.close()
+	fsp := NewFixedSlicePool(16)
+	fs := fsp.Acquire(4)
+	defer fs.Close()
 
 	for i := byte(0); i < 4; i++ {
-		fs.append([][]byte{{i}})
+		fs.Append([][]byte{{i}})
 	}
 
 	var values [][]byte
-	fs.iter(func(b []byte) bool {
+	fs.Iter(func(b []byte) bool {
 		values = append(values, b)
 		return true
 	})
-	assert.Equal(t, fs.values[:fs.len()], values)
+	assert.Equal(t, fs.values[:fs.Len()], values)
 
 	values = values[:0]
-	fs.iter(func(b []byte) bool {
+	fs.Iter(func(b []byte) bool {
 		values = append(values, b)
 		return false
 	})
@@ -146,44 +146,44 @@ func TestFxiedSliceIter(t *testing.T) {
 }
 
 func TestCowSliceAppend(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}, {2}, {3}})
-	assert.Equal(t, 4, cs.fs.Load().(*fixedSlice).cap())
+	assert.Equal(t, 4, cs.fs.Load().(*FixedSlice).Cap())
 	assert.Equal(t, uint64(1), fsp.acquireV.Load())
 
 	cs.append([][]byte{{4}})
-	assert.Equal(t, 4, cs.fs.Load().(*fixedSlice).cap())
+	assert.Equal(t, 4, cs.fs.Load().(*FixedSlice).Cap())
 	assert.Equal(t, uint64(1), fsp.acquireV.Load())
 
 	assert.Equal(t, [][]byte{{1}, {2}, {3}, {4}},
-		cs.fs.Load().(*fixedSlice).values[:cs.fs.Load().(*fixedSlice).len()])
+		cs.fs.Load().(*FixedSlice).values[:cs.fs.Load().(*FixedSlice).Len()])
 }
 
 func TestCowSliceAppendWithCow(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}})
-	assert.Equal(t, 1, cs.fs.Load().(*fixedSlice).cap())
+	assert.Equal(t, 1, cs.fs.Load().(*FixedSlice).Cap())
 	assert.Equal(t, uint64(1), fsp.acquireV.Load())
 
 	cs.append([][]byte{{2}})
-	assert.Equal(t, 2, cs.fs.Load().(*fixedSlice).cap())
+	assert.Equal(t, 2, cs.fs.Load().(*FixedSlice).Cap())
 	assert.Equal(t, uint64(2), fsp.acquireV.Load())
 
 	assert.Equal(t, [][]byte{{1}, {2}},
-		cs.fs.Load().(*fixedSlice).values[:cs.fs.Load().(*fixedSlice).len()])
+		cs.fs.Load().(*FixedSlice).values[:cs.fs.Load().(*FixedSlice).Len()])
 }
 
 func TestCowSliceRead(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}})
 
 	s := cs.slice()
-	assert.Equal(t, [][]byte{{1}}, s.values[:s.len()])
+	assert.Equal(t, [][]byte{{1}}, s.values[:s.Len()])
 
 	cs.append([][]byte{{2}})
 	assert.Equal(t, uint64(0), fsp.releaseV.Load())
 
-	assert.Equal(t, [][]byte{{1}}, s.values[:s.len()])
+	assert.Equal(t, [][]byte{{1}}, s.values[:s.Len()])
 	s.unref()
 	assert.Equal(t, uint64(1), fsp.releaseV.Load())
 
@@ -192,9 +192,9 @@ func TestCowSliceRead(t *testing.T) {
 }
 
 func TestCowSliceAppendConcurrentWithSliceGetNew(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}})
-	var s *fixedSlice
+	var s *FixedSlice
 	n := 0
 	cs.hack.replace = func() {
 		if s == nil {
@@ -208,9 +208,9 @@ func TestCowSliceAppendConcurrentWithSliceGetNew(t *testing.T) {
 }
 
 func TestCowSliceAppendConcurrentWithSliceGetOld(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}})
-	old := cs.fs.Load().(*fixedSlice)
+	old := cs.fs.Load().(*FixedSlice)
 	n := 0
 	cs.hack.replace = func() {
 		if n == 0 {
@@ -228,7 +228,7 @@ func TestCowSliceAppendConcurrentWithSliceGetOld(t *testing.T) {
 }
 
 func TestCowSliceSliceReadConcurrentWithAppend(t *testing.T) {
-	fsp := newFixedSlicePool(16)
+	fsp := NewFixedSlicePool(16)
 	cs := newCowSlice(fsp, [][]byte{{1}})
 
 	n := 0
@@ -239,10 +239,10 @@ func TestCowSliceSliceReadConcurrentWithAppend(t *testing.T) {
 		n++
 	}
 	s := cs.slice()
-	assert.Equal(t, [][]byte{{1}, {2}}, s.values[:s.len()])
+	assert.Equal(t, [][]byte{{1}, {2}}, s.values[:s.Len()])
 	s.unref()
 	assert.Equal(t, uint64(1), fsp.releaseV.Load())
 
-	s.close()
+	s.Close()
 	assert.Equal(t, uint64(2), fsp.releaseV.Load())
 }

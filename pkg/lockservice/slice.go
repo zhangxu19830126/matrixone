@@ -34,7 +34,7 @@ var (
 // and is lock-free. The cowSlice supports a single-write-multiple-read concurrency
 // model for a transaction.
 type cowSlice struct {
-	fsp *fixedSlicePool
+	fsp *FixedSlicePool
 	fs  atomic.Value // *fixedSlice
 	v   atomic.Uint64
 
@@ -46,34 +46,34 @@ type cowSlice struct {
 }
 
 func newCowSlice(
-	fsp *fixedSlicePool,
+	fsp *FixedSlicePool,
 	values [][]byte) *cowSlice {
 	cs := cowSlicePool.Get().(*cowSlice)
 	cs.fsp = fsp
-	fs := fsp.acquire(len(values))
-	fs.append(values)
+	fs := fsp.Acquire(len(values))
+	fs.Append(values)
 	cs.fs.Store(fs)
 	return cs
 }
 
 func (cs *cowSlice) append(values [][]byte) {
 	old := cs.mustGet()
-	capacity := old.cap()
-	newLen := len(values) + old.len()
+	capacity := old.Cap()
+	newLen := len(values) + old.Len()
 	if capacity >= newLen {
-		old.append(values)
+		old.Append(values)
 		return
 	}
 
 	// COW(copy-on-write), which needs to be copied once for each expansion, but for
 	// [][]byte lock information, only the []byte pointer needs to be copied and the
 	// overhead can be ignored.
-	new := cs.fsp.acquire(newLen)
-	new.join(old, values)
+	new := cs.fsp.Acquire(newLen)
+	new.Join(old, values)
 	cs.replace(old, new)
 }
 
-func (cs *cowSlice) replace(old, new *fixedSlice) {
+func (cs *cowSlice) replace(old, new *FixedSlice) {
 	cs.fs.Store(new)
 	for {
 		v := cs.v.Load()
@@ -88,7 +88,7 @@ func (cs *cowSlice) replace(old, new *fixedSlice) {
 	}
 }
 
-func (cs *cowSlice) slice() *fixedSlice {
+func (cs *cowSlice) slice() *FixedSlice {
 	for {
 		v := cs.v.Load()
 		// In either case, if we get an incorrect fs, the following atomic operation
@@ -113,44 +113,44 @@ func (cs *cowSlice) close() {
 	cowSlicePool.Put(cs)
 }
 
-func (cs *cowSlice) mustGet() *fixedSlice {
+func (cs *cowSlice) mustGet() *FixedSlice {
 	v := cs.fs.Load()
 	if v == nil {
 		panic("BUG: must can get slice")
 	}
-	return v.(*fixedSlice)
+	return v.(*FixedSlice)
 }
 
-// fixedSlice is fixed capacity [][]byte slice
-type fixedSlice struct {
+// FixedSlice is fixed capacity [][]byte slice
+type FixedSlice struct {
 	values [][]byte
-	sp     *fixedSlicePool
+	sp     *FixedSlicePool
 	atomic struct {
 		len atomic.Uint32
 		ref atomic.Int32
 	}
 }
 
-func (s *fixedSlice) join(
-	other *fixedSlice,
+func (s *FixedSlice) Join(
+	other *FixedSlice,
 	values [][]byte) {
-	n := other.len()
+	n := other.Len()
 	copy(s.values, other.values[:n])
 	copy(s.values[n:n+len(values)], values)
 	s.atomic.len.Store(uint32(n + len(values)))
 }
 
-func (s *fixedSlice) append(values [][]byte) {
+func (s *FixedSlice) Append(values [][]byte) {
 	n := len(values)
-	offset := s.len()
+	offset := s.Len()
 	for i := 0; i < n; i++ {
 		s.values[offset+i] = values[i]
 	}
 	s.atomic.len.Add(uint32(len(values)))
 }
 
-func (s *fixedSlice) iter(fn func([]byte) bool) {
-	n := s.len()
+func (s *FixedSlice) Iter(fn func([]byte) bool) {
+	n := s.Len()
 	for i := 0; i < n; i++ {
 		if !fn(s.values[i]) {
 			return
@@ -158,22 +158,22 @@ func (s *fixedSlice) iter(fn func([]byte) bool) {
 	}
 }
 
-func (s *fixedSlice) len() int {
+func (s *FixedSlice) Len() int {
 	return int(s.atomic.len.Load())
 }
 
-func (s *fixedSlice) cap() int {
+func (s *FixedSlice) Cap() int {
 	return cap(s.values)
 }
 
-func (s *fixedSlice) ref() {
+func (s *FixedSlice) ref() {
 	s.atomic.ref.Add(1)
 }
 
-func (s *fixedSlice) unref() {
+func (s *FixedSlice) unref() {
 	n := s.atomic.ref.Add(-1)
 	if n == 0 {
-		s.close()
+		s.Close()
 		return
 	}
 	if n < 0 {
@@ -181,30 +181,31 @@ func (s *fixedSlice) unref() {
 	}
 }
 
-func (s *fixedSlice) close() {
+func (s *FixedSlice) Close() {
 	for i := range s.values {
 		s.values[i] = nil
 	}
 	s.atomic.len.Store(0)
-	s.sp.release(s)
+	s.sp.Release(s)
 }
 
-// fixedSlicePool maintains a set of sync.pool, each of which is used to store a specified
+// FixedSlicePool maintains a set of sync.pool, each of which is used to store a specified
 // size of slice. The size of the slice increases in multiples of 2.
-type fixedSlicePool struct {
+type FixedSlicePool struct {
 	slices   []sync.Pool
 	acquireV atomic.Uint64
 	releaseV atomic.Uint64
 }
 
-func newFixedSlicePool(max int) *fixedSlicePool {
-	sp := &fixedSlicePool{}
+// NewFixedSlicePool create a fixed slice pool
+func NewFixedSlicePool(max int) *FixedSlicePool {
+	sp := &FixedSlicePool{}
 	max = roundUp(max)
 	for i := 1; i <= max; {
 		cap := i
 		sp.slices = append(sp.slices, sync.Pool{
 			New: func() any {
-				s := &fixedSlice{values: make([][]byte, cap), sp: sp}
+				s := &FixedSlice{values: make([][]byte, cap), sp: sp}
 				return s
 			}})
 		i = i << 1
@@ -212,7 +213,7 @@ func newFixedSlicePool(max int) *fixedSlicePool {
 	return sp
 }
 
-func (sp *fixedSlicePool) acquire(n int) *fixedSlice {
+func (sp *FixedSlicePool) Acquire(n int) *FixedSlice {
 	sp.acquireV.Add(1)
 	n = roundUp(n)
 	i := int(math.Log2(float64(n)))
@@ -221,14 +222,14 @@ func (sp *fixedSlicePool) acquire(n int) *fixedSlice {
 			n,
 			1<<(len(sp.slices)-1)))
 	}
-	s := sp.slices[i].Get().(*fixedSlice)
+	s := sp.slices[i].Get().(*FixedSlice)
 	s.ref()
 	return s
 }
 
-func (sp *fixedSlicePool) release(s *fixedSlice) {
+func (sp *FixedSlicePool) Release(s *FixedSlice) {
 	sp.releaseV.Add(1)
-	n := s.cap()
+	n := s.Cap()
 	i := int(math.Log2(float64(n)))
 	if i >= len(sp.slices) {
 		panic(fmt.Sprintf("too large fixed slice %d, max is %d",

@@ -15,8 +15,10 @@
 package lockop
 
 import (
+	"go/types"
 	"sync"
 
+	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -29,13 +31,23 @@ var (
 	}
 )
 
+// fetchRowsFunc fetch rows from vector.
+type fetchRowsFunc func(vec *vector.Vector, rows [][]byte) [][]byte
+
 type Argument struct {
 	// TableID table id
 	TableID uint64
+	// TableName table name
+	TableName string
 	// PrimaryKeyIndex primary key index in table columns
-	PrimaryKeyIndex int
+	PrimaryKeyIndex int32
+	// PrimaryType primary key type
+	PrimaryType types.Type
 	// Service lock service
 	Service lockservice.LockService
+
+	rows    [][]byte
+	fetcher fetchRowsFunc
 }
 
 // NewArgument create new argument
@@ -48,4 +60,8 @@ func (arg *Argument) Free(
 	proc *process.Process,
 	pipelineFailed bool) {
 	argPool.Put(arg)
+}
+
+func (arg *Argument) reset() {
+	arg.rows = arg.rows[:0]
 }

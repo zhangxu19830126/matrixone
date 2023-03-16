@@ -108,7 +108,7 @@ func (l *localLockTable) unlock(
 		return
 	}
 
-	locks.iter(func(key []byte) bool {
+	locks.Iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
 				lock.waiter.clearAllNotify("unlock")
