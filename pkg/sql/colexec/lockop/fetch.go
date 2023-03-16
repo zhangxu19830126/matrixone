@@ -17,8 +17,10 @@ package lockop
 import (
 	"fmt"
 
+	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
+	"github.com/matrixorigin/matrixone/pkg/lockservice"
 )
 
 func getFetchRowsFunc(t types.Type) fetchRowsFunc {
@@ -180,7 +182,11 @@ func getFetchRowsFunc(t types.Type) fetchRowsFunc {
 
 func fetchBoolRows(
 	vec *vector.Vector,
-	rows [][]byte) [][]byte {
+	mp *mpool.MPool,
+	p lockservice.FixedSlicePool) *lockservice.FixedSlice {
+	rows := p.Acquire(2)
+	mp.Alloc(2)
+
 	cols := vector.MustFixedCol[int](vec)
 	col2s := vector.MustFixedCol[types.Varlena](vec)
 	data := vec.GetArea()
