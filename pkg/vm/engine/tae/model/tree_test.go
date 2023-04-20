@@ -12,26 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+package model
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/testutils"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFile(t *testing.T) {
+func TestTree(t *testing.T) {
 	defer testutils.AfterTest(t)()
-	mf := NewMemFile(0)
-	stat := mf.Stat()
-	assert.Equal(t, stat.Size(), int64(0))
-	assert.Equal(t, stat.Name(), "")
-	assert.Equal(t, stat.CompressAlgo(), 0)
-	assert.Equal(t, stat.OriginSize(), int64(0))
-	assert.Equal(t, mf.GetFileType(), MemFile)
-	mf.Ref()
-	mf.Unref()
-	_, err := mf.Read(make([]byte, 0))
-	assert.Nil(t, err)
+	tree := NewTree()
+	seg1 := objectio.NewSegmentid()
+	tree.AddSegment(1, 2, objectio.NewSegmentid())
+	tree.AddBlock(4, 5, seg1, objectio.NewBlockid(&seg1, 0, 0))
+	tree.AddBlock(4, 5, seg1, objectio.NewBlockid(&seg1, 1, 0))
+	tree.AddBlock(4, 5, seg1, objectio.NewBlockid(&seg1, 2, 0))
+	t.Log(tree.String())
+	assert.Equal(t, 2, tree.TableCount())
+
+	var w bytes.Buffer
+	_, err := tree.WriteTo(&w)
+	assert.NoError(t, err)
+
+	tree2 := NewTree()
+	_, err = tree2.ReadFrom(&w)
+	assert.NoError(t, err)
+	t.Log(tree2.String())
+	assert.True(t, tree.Equal(tree2))
 }

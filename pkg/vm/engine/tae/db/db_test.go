@@ -397,7 +397,7 @@ func TestNonAppendableBlock(t *testing.T) {
 		name := objectio.BuildObjectName(uuid, 0)
 		writer, err := blockio.NewBlockWriterNew(dataBlk.GetFs().Service, name)
 		assert.Nil(t, err)
-		_, err = writer.WriteBlock(bat)
+		_, err = writer.WriteBatch(containers.ToCNBatch(bat))
 		assert.Nil(t, err)
 		blocks, _, err := writer.Sync(context.Background())
 		assert.Nil(t, err)
@@ -925,8 +925,6 @@ func TestAutoCompactABlk2(t *testing.T) {
 	testutils.EnsureNoLeak(t)
 	opts := new(options.Options)
 	opts.CacheCfg = new(options.CacheCfg)
-	opts.CacheCfg.InsertCapacity = common.M * 5
-	opts.CacheCfg.TxnCapacity = common.M
 	opts = config.WithQuickScanAndCKPOpts(opts)
 	db := initDB(t, opts)
 	defer db.Close()
@@ -989,7 +987,6 @@ func TestAutoCompactABlk2(t *testing.T) {
 		return db.Scheduler.GetPenddingLSNCnt() == 0
 	})
 	assert.Equal(t, uint64(0), db.Scheduler.GetPenddingLSNCnt())
-	t.Log(db.MTBufMgr.String())
 	t.Log(db.Catalog.SimplePPString(common.PPL1))
 	t.Logf("GetPenddingLSNCnt: %d", db.Scheduler.GetPenddingLSNCnt())
 	t.Logf("GetCheckpointed: %d", db.Scheduler.GetCheckpointedLSN())
@@ -1230,8 +1227,6 @@ func TestUnload1(t *testing.T) {
 	testutils.EnsureNoLeak(t)
 	opts := new(options.Options)
 	opts.CacheCfg = new(options.CacheCfg)
-	opts.CacheCfg.InsertCapacity = common.K
-	opts.CacheCfg.TxnCapacity = common.M
 	db := initDB(t, opts)
 	defer db.Close()
 
@@ -1275,8 +1270,6 @@ func TestUnload2(t *testing.T) {
 	testutils.EnsureNoLeak(t)
 	opts := new(options.Options)
 	opts.CacheCfg = new(options.CacheCfg)
-	opts.CacheCfg.InsertCapacity = common.K*4 - common.K/2
-	opts.CacheCfg.TxnCapacity = common.M
 	db := initDB(t, opts)
 	defer db.Close()
 
@@ -1338,9 +1331,6 @@ func TestUnload2(t *testing.T) {
 		}
 		_ = txn.Commit()
 	}
-
-	t.Log(db.MTBufMgr.String())
-	// t.Log(db.Opts.Catalog.SimplePPString(common.PPL1))
 }
 
 func TestDelete1(t *testing.T) {
@@ -4708,12 +4698,12 @@ func TestAlwaysUpdate(t *testing.T) {
 	metalocs := make([]objectio.Location, 0, 100)
 	// write only one segment
 	for i := 0; i < 1; i++ {
-		objName1 := common.NewSegmentid().ToString() + "-0"
+		objName1 := objectio.NewSegmentid().ToString() + "-0"
 		writer, err := blockio.NewBlockWriter(tae.Fs.Service, objName1)
 		assert.Nil(t, err)
 		writer.SetPrimaryKey(3)
 		for _, bat := range bats[i*25 : (i+1)*25] {
-			_, err := writer.WriteBlock(bat)
+			_, err := writer.WriteBatch(containers.ToCNBatch(bat))
 			assert.Nil(t, err)
 		}
 		blocks, _, err := writer.Sync(context.Background())
@@ -5154,8 +5144,6 @@ func TestAppendAndGC(t *testing.T) {
 	testutils.EnsureNoLeak(t)
 	opts := new(options.Options)
 	opts.CacheCfg = new(options.CacheCfg)
-	opts.CacheCfg.InsertCapacity = common.M * 5
-	opts.CacheCfg.TxnCapacity = common.M
 	opts = config.WithQuickScanAndCKPOpts(opts)
 	options.WithDisableGCCheckpoint()(opts)
 	tae := newTestEngine(t, opts)

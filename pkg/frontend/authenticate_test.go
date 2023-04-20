@@ -587,6 +587,7 @@ func Test_determinePrivilege(t *testing.T) {
 		{stmt: &tree.PrepareStmt{}},
 		{stmt: &tree.PrepareString{}},
 		{stmt: &tree.Deallocate{}},
+		{stmt: &tree.ShowBackendServers{}},
 	}
 
 	for i := 0; i < len(args); i++ {
@@ -7409,7 +7410,7 @@ func TestDoCreatePublication(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.Background()
 	ses := newTestSession(t, ctrl)
-	defer ses.Dispose()
+	defer ses.Close()
 
 	tenant := &TenantInfo{
 		Tenant:        sysAccountName,
@@ -7467,7 +7468,7 @@ func TestDoDropPublication(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.Background()
 	ses := newTestSession(t, ctrl)
-	defer ses.Dispose()
+	defer ses.Close()
 
 	tenant := &TenantInfo{
 		Tenant:        sysAccountName,
@@ -7509,7 +7510,7 @@ func TestDoAlterPublication(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.Background()
 	ses := newTestSession(t, ctrl)
-	defer ses.Dispose()
+	defer ses.Close()
 
 	tenant := &TenantInfo{
 		Tenant:        sysAccountName,
@@ -7642,7 +7643,7 @@ func TestCheckSubscriptionValid(t *testing.T) {
 	defer ctrl.Finish()
 	ctx := context.Background()
 	ses := newTestSession(t, ctrl)
-	defer ses.Dispose()
+	defer ses.Close()
 
 	tenant := &TenantInfo{
 		Tenant:        sysAccountName,

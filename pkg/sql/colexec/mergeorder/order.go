@@ -86,7 +86,6 @@ func Call(idx int, proc *process.Process, arg any, isFirst bool, isLast bool) (b
 			continue
 		}
 		anal.Input(bat, isFirst)
-		bat.ExpandNulls()
 
 		if err = mergeSort(proc, bat, ap, ctr, anal); err != nil {
 			break
@@ -104,7 +103,6 @@ func Call(idx int, proc *process.Process, arg any, isFirst bool, isLast bool) (b
 			ctr.bat.Vecs[i].Free(proc.Mp())
 		}
 		ctr.bat.Vecs = ctr.bat.Vecs[:ctr.n]
-		ctr.bat.ExpandNulls()
 	}
 	if err = ctr.bat.Shuffle(ctr.finalSelectList, proc.Mp()); err != nil {
 		ap.Free(proc, true)
@@ -128,6 +126,7 @@ func receiveBatch(proc *process.Process, ctr *container) (*batch.Batch, bool, er
 	}
 	chosen, value, ok := reflect.Select(ctr.receiverListener)
 	if !ok {
+		ctr.receiverListener = append(ctr.receiverListener[:chosen], ctr.receiverListener[chosen+1:]...)
 		logutil.Errorf("pipeline closed unexpectedly")
 		return nil, true, nil
 	}

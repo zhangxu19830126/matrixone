@@ -420,7 +420,7 @@ func (tbl *txnTable) LogTxnEntry(entry txnif.TxnEntry, readed []*common.ID) (err
 	tbl.txnEntries.Append(entry)
 	for _, id := range readed {
 		// warChecker skip non-block read
-		if common.IsEmptyBlkid(&id.BlockID) {
+		if objectio.IsEmptyBlkid(&id.BlockID) {
 			continue
 		}
 
@@ -604,7 +604,7 @@ func (tbl *txnTable) AddBlksWithMetaLoc(
 				if err != nil {
 					return err
 				}
-				vec := containers.NewVectorWithSharedMemory(bat.Vecs[0])
+				vec := containers.ToDNVector(bat.Vecs[0])
 				pkVecs = append(pkVecs, vec)
 			}
 			for _, v := range pkVecs {
@@ -920,7 +920,7 @@ func (tbl *txnTable) DedupSnapByMetaLocs(metaLocs []objectio.Location) (err erro
 				if err != nil {
 					return err
 				}
-				vec := containers.NewVectorWithSharedMemory(bat.Vecs[0])
+				vec := containers.ToDNVector(bat.Vecs[0])
 				loaded[i] = vec
 			}
 			if err = blkData.BatchDedup(tbl.store.txn, loaded[i], rowmask, false); err != nil {

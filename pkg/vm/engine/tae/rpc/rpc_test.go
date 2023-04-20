@@ -36,7 +36,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/catalog"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/common"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/containers"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/mergesort"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/moengine"
@@ -92,21 +91,21 @@ func TestHandle_HandleCommitPerformanceForS3Load(t *testing.T) {
 	//assert.Nil(t, err)
 
 	//moBats := make([]*batch.Batch, 4)
-	//moBats[0] = containers.CopyToMoBatch(taeBats[0])
-	//moBats[1] = containers.CopyToMoBatch(taeBats[1])
-	//moBats[2] = containers.CopyToMoBatch(taeBats[2])
-	//moBats[3] = containers.CopyToMoBatch(taeBats[3])
+	//moBats[0] = containers.CopyToCNBatch(taeBats[0])
+	//moBats[1] = containers.CopyToCNBatch(taeBats[1])
+	//moBats[2] = containers.CopyToCNBatch(taeBats[2])
+	//moBats[3] = containers.CopyToCNBatch(taeBats[3])
 
 	var objNames []objectio.ObjectName
 	var blkMetas []string
 	offset := 0
 	for i := 0; i < 100; i++ {
-		name := objectio.BuildObjectName(common.NewSegmentid(), 0)
+		name := objectio.BuildObjectName(objectio.NewSegmentid(), 0)
 		objNames = append(objNames, name)
 		writer, err := blockio.NewBlockWriterNew(fs, objNames[i])
 		assert.Nil(t, err)
 		for i := 0; i < 50; i++ {
-			_, err := writer.WriteBlock(taeBats[offset+i])
+			_, err := writer.WriteBatch(containers.ToCNBatch(taeBats[offset+i]))
 			assert.Nil(t, err)
 			//offset++
 		}
@@ -192,7 +191,7 @@ func TestHandle_HandleCommitPerformanceForS3Load(t *testing.T) {
 			metaLocBat.Vecs[0].Append([]byte(blkMetas[offset+i]), false)
 		}
 		offset += 50
-		metaLocMoBat := containers.CopyToMoBatch(metaLocBat)
+		metaLocMoBat := containers.CopyToCNBatch(metaLocBat)
 		addS3BlkEntry, err := makePBEntry(INSERT, dbTestID,
 			tbTestID, dbName, schema.Name, obj.String(), metaLocMoBat)
 		assert.NoError(t, err)
@@ -263,13 +262,13 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	assert.Nil(t, err)
 
 	moBats := make([]*batch.Batch, 4)
-	moBats[0] = containers.CopyToMoBatch(taeBats[0])
-	moBats[1] = containers.CopyToMoBatch(taeBats[1])
-	moBats[2] = containers.CopyToMoBatch(taeBats[2])
-	moBats[3] = containers.CopyToMoBatch(taeBats[3])
+	moBats[0] = containers.CopyToCNBatch(taeBats[0])
+	moBats[1] = containers.CopyToCNBatch(taeBats[1])
+	moBats[2] = containers.CopyToCNBatch(taeBats[2])
+	moBats[3] = containers.CopyToCNBatch(taeBats[3])
 
 	//write taeBats[0], taeBats[1] two blocks into file service
-	objName1 := objectio.BuildObjectName(common.NewSegmentid(), 0)
+	objName1 := objectio.BuildObjectName(objectio.NewSegmentid(), 0)
 	writer, err := blockio.NewBlockWriterNew(fs, objName1)
 	assert.Nil(t, err)
 	writer.SetPrimaryKey(1)
@@ -277,7 +276,7 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 		if i == 2 {
 			break
 		}
-		_, err := writer.WriteBlock(bat)
+		_, err := writer.WriteBatch(containers.ToCNBatch(bat))
 		assert.Nil(t, err)
 	}
 	blocks, _, err := writer.Sync(context.Background())
@@ -299,11 +298,11 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	assert.Nil(t, err)
 
 	//write taeBats[3] into file service
-	objName2 := objectio.BuildObjectName(common.NewSegmentid(), 0)
+	objName2 := objectio.BuildObjectName(objectio.NewSegmentid(), 0)
 	writer, err = blockio.NewBlockWriterNew(fs, objName2)
 	assert.Nil(t, err)
 	writer.SetPrimaryKey(1)
-	_, err = writer.WriteBlock(taeBats[3])
+	_, err = writer.WriteBatch(containers.ToCNBatch(taeBats[3]))
 	assert.Nil(t, err)
 	blocks, _, err = writer.Sync(context.Background())
 	assert.Equal(t, 1, len(blocks))
@@ -383,7 +382,7 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	metaLocBat1 := containers.BuildBatch(attrs, vecTypes, vecOpts)
 	metaLocBat1.Vecs[0].Append([]byte(metaLoc1), false)
 	metaLocBat1.Vecs[0].Append([]byte(metaLoc2), false)
-	metaLocMoBat1 := containers.CopyToMoBatch(metaLocBat1)
+	metaLocMoBat1 := containers.CopyToCNBatch(metaLocBat1)
 	addS3BlkEntry1, err := makePBEntry(INSERT, dbTestID,
 		tbTestID, dbName, schema.Name, objName1.String(), metaLocMoBat1)
 	assert.NoError(t, err)
@@ -396,7 +395,7 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	//add one non-appendable block from S3 into "tbtest" table
 	metaLocBat2 := containers.BuildBatch(attrs, vecTypes, vecOpts)
 	metaLocBat2.Vecs[0].Append([]byte(metaLoc3), false)
-	metaLocMoBat2 := containers.CopyToMoBatch(metaLocBat2)
+	metaLocMoBat2 := containers.CopyToCNBatch(metaLocBat2)
 	addS3BlkEntry2, err := makePBEntry(INSERT, dbTestID,
 		tbTestID, dbName, schema.Name, objName2.String(), metaLocMoBat2)
 	assert.NoError(t, err)
@@ -463,13 +462,13 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	assert.Nil(t, err)
 
 	//write deleted row ids into FS
-	objName3 := objectio.BuildObjectName(common.NewSegmentid(), 0)
+	objName3 := objectio.BuildObjectName(objectio.NewSegmentid(), 0)
 	writer, err = blockio.NewBlockWriterNew(fs, objName3)
 	assert.Nil(t, err)
 	for _, bat := range hideBats {
 		taeBat := toTAEBatchWithSharedMemory(schema, bat)
 		//defer taeBat.Close()
-		_, err := writer.WriteBlockWithOutIndex(taeBat)
+		_, err := writer.WriteBatchWithOutIndex(containers.ToCNBatch(taeBat))
 		assert.Nil(t, err)
 	}
 	blocks, _, err = writer.Sync(context.Background())
@@ -516,7 +515,7 @@ func TestHandle_HandlePreCommitWriteS3(t *testing.T) {
 	delLocBat.Vecs[0].Append([]byte(delLoc3), false)
 	delLocBat.Vecs[0].Append([]byte(delLoc4), false)
 
-	delLocMoBat := containers.CopyToMoBatch(delLocBat)
+	delLocMoBat := containers.CopyToCNBatch(delLocBat)
 	var delApiEntries []*api.Entry
 	deleteS3BlkEntry, err := makePBEntry(DELETE, dbTestID,
 		tbTestID, dbName, schema.Name, objName3.String(), delLocMoBat)
@@ -703,7 +702,7 @@ func TestHandle_HandlePreCommit1PC(t *testing.T) {
 
 	//DML: insert batch into table
 	insertTxn := mock1PCTxn(txnEngine)
-	moBat := containers.CopyToMoBatch(catalog.MockBatch(schema, 100))
+	moBat := containers.CopyToCNBatch(catalog.MockBatch(schema, 100))
 	insertEntry, err := makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -935,7 +934,7 @@ func TestHandle_HandlePreCommit2PCForCoordinator(t *testing.T) {
 	assert.NoError(t, err)
 
 	//DML::insert batch into table
-	moBat := containers.CopyToMoBatch(catalog.MockBatch(schema, 100))
+	moBat := containers.CopyToCNBatch(catalog.MockBatch(schema, 100))
 	insertEntry, err := makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -962,7 +961,7 @@ func TestHandle_HandlePreCommit2PCForCoordinator(t *testing.T) {
 	//insert 20 rows, then rollback the txn
 	//FIXME::??
 	//batch.SetLength(moBat, 20)
-	moBat = containers.CopyToMoBatch(catalog.MockBatch(schema, 20))
+	moBat = containers.CopyToCNBatch(catalog.MockBatch(schema, 20))
 	insertEntry, err = makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -1220,7 +1219,7 @@ func TestHandle_HandlePreCommit2PCForParticipant(t *testing.T) {
 	assert.NoError(t, err)
 
 	//DML::insert batch into table
-	moBat := containers.CopyToMoBatch(catalog.MockBatch(schema, 100))
+	moBat := containers.CopyToCNBatch(catalog.MockBatch(schema, 100))
 	insertEntry, err := makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -1246,7 +1245,7 @@ func TestHandle_HandlePreCommit2PCForParticipant(t *testing.T) {
 	//insert 20 rows ,then rollback
 	//FIXME::??
 	//batch.SetLength(moBat, 20)
-	moBat = containers.CopyToMoBatch(catalog.MockBatch(schema, 20))
+	moBat = containers.CopyToCNBatch(catalog.MockBatch(schema, 20))
 	insertEntry, err = makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -1270,7 +1269,7 @@ func TestHandle_HandlePreCommit2PCForParticipant(t *testing.T) {
 	rollbackTxn = mock2PCTxn(txnEngine)
 	//insert 10 rows ,then rollback
 	//batch.SetLength(moBat, 10)
-	moBat = containers.CopyToMoBatch(catalog.MockBatch(schema, 10))
+	moBat = containers.CopyToCNBatch(catalog.MockBatch(schema, 10))
 	insertEntry, err = makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)
@@ -1580,7 +1579,7 @@ func TestHandle_MVCCVisibility(t *testing.T) {
 	wg.Wait()
 
 	//DML::insert batch into table
-	moBat := containers.CopyToMoBatch(catalog.MockBatch(schema, 100))
+	moBat := containers.CopyToCNBatch(catalog.MockBatch(schema, 100))
 	insertEntry, err := makePBEntry(INSERT, dbTestId,
 		tbTestId, dbName, schema.Name, "", moBat)
 	assert.NoError(t, err)

@@ -30,7 +30,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/common"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/options"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -106,6 +105,7 @@ func AllocS3Writers(tableDef *plan.TableDef) ([]*S3Writer, error) {
 			uniqueNums++
 		}
 	}
+
 	writers := make([]*S3Writer, 1+uniqueNums)
 	for i := range writers {
 		writers[i] = &S3Writer{
@@ -120,7 +120,6 @@ func AllocS3Writers(tableDef *plan.TableDef) ([]*S3Writer, error) {
 		writers[i].ResetMetaLocBat()
 		//handle origin/main table's sort index.
 		if i == 0 {
-			//tableDef := insertCtx.TableDef
 			if tableDef.Pkey != nil && tableDef.Pkey.CompPkeyCol != nil {
 				// the serialized cpk col is located in the last of the bat.vecs
 				writers[i].sortIndex = len(tableDef.Cols)
@@ -158,7 +157,9 @@ func AllocS3Writers(tableDef *plan.TableDef) ([]*S3Writer, error) {
 			}
 			continue
 		}
-		//TODO::to handle unique index table's sort index;
+		//handle for unique index table.
+		writers[i].sortIndex = 0
+		writers[i].pk[catalog.IndexTableIndexColName] = struct{}{}
 	}
 	return writers, nil
 }
@@ -301,9 +302,8 @@ func (w *S3Writer) MergeBlock(length int, proc *process.Process, cacheOvershold 
 	sortIdx := -1
 	for i := range bats {
 		// sort bats firstly
-		// for main table
-		//TODO::sort unique index table.
-		if w.idx == 0 && w.sortIndex != -1 {
+		// for main/orgin table and unique index table.
+		if w.sortIndex != -1 {
 			sortByKey(proc, bats[i], w.sortIndex, proc.GetMPool())
 			sortIdx = w.sortIndex
 		}
@@ -466,7 +466,7 @@ func getNewBatch(bat *batch.Batch) *batch.Batch {
 func (w *S3Writer) generateWriter(proc *process.Process) error {
 	// Use uuid as segment id
 	// TODO: multiple 64m file in one segment
-	id := common.NewSegmentid()
+	id := objectio.NewSegmentid()
 	s3, err := fileservice.Get[fileservice.FileService](proc.FileService, defines.SharedFileServiceName)
 	if err != nil {
 		return err

@@ -83,7 +83,6 @@ func Call(idx int, proc *process.Process, arg interface{}, isFirst bool, isLast 
 					}
 				}
 				anal.Output(ctr.bat, isLast)
-				ctr.bat.ExpandNulls()
 			}
 			ctr.state = End
 		case End:
@@ -105,6 +104,7 @@ func (ctr *container) build(proc *process.Process, anal process.Analyze, isFirst
 		start := time.Now()
 		chosen, value, ok := reflect.Select(ctr.receiverListener)
 		if !ok {
+			ctr.receiverListener = append(ctr.receiverListener[:chosen], ctr.receiverListener[chosen+1:]...)
 			logutil.Errorf("pipeline closed unexpectedly")
 			return true, nil
 		}

@@ -1,4 +1,4 @@
-// Copyright 2021 Matrix Origin
+// Copyright 2021 - 2023 Matrix Origin
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package txnimpl
+package proxy
 
-//type mockRelation struct {
-//	*txnbase.TxnRelation
-//	entry *catalog.TableEntry
-//	id    uint64
-//}
-//
-//func mockTestRelation(id uint64, schema *catalog.Schema) *mockRelation {
-//	entry := catalog.MockStaloneTableEntry(id, schema)
-//	return &mockRelation{
-//		TxnRelation: new(txnbase.TxnRelation),
-//		id:          id,
-//		entry:       entry,
-//	}
-//}
-//
-//func (rel *mockRelation) GetID() uint64 { return rel.id }
-//func (rel *mockRelation) GetMeta() any  { return rel.entry }
+import (
+	"reflect"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestCounterSet_Create(t *testing.T) {
+	cs := newCounterSet()
+	require.NotNil(t, cs)
+	le := newCounterLogExporter(cs)
+	require.NotNil(t, le)
+}
+
+func TestCounterSet_Export(t *testing.T) {
+	le := newCounterLogExporter(newCounterSet())
+	fields := le.Export()
+	num := reflect.ValueOf(counterSet{}).Type().NumField()
+	require.Equal(t, num, len(fields))
+}
