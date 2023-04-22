@@ -2049,6 +2049,7 @@ func maybeAddPrimaryKey(def *plan.CreateTable) *ColDef {
 		!def.IsSystemExternalRel() {
 		def.TableDef.Cols = append(def.TableDef.Cols,
 			&ColDef{
+				ColId:  uint64(len(def.TableDef.Cols)),
 				Name:   catalog.FakePrimaryKeyColName,
 				Hidden: true,
 				Typ: &Type{
