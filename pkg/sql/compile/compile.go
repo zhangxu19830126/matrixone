@@ -79,10 +79,7 @@ func New(addr, db string, sql string, uid string, ctx context.Context,
 }
 
 // helper function to judge if init temporary engine is needed
-func (c *Compile) NeedInitTempEngine(InitTempEngine bool) bool {
-	if InitTempEngine {
-		return false
-	}
+func (c *Compile) NeedInitTempEngine() bool {
 	for _, s := range c.scope {
 		ddl := s.Plan.GetDdl()
 		if ddl == nil {

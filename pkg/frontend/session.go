@@ -144,8 +144,6 @@ type Session struct {
 
 	sqlSourceType []string
 
-	InitTempEngine bool
-
 	tempTablestorage *memorystorage.Storage
 
 	isBackgroundSession bool
@@ -518,23 +516,9 @@ func (ses *Session) GetDebugString() string {
 	return ses.debugStr
 }
 
-func (ses *Session) EnableInitTempEngine() {
-	ses.mu.Lock()
-	defer ses.mu.Unlock()
-	ses.InitTempEngine = true
-}
-func (ses *Session) IfInitedTempEngine() bool {
-	ses.mu.Lock()
-	defer ses.mu.Unlock()
-	return ses.InitTempEngine
-}
-
 func (ses *Session) GetTempTableStorage() *memorystorage.Storage {
 	ses.mu.Lock()
 	defer ses.mu.Unlock()
-	if ses.tempTablestorage == nil {
-		panic("temp table storage is not initialized")
-	}
 	return ses.tempTablestorage
 }
 
