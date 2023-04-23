@@ -186,7 +186,7 @@ func (cwft *TxnComputationWrapper) GetAffectedRows() uint64 {
 func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interface{}, fill func(interface{}, *batch.Batch) error) (interface{}, error) {
 	var err error
 	defer RecordStatementTxnID(requestCtx, cwft.ses)
-	if cwft.ses.IfInitedTempEngine() {
+	if cwft.ses.GetTempTableStorage() != nil {
 		requestCtx = context.WithValue(requestCtx, defines.TemporaryDN{}, cwft.ses.GetTempTableStorage())
 		cwft.ses.SetRequestContext(requestCtx)
 		cwft.proc.Ctx = context.WithValue(cwft.proc.Ctx, defines.TemporaryDN{}, cwft.ses.GetTempTableStorage())
@@ -299,7 +299,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		return nil, err
 	}
 	// check if it is necessary to initialize the temporary engine
-	if cwft.compile.NeedInitTempEngine(cwft.ses.IfInitedTempEngine()) {
+	if cwft.compile.NeedInitTempEngine() {
 		// 0. init memory-non-dist storage
 		dnStore, err := cwft.ses.SetTempTableStorage(cwft.GetClock())
 		if err != nil {
@@ -342,8 +342,6 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		if err != nil {
 			return nil, err
 		}
-
-		cwft.ses.EnableInitTempEngine()
 	}
 	return cwft.compile, err
 }
