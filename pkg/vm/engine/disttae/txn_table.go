@@ -1016,6 +1016,13 @@ func (tbl *txnTable) updateLocalState(
 		return nil
 	}
 
+	// fake primary key, auto_incr, nevery dup.
+	if tbl.tableDef != nil &&
+		tbl.tableDef.Pkey != nil &&
+		tbl.tableDef.Pkey.PkeyColName == catalog.FakePrimaryKeyColName {
+		return nil
+	}
+
 	if tbl.localState == nil {
 		tbl.localState = NewPartitionState(true)
 	}
