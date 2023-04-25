@@ -824,7 +824,7 @@ var (
 		`create table mo_user_defined_function(
 				function_id int auto_increment,
 				name     varchar(100),
-				creator  int unsigned,
+				owner  int unsigned,
 				args     text,
 				retType  varchar(20),
 				body     text,
@@ -904,7 +904,7 @@ var (
 
 	initMoUserDefinedFunctionFormat = `insert into mo_catalog.mo_user_defined_function(
 			name,
-			creator,
+			owner,
 			args,
 			retType,
 			body,
