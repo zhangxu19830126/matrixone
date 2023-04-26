@@ -22,9 +22,11 @@ import (
 type proc = process.Process
 
 type Argument struct {
+	HasAutoCol bool
 	SchemaName string
 	TableDef   *pb.TableDef
-	ParentIdx  map[string]int32
+	Attrs      []string
+	IsUpdate   bool
 }
 
 func (arg *Argument) Free(*process.Process, bool) {}

@@ -80,6 +80,9 @@ func TestPreInsertNormal(t *testing.T) {
 				{Name: "int64_column", Typ: i64typ},
 			},
 		},
+		Attrs:      []string{"int64_column", "scalar_int64", "varchar_column", "scalar_varchar", "int64_column"},
+		IsUpdate:   false,
+		HasAutoCol: false,
 	}
 	proc.SetInputBatch(batch1)
 	_, err := Call(0, proc, &argument1, false, false)

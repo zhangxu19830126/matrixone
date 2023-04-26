@@ -12,30 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package onduplicatekey
+package preinsertunique
 
 import (
-	"github.com/matrixorigin/matrixone/pkg/sql/plan"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine"
+	"context"
+	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
-type proc = process.Process
-
 type Argument struct {
-	// Ts is not used
-	Ts       uint64
-	Affected uint64
-	Engine   engine.Engine
-
-	// Source       engine.Relation
-	// UniqueSource []engine.Relation
-	// Ref          *plan.ObjectRef
-	TableDef        *plan.TableDef
-	OnDuplicateIdx  []int32
-	OnDuplicateExpr map[string]*plan.Expr
-
-	IdxIdx []int32
+	Ctx          context.Context
+	PreInsertCtx *plan.PreInsertUkCtx
 }
 
 func (arg *Argument) Free(*process.Process, bool) {}
