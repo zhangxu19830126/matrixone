@@ -58,3 +58,19 @@ func (p *PartitionByDef) UnMarshalPartitionInfo(data []byte) error {
 func (m CreateTable) IsSystemExternalRel() bool {
 	return m.TableDef.TableType == SystemExternalRel
 }
+
+func (m *OnUpdate) MarshalBinary() ([]byte, error) {
+	return m.Marshal()
+}
+
+func (m *OnUpdate) UnmarshalBinary(data []byte) error {
+	return m.Unmarshal(data)
+}
+
+func (m *Default) MarshalBinary() ([]byte, error) {
+	return m.Marshal()
+}
+
+func (m *Default) UnmarshalBinary(data []byte) error {
+	return m.Unmarshal(data)
+}
