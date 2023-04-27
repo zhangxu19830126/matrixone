@@ -65,6 +65,7 @@ UNIQUE KEY (col1, col3)
 PARTITION BY HASH(col1 + col3)
 PARTITIONS 6;
 
+-- @bvt:issue#9102
 insert into t2 values
 (1, 7369, '1980-12-17'),
 (2, 7499, '1981-02-20'),
@@ -120,6 +121,7 @@ select * from `%!%p0%!%t2` order by col1;
 select * from `%!%p1%!%t2` order by col1;
 select * from `%!%p2%!%t2` order by col1;
 select * from `%!%p3%!%t2` order by col1;
+-- @bvt:issue
 drop table t2;
 
 drop table if exists t3;

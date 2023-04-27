@@ -7,6 +7,7 @@ col3 INT PRIMARY KEY
 PARTITION BY KEY(col3)
 PARTITIONS 4;
 
+-- @bvt:issue#9102
 insert into t1 values
 (1, '1980-12-17', 7369),
 (2, '1981-02-20', 7499),
@@ -60,3 +61,4 @@ select * from `%!%p0%!%t1`;
 select * from `%!%p1%!%t1`;
 select * from `%!%p2%!%t1`;
 select * from `%!%p3%!%t1`;
+-- @bvt:issue

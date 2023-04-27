@@ -484,7 +484,8 @@ func constructPreInsert(n *plan.Node, eg engine.Engine, proc *process.Process) (
 
 	var attrs []string
 	for _, col := range preCtx.TableDef.Cols {
-		if !col.Hidden {
+		if !col.Hidden ||
+			col.GetTyp().AutoIncr {
 			attrs = append(attrs, col.Name)
 		}
 	}
