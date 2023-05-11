@@ -239,7 +239,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 		defer func() {
 			if e := recover(); e != nil {
 				err = moerr.ConvertPanicError(context.TODO(), e)
-				fmt.Printf("++++cn crash: %v\n", err)
+				fmt.Printf("+++cn crash: %v\n", err)
 				os.Exit(0)
 			}
 		}()
@@ -259,20 +259,24 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 				deadline, cancel := context.WithTimeout(ctx, maxTimeToWaitServerResponse)
 				select {
 				case <-deadline.Done():
+					fmt.Printf("+++deadline done\n")
 					// max wait time is out.
 					goto cleanAndReconnect
 
 				case ch <- client.subscriber.receiveResponse():
 					// receive a response from log tail service.
+					fmt.Printf("+++cancel\n")
 					cancel()
 
 				case err := <-errChan:
+					fmt.Printf("+++err chan: %v\n", err)
 					// receive an error from sub-routine to consume log.
 					logutil.ErrorField(err)
 					cancel()
 					goto cleanAndReconnect
 
 				case err := <-reconnectErr:
+					fmt.Printf("+++reconnector: %v\n", err)
 					cancel()
 					if err != nil {
 						logutil.Errorf("reconnect to dn log tail service failed, reason: %s", err)
@@ -284,6 +288,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 
 				resp := <-ch
 				if resp.err != nil {
+					fmt.Printf("+++reconnector0: %v\n", resp.err)
 					// may rpc close error or decode error.
 					logutil.ErrorField(resp.err)
 					goto cleanAndReconnect
@@ -294,6 +299,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 				if sResponse := response.GetSubscribeResponse(); sResponse != nil {
 					if err := distributeSubscribeResponse(
 						ctx, e, sResponse, receiver); err != nil {
+						fmt.Printf("+++reconnector1: %v\n", err)
 						logutil.ErrorField(err)
 						goto cleanAndReconnect
 					}
@@ -304,6 +310,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 				if upResponse := response.GetUpdateResponse(); upResponse != nil {
 					if err := distributeUpdateResponse(
 						ctx, e, upResponse, receiver); err != nil {
+						fmt.Printf("+++reconnector2: %v\n", err)
 						logutil.ErrorField(err)
 						goto cleanAndReconnect
 					}
@@ -314,6 +321,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 				if unResponse := response.GetUnsubscribeResponse(); unResponse != nil {
 					if err := distributeUnSubscribeResponse(
 						ctx, e, unResponse, receiver); err != nil {
+						fmt.Printf("+++reconnector3: %v\n", err)
 						logutil.ErrorField(err)
 						goto cleanAndReconnect
 					}
@@ -322,6 +330,9 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 			}
 
 		cleanAndReconnect:
+			{
+				fmt.Printf("+++begin reconnector")
+			}
 			for _, r := range receiver {
 				r.close()
 			}
