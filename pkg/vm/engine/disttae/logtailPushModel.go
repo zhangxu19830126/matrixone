@@ -801,14 +801,31 @@ func createRoutineToConsumeLogTails(
 	}
 
 	go func(engine *Engine, receiver *routineController, errRet chan error) {
+		var err error
+		defer func() {
+			if e := recover(); e != nil {
+				err = moerr.ConvertPanicError(context.TODO(), e)
+				fmt.Printf("+++routine crash %v: %v\n", routineId, err)
+				os.Exit(0)
+			}
+		}()
+
 		for {
 			select {
 			case cmd := <-receiver.signalChan:
-				if err := cmd.action(engine, receiver); err != nil {
+				err := cmd.action(engine, receiver)
+				if err != nil {
+					fmt.Printf("++++routine cosume %v error: %v\n", routineId, err)
 					errRet <- err
 				}
+				/*
+					if err := cmd.action(engine, receiver); err != nil {
+						errRet <- err
+					}
+				*/
 
 			case <-receiver.closeChan:
+				fmt.Printf("++++routine close %v\n", routineId)
 				close(receiver.closeChan)
 				close(receiver.signalChan)
 				return
