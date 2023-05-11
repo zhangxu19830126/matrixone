@@ -16,6 +16,8 @@ package disttae
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -233,6 +235,15 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 	reconnectErr := make(chan error)
 
 	go func() {
+		var err error
+		defer func() {
+			if e := recover(); e != nil {
+				err = moerr.ConvertPanicError(context.TODO(), e)
+				fmt.Printf("++++cn crash: %v\n", err)
+				os.Exit(0)
+			}
+		}()
+
 		for {
 			// new parallelNums routine to consume log tails.
 			errChan := make(chan error, parallelNums)
