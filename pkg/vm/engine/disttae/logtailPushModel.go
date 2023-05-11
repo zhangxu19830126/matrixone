@@ -809,12 +809,14 @@ func createRoutineToConsumeLogTails(
 				os.Exit(0)
 			}
 		}()
+		ok := true
 
 		for {
 			select {
 			case cmd := <-receiver.signalChan:
 				err := cmd.action(engine, receiver)
-				if err != nil {
+				if err != nil && ok {
+					ok = false
 					fmt.Printf("++++routine cosume %v error: %v\n", routineId, err)
 					errRet <- err
 				}
