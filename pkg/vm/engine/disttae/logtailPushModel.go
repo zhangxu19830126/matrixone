@@ -698,11 +698,13 @@ func distributeSubscribeResponse(
 		routineIndex := tbl.TbId % parallelNums
 		recRoutines[routineIndex].sendSubscribeResponse(response)
 	}
-	// no matter how we consume the response, should update all timestamp.
-	e.pClient.receivedLogTailTime.updateTimestamp(parallelNums, *lt.Ts)
-	for _, rc := range recRoutines {
-		rc.updateTimeFromT(*lt.Ts)
-	}
+	/*
+		// no matter how we consume the response, should update all timestamp.
+		e.pClient.receivedLogTailTime.updateTimestamp(parallelNums, *lt.Ts)
+		for _, rc := range recRoutines {
+			rc.updateTimeFromT(*lt.Ts)
+		}
+	*/
 	return nil
 }
 
