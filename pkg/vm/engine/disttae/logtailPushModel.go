@@ -119,7 +119,8 @@ func (client *pushClient) init(
 
 func (client *pushClient) checkTxnTimeIsLegal(
 	ctx context.Context, txnTime timestamp.Timestamp) error {
-	if client.receivedLogTailTime.greatEq(txnTime) {
+	//	if client.receivedLogTailTime.greatEq(txnTime) {
+	if client.receivedLogTailTime.greatEq(txnTime.Prev()) {
 		return nil
 	}
 	ticker := time.NewTicker(periodToCheckTxnTimestamp)
