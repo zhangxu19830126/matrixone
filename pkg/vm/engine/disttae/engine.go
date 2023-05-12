@@ -16,6 +16,8 @@ package disttae
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -428,7 +430,15 @@ func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	if err != nil {
 		return err
 	}
-	_, err = op.Write(ctx, reqs)
+	ctx0, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	defer cancel()
+	_, err = op.Write(ctx0, reqs)
+	if err != nil {
+		fmt.Printf("+++transaction out of time: %v\n", err)
+		os.Exit(0)
+		return err
+	}
+	//	_, err = op.Write(ctx, reqs)
 	return err
 }
 
