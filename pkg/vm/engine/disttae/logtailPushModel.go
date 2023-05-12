@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -143,8 +142,9 @@ func (client *pushClient) checkTxnTimeIsLegal(
 			}
 		}
 		if time.Now().Sub(t) > 5*time.Second {
-			fmt.Printf("+++%v\n", string(debug.Stack()))
-			os.Exit(0)
+			fmt.Printf("+++wait transaction: %v\n", time.Now().Sub(t))
+			//fmt.Printf("+++%v\n", string(debug.Stack()))
+			//os.Exit(0)
 		}
 	}
 	logutil.Errorf("new txn failed because lack of enough log tail. txn time is [%s]", txnTime.String())
