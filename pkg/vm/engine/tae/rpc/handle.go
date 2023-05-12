@@ -504,7 +504,10 @@ func (h *Handle) HandlePreCommitWrite(
 	es := req.EntryList
 
 	{
-		fmt.Printf("+++recive precommit: %v\n", time.Now())
+		t := time.Now()
+		if time.Now().Sub(t) > time.Second {
+			fmt.Printf("+++recive precommit: %v\n", time.Now().Sub(t))
+		}
 	}
 	for len(es) > 0 {
 		e, es, err = catalog.ParseEntryList(es)
