@@ -16,6 +16,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/fagongzi/goetty/v2"
@@ -228,6 +229,9 @@ func (s *LogtailServer) onMessage(
 	}
 	defer s.pool.requests.Release(msg)
 
+	{
+		fmt.Printf("+++++ recivce request msg: %s\n", msg)
+	}
 	select {
 	case <-ctx.Done():
 		return nil
