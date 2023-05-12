@@ -230,7 +230,7 @@ func (s *LogtailServer) onMessage(
 	defer s.pool.requests.Release(msg)
 
 	{
-		fmt.Printf("+++++ recivce request msg: %s\n", msg)
+		fmt.Printf("+++recivce request msg %v: %s\n", time.Now(), msg)
 	}
 	select {
 	case <-ctx.Done():

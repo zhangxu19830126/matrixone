@@ -343,7 +343,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 
 		cleanAndReconnect:
 			{
-				fmt.Printf("+++begin reconnector")
+				fmt.Printf("+++begin reconnector: %v\n", time.Now())
 			}
 			for _, r := range receiver {
 				r.close()
@@ -850,7 +850,7 @@ func createRoutineToConsumeLogTails(
 				*/
 
 			case <-receiver.closeChan:
-				fmt.Printf("++++routine close %v\n", routineId)
+				fmt.Printf("++++routine close %v: %v\n", routineId, time.Now())
 				close(receiver.closeChan)
 				close(receiver.signalChan)
 				return

@@ -17,6 +17,7 @@ package rpc
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"syscall"
@@ -502,6 +503,9 @@ func (h *Handle) HandlePreCommitWrite(
 
 	es := req.EntryList
 
+	{
+		fmt.Printf("+++recive precommit: %v\n", time.Now())
+	}
 	for len(es) > 0 {
 		e, es, err = catalog.ParseEntryList(es)
 		if err != nil {

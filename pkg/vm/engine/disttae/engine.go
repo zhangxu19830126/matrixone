@@ -432,11 +432,15 @@ func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	}
 	ctx0, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
+	t := time.Now()
 	_, err = op.Write(ctx0, reqs)
 	if err != nil {
-		fmt.Printf("+++transaction out of time: %v\n", err)
+		fmt.Printf("+++transaction %v out of time: %v\n", time.Now(), err)
 		os.Exit(0)
 		return err
+	}
+	if time.Now().Sub(t) > time.Second {
+		fmt.Printf("+++transaction time: %v\n", time.Now().Sub(t))
 	}
 	//	_, err = op.Write(ctx, reqs)
 	return err
