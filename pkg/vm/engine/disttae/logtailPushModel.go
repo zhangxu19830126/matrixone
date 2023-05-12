@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -126,6 +127,7 @@ func (client *pushClient) checkTxnTimeIsLegal(
 	ticker := time.NewTicker(periodToCheckTxnTimestamp)
 	defer ticker.Stop()
 
+	t := time.Now()
 	for i := maxBlockTimeToNewTransaction; i > 0; i -= periodToCheckTxnTimestamp {
 		select {
 		case <-ctx.Done():
@@ -139,6 +141,10 @@ func (client *pushClient) checkTxnTimeIsLegal(
 			if client.receivedLogTailTime.greatEq(txnTime) {
 				return nil
 			}
+		}
+		if time.Now().Sub(t) > 5*time.Second {
+			fmt.Printf("+++%v\n", string(debug.Stack()))
+			os.Exit(0)
 		}
 	}
 	logutil.Errorf("new txn failed because lack of enough log tail. txn time is [%s]", txnTime.String())
