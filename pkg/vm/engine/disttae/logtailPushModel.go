@@ -129,9 +129,11 @@ func (client *pushClient) checkTxnTimeIsLegal(
 	for i := maxBlockTimeToNewTransaction; i > 0; i -= periodToCheckTxnTimestamp {
 		select {
 		case <-ctx.Done():
-			{
-				fmt.Printf("+++new transaction time out\n")
-			}
+			/*
+				{
+					fmt.Printf("+++new transaction time out\n")
+				}
+			*/
 			return ctx.Err()
 		case <-ticker.C:
 			if client.receivedLogTailTime.greatEq(txnTime) {
@@ -269,7 +271,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 
 				case ch <- client.subscriber.receiveResponse():
 					// receive a response from log tail service.
-					fmt.Printf("+++cancel: %v\n", time.Now())
+					//	fmt.Printf("+++cancel: %v\n", time.Now())
 					cancel()
 
 				case err := <-errChan:
@@ -504,13 +506,15 @@ func (r *syncLogTailTimestamp) getTimestamp() timestamp.Timestamp {
 
 func (r *syncLogTailTimestamp) updateTimestamp(index int, newTimestamp timestamp.Timestamp) {
 	r.tList[index].Lock()
-	{
-		fmt.Printf("+++begin update time [%v]-%v: %s, %s\n", index, time.Now(), r.tList[index].time.String(), newTimestamp.String())
-		if r.tList[index].time.GreaterEq(newTimestamp) {
-			fmt.Printf("+++error log timestamp\n")
-			os.Exit(0)
+	/*
+		{
+			fmt.Printf("+++begin update time [%v]-%v: %s, %s\n", index, time.Now(), r.tList[index].time.String(), newTimestamp.String())
+			if r.tList[index].time.GreaterEq(newTimestamp) {
+				fmt.Printf("+++error log timestamp\n")
+				os.Exit(0)
+			}
 		}
-	}
+	*/
 	r.tList[index].time = newTimestamp
 	r.tList[index].Unlock()
 	r.timestampWaiter.NotifyLatestCommitTS(r.getTimestamp())
