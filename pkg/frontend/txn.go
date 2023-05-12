@@ -16,7 +16,9 @@ package frontend
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	moruntime "github.com/matrixorigin/matrixone/pkg/common/runtime"
@@ -271,7 +273,11 @@ func (th *TxnHandler) CommitTxn() error {
 		return err
 	}
 	if txnOp != nil {
+		t := time.Now()
 		err = txnOp.Commit(ctx2)
+		if time.Now().Sub(t) > time.Second {
+			fmt.Printf("+++txn commit: %v\n", time.Now().Sub(t))
+		}
 		if err != nil {
 			th.SetTxnOperatorInvalid()
 			logErrorf(sessionInfo, "CommitTxn: txn operator commit failed. txnId:%s error:%v", txnId, err)
