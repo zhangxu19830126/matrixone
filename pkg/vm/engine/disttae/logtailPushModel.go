@@ -269,7 +269,7 @@ func (client *pushClient) receiveTableLogTailContinuously(e *Engine) {
 
 				case ch <- client.subscriber.receiveResponse():
 					// receive a response from log tail service.
-					fmt.Printf("+++cancel\n")
+					fmt.Printf("+++cancel: %v\n", time.Now())
 					cancel()
 
 				case err := <-errChan:
