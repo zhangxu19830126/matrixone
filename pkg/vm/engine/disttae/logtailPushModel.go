@@ -505,7 +505,7 @@ func (r *syncLogTailTimestamp) getTimestamp() timestamp.Timestamp {
 func (r *syncLogTailTimestamp) updateTimestamp(index int, newTimestamp timestamp.Timestamp) {
 	r.tList[index].Lock()
 	{
-		fmt.Printf("+++begin update time [%v]: %s, %s\n", index, r.tList[index].time.String(), newTimestamp.String())
+		fmt.Printf("+++begin update time [%v]-%v: %s, %s\n", index, time.Now(), r.tList[index].time.String(), newTimestamp.String())
 		if r.tList[index].time.GreaterEq(newTimestamp) {
 			fmt.Printf("+++error log timestamp\n")
 			os.Exit(0)
