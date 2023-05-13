@@ -17,6 +17,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -39,6 +40,13 @@ var (
 )
 
 func (s *service) Read(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	t := time.Now()
+	defer func() {
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++txn read: %v\n", tt)
+		}
+	}()
+
 	s.waitRecoveryCompleted()
 
 	util.LogTxnHandleRequest(request)
@@ -104,7 +112,11 @@ func (s *service) Read(ctx context.Context, request *txn.TxnRequest, response *t
 		}
 	}
 
+	t = time.Now()
 	data, err := result.Read()
+	if tt := time.Now().Sub(t); tt > time.Second {
+		fmt.Printf("+++tae read: %v\n", tt)
+	}
 	if err != nil {
 		util.LogTxnReadFailed(request.Txn, err)
 		response.TxnError = txn.WrapError(err, moerr.ErrTAERead)
@@ -118,6 +130,13 @@ func (s *service) Read(ctx context.Context, request *txn.TxnRequest, response *t
 }
 
 func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	t := time.Now()
+	defer func() {
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++txn write: %v\n", tt)
+		}
+	}()
+
 	s.waitRecoveryCompleted()
 
 	util.LogTxnHandleRequest(request)
@@ -154,8 +173,12 @@ func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *
 		response.TxnError = txn.WrapError(moerr.NewTxnNotActive(ctx, ""), 0)
 		return nil
 	}
+	t = time.Now()
 
 	data, err := s.storage.Write(ctx, request.Txn, request.CNRequest.OpCode, request.CNRequest.Payload)
+	if tt := time.Now().Sub(t); tt > time.Second {
+		fmt.Printf("+++tae write: %v\n", tt)
+	}
 	if err != nil {
 		util.LogTxnWriteFailed(newTxn, err)
 		response.TxnError = txn.WrapError(err, moerr.ErrTAEWrite)
@@ -167,6 +190,13 @@ func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *
 }
 
 func (s *service) Commit(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	t := time.Now()
+	defer func() {
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++txn commit: %v\n", tt)
+		}
+	}()
+
 	s.waitRecoveryCompleted()
 
 	util.LogTxnHandleRequest(request)
@@ -233,7 +263,11 @@ func (s *service) Commit(ctx context.Context, request *txn.TxnRequest, response 
 	if len(newTxn.DNShards) == 1 {
 		util.LogTxnStart1PCCommit(newTxn)
 
+		t = time.Now()
 		commitTS, err := s.storage.Commit(ctx, newTxn)
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++tae commit: %v\n", tt)
+		}
 		if err != nil {
 			util.LogTxnStart1PCCommitFailed(newTxn, err)
 			response.TxnError = txn.WrapError(err, moerr.ErrTAECommit)

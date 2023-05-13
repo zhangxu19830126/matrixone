@@ -16,8 +16,10 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/morpc"
@@ -101,6 +103,14 @@ func (s *sender) Close() error {
 }
 
 func (s *sender) Send(ctx context.Context, requests []txn.TxnRequest) (*SendResult, error) {
+	{
+		t := time.Now()
+		defer func() {
+			if tt := time.Now().Sub(t); tt > time.Second {
+				fmt.Printf("+++txn send: %v\n", tt)
+			}
+		}()
+	}
 	sr := s.acquireSendResult()
 	if len(requests) == 1 {
 		sr.reset(requests)
