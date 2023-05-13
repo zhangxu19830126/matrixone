@@ -15,7 +15,9 @@
 package morpc
 
 import (
+	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
@@ -463,6 +465,12 @@ func (c *baseCodec) readMessage(
 	if offset == len(data) {
 		return nil
 	}
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("+++%T\n", msg.Message)
+			os.Exit(0)
+		}
+	}()
 
 	body := data[offset : len(data)-payloadSize]
 	payload := data[len(data)-payloadSize:]
