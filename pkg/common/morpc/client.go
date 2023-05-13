@@ -224,6 +224,12 @@ func (c *client) Close() error {
 }
 
 func (c *client) getBackend(backend string, lock bool) (Backend, error) {
+	t := time.Now()
+	defer func() {
+		if tt := time.Since(t); tt > time.Second {
+			fmt.Printf("+++morpc get backend: %v\n", tt)
+		}
+	}()
 	c.mu.Lock()
 	b, err := c.getBackendLocked(backend, lock)
 	if err != nil {
@@ -455,8 +461,8 @@ func (c *client) createBackendLocked(backend string) (Backend, error) {
 func (c *client) doCreate(backend string) (Backend, error) {
 	t := time.Now()
 	defer func() {
-		if tt := time.Now().Sub(t); tt > time.Second {
-			fmt.Printf("+++morpc connect: %v\n", tt)
+		if tt := time.Since(t); tt > time.Second {
+			fmt.Printf("+++morpc create backend: %v\n", tt)
 		}
 	}()
 	b, err := c.factory.Create(backend)

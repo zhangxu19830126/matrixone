@@ -292,6 +292,12 @@ func (rb *remoteBackend) NewStream(unlockAfterClose bool) (Stream, error) {
 }
 
 func (rb *remoteBackend) doSend(f *Future) error {
+	t := time.Now()
+	defer func() {
+		if tt := time.Since(t); tt > time.Second {
+			fmt.Printf("+++morpc added to send queue: %v\n", tt)
+		}
+	}()
 	if err := rb.codec.Valid(f.send.Message); err != nil {
 		return err
 	}
@@ -407,6 +413,7 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 		if len(messages) > 0 {
 			written := 0
 			writeTimeout := time.Duration(0)
+			t := time.Now()
 			for _, f := range messages {
 				id := f.getSendMessageID()
 				if stopped {
@@ -419,8 +426,12 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 					written++
 				}
 			}
+			if tt := time.Since(t); tt > time.Second {
+				fmt.Printf("+++morpc encode: %v\n", tt)
+			}
 
 			if written > 0 {
+				t := time.Now()
 				if err := rb.conn.Flush(writeTimeout); err != nil {
 					for _, f := range messages {
 						if rb.options.filter(f.send.Message, rb.remote) {
@@ -431,6 +442,9 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 							f.messageSended(err)
 						}
 					}
+				}
+				if tt := time.Since(t); tt > time.Second {
+					fmt.Printf("+++morpc flush to socket: %v\n", tt)
 				}
 			}
 

@@ -16,7 +16,9 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/fagongzi/goetty/v2"
 	"github.com/matrixorigin/matrixone/pkg/common/morpc"
@@ -160,9 +162,13 @@ func (s *server) onMessage(ctx context.Context, request morpc.Message, sequence 
 	}
 
 	resp := s.acquireResponse()
+	t := time.Now()
 	if err := handler(ctx, m, resp); err != nil {
 		s.releaseResponse(resp)
 		return err
+	}
+	if tt := time.Now().Sub(t); tt > time.Second {
+		fmt.Printf("+++txn service handle: %v\n", tt)
 	}
 
 	resp.RequestID = m.RequestID
