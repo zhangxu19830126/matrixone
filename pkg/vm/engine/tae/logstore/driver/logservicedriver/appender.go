@@ -16,6 +16,7 @@ package logservicedriver
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -56,6 +57,12 @@ func (a *driverAppender) append(retryTimout, appendTimeout time.Duration) {
 	defer logSlowAppend()()
 	ctx, cancel := context.WithTimeout(context.Background(), appendTimeout)
 	logutil.Debugf("Log Service Driver: append start %p", a.client.record.Data)
+	t := time.Now()
+	defer func() {
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++tae write log: %v\n", tt)
+		}
+	}()
 	lsn, err := a.client.c.Append(ctx, record)
 	if err != nil {
 		logutil.Errorf("append failed: %v", err)

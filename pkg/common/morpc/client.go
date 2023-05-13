@@ -453,6 +453,12 @@ func (c *client) createBackendLocked(backend string) (Backend, error) {
 }
 
 func (c *client) doCreate(backend string) (Backend, error) {
+	t := time.Now()
+	defer func() {
+		if tt := time.Now().Sub(t); tt > time.Second {
+			fmt.Printf("+++morpc connect: %v\n", tt)
+		}
+	}()
 	b, err := c.factory.Create(backend)
 	if err != nil {
 		c.logger.Error("create backend failed",
