@@ -383,6 +383,23 @@ func TestOverflowWithInit(t *testing.T) {
 	)
 }
 
+func TestIssue9509(t *testing.T) {
+	runColumnCacheTests(
+		t,
+		1,
+		1,
+		func(ctx context.Context, cc *columnCache) {
+			canceledCtx, cancel := context.WithCancel(context.Background())
+			cancel()
+			cc.Lock()
+			defer cc.Unlock()
+			cc.allocating = true
+			cc.allocatingC = make(chan struct{})
+			require.Error(t, cc.waitPrevAllocatingLocked(canceledCtx))
+		},
+	)
+}
+
 func testColumnCacheInsert[T constraints.Integer](
 	t *testing.T,
 	rows int,
