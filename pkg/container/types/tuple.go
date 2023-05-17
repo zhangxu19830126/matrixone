@@ -60,12 +60,43 @@ import (
  * in the composite_primary_key_util.go, we default use method2 to encode tupleElement
  */
 
-type TupleElement interface{}
+type TupleElement any
 
 type Tuple []TupleElement
 
-func (t Tuple) String() string {
-	return printTuple(t)
+func (tp Tuple) String() string {
+	return printTuple(tp)
+}
+
+func (tp Tuple) ErrString() string {
+	res := "("
+	for i, t := range tp {
+		switch t := t.(type) {
+		case bool, int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64:
+			res += fmt.Sprintf("%v", t)
+		case []byte:
+			res += *(*string)(unsafe.Pointer(&t))
+		case Date:
+			res += fmt.Sprintf("%v", t.String())
+		case Time:
+			res += fmt.Sprintf("%v", t.String())
+		case Datetime:
+			res += fmt.Sprintf("%v", t.String())
+		case Timestamp:
+			res += fmt.Sprintf("%v", t.String())
+		case Decimal64:
+			res += fmt.Sprintf("%v", t.Format(0))
+		case Decimal128:
+			res += fmt.Sprintf("%v", t.Format(0))
+		default:
+			res += fmt.Sprintf("%v", t)
+		}
+		if i != len(tp)-1 {
+			res += ","
+		}
+	}
+	res += ")"
+	return res
 }
 
 func printTuple(tuple Tuple) string {
@@ -568,6 +599,8 @@ func decodeFloat64(b []byte) (float64, int) {
 	binary.Read(bytes.NewBuffer(bp), binary.BigEndian, &ret)
 	return ret, 9
 }
+
+var DecodeTuple = decodeTuple
 
 func decodeTuple(b []byte) (Tuple, int, error) {
 	var t Tuple

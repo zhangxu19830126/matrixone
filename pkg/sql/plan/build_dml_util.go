@@ -34,6 +34,7 @@ type dmlPlanCtx struct {
 	updateColPosMap   map[string]int
 	allDelTableIDs    map[uint64]struct{}
 	isFkRecursionCall bool //if update plan was recursion called by parent table( ref foreign key), we do not check parent's foreign key contraint
+	lockTable         bool //we need lock table in stmt: delete from tbl
 }
 
 // buildInsertPlans  build insert plan.
@@ -71,6 +72,7 @@ func buildUpdatePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 	lastNodeId := appendSinkScanNode(builder, bindCtx, updatePlanCtx.sourceStep)
 	lastNode := builder.qry.Nodes[lastNodeId]
 	newCols := make([]*ColDef, 0, len(updatePlanCtx.tableDef.Cols))
+	oldRowIdPos := len(updatePlanCtx.tableDef.Cols) - 1
 	for _, col := range updatePlanCtx.tableDef.Cols {
 		if col.Hidden && col.Name != catalog.FakePrimaryKeyColName {
 			continue
@@ -78,7 +80,8 @@ func buildUpdatePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 		newCols = append(newCols, col)
 	}
 	updatePlanCtx.tableDef.Cols = newCols
-	projectProjection := make([]*Expr, len(updatePlanCtx.insertColPos)+1)
+	insertColLength := len(updatePlanCtx.insertColPos) + 1
+	projectProjection := make([]*Expr, insertColLength)
 	for i, idx := range updatePlanCtx.insertColPos {
 		name := ""
 		if col, ok := lastNode.ProjectList[idx].Expr.(*plan.Expr_Col); ok {
@@ -94,8 +97,7 @@ func buildUpdatePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 			},
 		}
 	}
-	oldRowIdPos := len(updatePlanCtx.insertColPos)
-	projectProjection[oldRowIdPos] = &plan.Expr{
+	projectProjection[insertColLength-1] = &plan.Expr{
 		Typ: lastNode.ProjectList[oldRowIdPos].Typ,
 		Expr: &plan.Expr_Col{
 			Col: &plan.ColRef{
@@ -212,7 +214,7 @@ func buildDeletePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 							ProjectList: projectProjection,
 						}
 						lastNodeId = builder.appendNode(projectNode, bindCtx)
-						preUKStep, err := appendPreInsertUkPlan(builder, bindCtx, delCtx.tableDef, lastNodeId, idx, true)
+						preUKStep, err := appendPreInsertUkPlan(builder, bindCtx, delCtx.tableDef, lastNodeId, idx, true, uniqueTableDef)
 						if err != nil {
 							return err
 						}
@@ -624,15 +626,6 @@ func makeInsertPlan(
 	addAffectedRows bool,
 	isFkRecursionCall bool,
 ) error {
-
-	// append hidden column to tableDef
-	if tableDef.Pkey != nil && tableDef.Pkey.PkeyColName == catalog.CPrimaryKeyColName {
-		tableDef.Cols = append(tableDef.Cols, MakeHiddenColDefByName(catalog.CPrimaryKeyColName))
-	}
-	if tableDef.ClusterBy != nil && util.JudgeIsCompositeClusterByColumn(tableDef.ClusterBy.Name) {
-		tableDef.Cols = append(tableDef.Cols, MakeHiddenColDefByName(tableDef.ClusterBy.Name))
-	}
-
 	var lastNodeId int32
 	var err error
 
@@ -641,23 +634,6 @@ func makeInsertPlan(
 		lastNodeId = appendSinkScanNode(builder, bindCtx, sourceStep)
 		// Get table partition information
 		partitionIdx, paritionTableIds := getPartSubTableIdsAndPartIndex(ctx, objRef, tableDef)
-
-		// todo: append lock
-		pkPos, pkTyp := getPkPos(tableDef, false)
-		lockTarget := &plan.LockTarget{
-			TableId:            tableDef.TblId,
-			PrimaryColIdxInBat: int32(pkPos),
-			PrimaryColTyp:      pkTyp,
-			RefreshTsIdxInBat:  -1, //unsupport now
-			FilterColIdxInBat:  int32(partitionIdx),
-		}
-		lockNode := &Node{
-			NodeType:    plan.Node_LOCK_OP,
-			Children:    []int32{lastNodeId},
-			LockTargets: []*plan.LockTarget{lockTarget},
-		}
-		lastNodeId = builder.appendNode(lockNode, bindCtx)
-
 		// append project node
 		projectProjection := getProjectionByLastNode(builder, lastNodeId)
 		if len(projectProjection) > len(tableDef.Cols) || tableDef.Partition != nil {
@@ -716,7 +692,7 @@ func makeInsertPlan(
 				}
 
 				lastNodeId = appendSinkScanNode(builder, bindCtx, sourceStep)
-				newSourceStep, err := appendPreInsertUkPlan(builder, bindCtx, tableDef, lastNodeId, idx, false)
+				newSourceStep, err := appendPreInsertUkPlan(builder, bindCtx, tableDef, lastNodeId, idx, false, idxTableDef)
 				if err != nil {
 					return err
 				}
@@ -897,23 +873,81 @@ func makeInsertPlan(
 				lastNodeId = builder.appendNode(&plan.Node{
 					NodeType:    plan.Node_JOIN,
 					Children:    []int32{lastNodeId, rightId},
-					JoinType:    plan.Node_INNER,
+					JoinType:    plan.Node_LEFT,
 					OnList:      []*Expr{condExpr},
 					ProjectList: []*Expr{rowIdExpr, rightRowIdExpr, pkColExpr},
 				}, bindCtx)
 
-				// append filter node
-				filterExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "!=", []*Expr{
-					{
-						Typ: rowIdDef.Typ,
+				// append agg node.
+				aggGroupBy := []*Expr{
+					{Typ: rowIdExpr.Typ,
 						Expr: &plan.Expr_Col{
-							Col: &ColRef{ColPos: 0, Name: rowIdDef.Name},
+							Col: &ColRef{
+								ColPos: 0,
+								Name:   catalog.Row_ID,
+							},
+						}},
+					{Typ: rowIdExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								ColPos: 1,
+								Name:   catalog.Row_ID,
+							},
+						}},
+					{Typ: pkColExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								ColPos: 2,
+								Name:   tableDef.Pkey.PkeyColName,
+							},
+						}},
+				}
+				aggProject := []*Expr{
+					{Typ: rowIdExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								RelPos: 1,
+								ColPos: 0,
+								Name:   catalog.Row_ID,
+							},
+						}},
+					{Typ: rowIdExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								RelPos: 1,
+								ColPos: 1,
+								Name:   catalog.Row_ID,
+							},
+						}},
+					{Typ: pkColExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								RelPos: 1,
+								ColPos: 2,
+								Name:   tableDef.Pkey.PkeyColName,
+							},
+						}},
+				}
+				aggNode := &Node{
+					NodeType:    plan.Node_AGG,
+					Children:    []int32{lastNodeId},
+					GroupBy:     aggGroupBy,
+					ProjectList: aggProject,
+				}
+				lastNodeId = builder.appendNode(aggNode, bindCtx)
+
+				// append filter node
+				filterExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "not_in_rows", []*Expr{
+					{
+						Typ: rowIdExpr.Typ,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{ColPos: 1, Name: catalog.Row_ID},
 						},
 					},
 					{
-						Typ: rowIdDef.Typ,
+						Typ: rowIdExpr.Typ,
 						Expr: &plan.Expr_Col{
-							Col: &ColRef{ColPos: 1, Name: rowIdDef.Name},
+							Col: &ColRef{ColPos: 0, Name: catalog.Row_ID},
 						},
 					},
 				})
@@ -921,7 +955,7 @@ func makeInsertPlan(
 					return err
 				}
 				colExpr := &Expr{
-					Typ: pkTyp,
+					Typ: rowIdDef.Typ,
 					Expr: &plan.Expr_Col{
 						Col: &plan.ColRef{
 							Name: rowIdDef.Name,
@@ -1231,9 +1265,9 @@ func getPkPos(tableDef *TableDef, ignoreFakePK bool) (int, *Type) {
 		return -1, nil
 	}
 	pkName := tableDef.Pkey.PkeyColName
-	if pkName == catalog.CPrimaryKeyColName {
-		return len(tableDef.Cols) - 1, makeHiddenColTyp()
-	}
+	// if pkName == catalog.CPrimaryKeyColName {
+	// 	return len(tableDef.Cols) - 1, makeHiddenColTyp()
+	// }
 	for i, col := range tableDef.Cols {
 		if col.Name == pkName {
 			if ignoreFakePK && col.Name == catalog.FakePrimaryKeyColName {
@@ -1447,7 +1481,6 @@ func appendPreInsertNode(builder *QueryBuilder, bindCtx *BindContext,
 	}
 	if len(hiddenColumnTyp) > 0 {
 		for i, typ := range hiddenColumnTyp {
-
 			preInsertProjection = append(preInsertProjection, &plan.Expr{
 				Typ: typ,
 				Expr: &plan.Expr_Col{Col: &plan.ColRef{
@@ -1465,19 +1498,52 @@ func appendPreInsertNode(builder *QueryBuilder, bindCtx *BindContext,
 		ProjectList: preInsertProjection,
 		PreInsertCtx: &plan.PreInsertCtx{
 			Ref:        objRef,
-			TableDef:   tableDef,
+			TableDef:   DeepCopyTableDef(tableDef),
 			HasAutoCol: hashAutoCol,
 			IsUpdate:   isUpdate,
 		},
 	}
 	lastNodeId = builder.appendNode(preInsertNode, bindCtx)
 
+	// append hidden column to tableDef
+	if tableDef.Pkey != nil && tableDef.Pkey.PkeyColName == catalog.CPrimaryKeyColName {
+		tableDef.Cols = append(tableDef.Cols, MakeHiddenColDefByName(catalog.CPrimaryKeyColName))
+	}
+	if tableDef.ClusterBy != nil && util.JudgeIsCompositeClusterByColumn(tableDef.ClusterBy.Name) {
+		tableDef.Cols = append(tableDef.Cols, MakeHiddenColDefByName(tableDef.ClusterBy.Name))
+	}
+	// Get table partition information
+	partitionIdx, _ := getPartSubTableIdsAndPartIndex(builder.compCtx, objRef, tableDef)
+
+	// todo: append lock
+	pkPos, pkTyp := getPkPos(tableDef, false)
+	lockTarget := &plan.LockTarget{
+		TableId:            tableDef.TblId,
+		PrimaryColIdxInBat: int32(pkPos),
+		PrimaryColTyp:      pkTyp,
+		RefreshTsIdxInBat:  -1, //unsupport now
+		FilterColIdxInBat:  int32(partitionIdx),
+	}
+	lockNode := &Node{
+		NodeType:    plan.Node_LOCK_OP,
+		Children:    []int32{lastNodeId},
+		LockTargets: []*plan.LockTarget{lockTarget},
+	}
+	lastNodeId = builder.appendNode(lockNode, bindCtx)
+
 	return lastNodeId
 }
 
 // appendPreInsertUkPlan  build preinsert plan.
 // sink_scan -> preinsert_uk -> sink
-func appendPreInsertUkPlan(builder *QueryBuilder, bindCtx *BindContext, tableDef *TableDef, lastNodeId int32, indexIdx int, isUpddate bool) (int32, error) {
+func appendPreInsertUkPlan(
+	builder *QueryBuilder,
+	bindCtx *BindContext,
+	tableDef *TableDef,
+	lastNodeId int32,
+	indexIdx int,
+	isUpddate bool,
+	uniqueTableDef *TableDef) (int32, error) {
 	var useColumns []int32
 	idxDef := tableDef.Indexes[indexIdx]
 	partsMap := make(map[string]struct{})
@@ -1549,6 +1615,22 @@ func appendPreInsertUkPlan(builder *QueryBuilder, bindCtx *BindContext, tableDef
 		},
 	}
 	lastNodeId = builder.appendNode(preInsertUkNode, bindCtx)
+
+	// xxx todo confirm : i think we do not need lock unique table
+	// pkPos, pkTyp := getPkPos(uniqueTableDef, false)
+	// lockTarget := &plan.LockTarget{
+	// 	TableId:            uniqueTableDef.TblId,
+	// 	PrimaryColIdxInBat: int32(pkPos),
+	// 	PrimaryColTyp:      pkTyp,
+	// 	RefreshTsIdxInBat:  -1, //unsupport now
+	// 	FilterColIdxInBat:  -1,
+	// }
+	// lockNode := &Node{
+	// 	NodeType:    plan.Node_LOCK_OP,
+	// 	Children:    []int32{lastNodeId},
+	// 	LockTargets: []*plan.LockTarget{lockTarget},
+	// }
+	// lastNodeId = builder.appendNode(lockNode, bindCtx)
 
 	lastNodeId = appendSinkNode(builder, bindCtx, lastNodeId)
 	sourceStep := builder.appendStep(lastNodeId)
