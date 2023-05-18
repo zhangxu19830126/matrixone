@@ -1602,6 +1602,11 @@ type SqlHelper struct {
 	ses *Session
 }
 
+
+func (sh *SqlHelper) GetCompilerContext() any {
+	return sh.ses.txnCompileCtx
+}
+
 // Made for sequence func. nextval, setval.
 func (sh *SqlHelper) ExecSql(sql string) ([]interface{}, error) {
 	var err error

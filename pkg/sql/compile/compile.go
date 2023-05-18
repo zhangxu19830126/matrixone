@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/deletion"
+	"github.com/matrixorigin/matrixone/pkg/sql/parsers"
 
 	"github.com/matrixorigin/matrixone/pkg/cnservice/cnclient"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/dispatch"
@@ -52,6 +53,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/mergeblock"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/mergedelete"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec/output"
+	"github.com/matrixorigin/matrixone/pkg/sql/parsers/dialect"
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/tree"
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
@@ -259,7 +261,7 @@ func (c *Compile) run(s *Scope) error {
 func (c *Compile) Run(_ uint64) error {
 	var wg sync.WaitGroup
 	errC := make(chan error, len(c.scope))
-	// fmt.Printf("run sql %+v", DebugShowScopes(c.scope))
+	fmt.Printf("run sql %+v", DebugShowScopes(c.scope))
 	// reset early for multi steps
 	for _, s := range c.scope {
 		s.SetContextRecursively(c.proc.Ctx)
@@ -2554,6 +2556,25 @@ func (s *Scope) affectedRows() uint64 {
 		}
 	}
 	return affectedRows
+}
+
+func (c *Compile) runSql(sql string, fill func(any, *batch.Batch) error) error {
+	stmts, err := parsers.Parse(c.ctx, dialect.MYSQL, sql, 1)
+	if err != nil {
+		return err
+	}
+
+	pn, err := plan2.BuildPlan(c.proc.SessionInfo.SqlHelper.GetCompilerContext().(plan2.CompilerContext), stmts[0])
+	if err != nil {
+		return err
+	}
+	newC := New(c.addr, c.db, sql, c.tenant, c.uid, c.ctx, c.e,
+		c.proc, stmts[0], c.isInternal, c.cnLabel)
+	if err := newC.Compile(c.ctx, pn, nil, nil); err != nil {
+		return err
+	}
+	return newC.Run(0)
+
 }
 
 // compile and run a plan - not a good way,  just for remove the hack code
