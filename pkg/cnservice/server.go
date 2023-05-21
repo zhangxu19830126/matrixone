@@ -264,6 +264,7 @@ func (s *service) handleRequest(
 			}
 		}
 	}
+
 	go func() {
 		defer value.Cancel()
 		s.requestHandler(ctx,

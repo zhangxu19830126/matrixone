@@ -28,7 +28,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/dialect"
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/tree"
-	"github.com/matrixorigin/matrixone/pkg/sql/plan/function/operator"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
 )
 
@@ -603,7 +602,7 @@ func buildTableDefs(stmt *tree.CreateTable, ctx CompilerContext, createTable *pl
 					}
 				case *tree.AttributeAutoIncrement:
 					auto_incr = true
-					if !operator.IsInteger(types.T(colType.GetId())) {
+					if !types.T(colType.GetId()).IsInteger() {
 						return moerr.NewNotSupported(ctx.GetContext(), "the auto_incr column is only support integer type now")
 					}
 				case *tree.AttributeUnique, *tree.AttributeUniqueKey:
@@ -935,10 +934,7 @@ func checkDuplicateConstraint(namesMap map[string]bool, name string, foreign boo
 // Set name for unqiue index constraint with an empty name
 func setEmptyUniqueIndexName(namesMap map[string]bool, indexConstr *tree.UniqueIndex) {
 	if indexConstr.Name == "" && len(indexConstr.KeyParts) > 0 {
-		var colName string
-		if colName == "" {
-			colName = indexConstr.KeyParts[0].ColName.Parts[0]
-		}
+		colName := indexConstr.KeyParts[0].ColName.Parts[0]
 		constrName := colName
 		i := 2
 		if strings.EqualFold(constrName, "PRIMARY") {
@@ -1790,7 +1786,8 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 						},
 					},
 				}
-
+			default:
+				return nil, moerr.NewInternalError(ctx.GetContext(), "unsupported alter option: %T", def)
 			}
 
 		case *tree.AlterOptionAlterIndex:
