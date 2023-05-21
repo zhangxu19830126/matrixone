@@ -265,7 +265,6 @@ func (tc *txnOperator) UpdateSnapshot(
 
 	// ony push model support RC isolation
 	if tc.timestampWaiter == nil {
-		// fmt.Printf(">>>>>> UpdateSnapshot skipped \n")
 		return nil
 	}
 
