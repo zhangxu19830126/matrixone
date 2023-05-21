@@ -280,6 +280,7 @@ func (c *Compile) Run(_ uint64) error {
 	close(errC)
 	for e := range errC {
 		if e != nil {
+			// c.proc.TxnOperator.GetWorkspace().RollbackLastStatement(c.proc.Ctx)
 			return e
 		}
 	}
@@ -2579,15 +2580,4 @@ func (c *Compile) runSql(sql string, fill func(any, *batch.Batch) error) error {
 	}
 	return newC.Run(0)
 
-}
-
-// compile and run a plan - not a good way,  just for remove the hack code
-// the beast way is to run sql
-func (c *Compile) runPlan(pn *plan.Plan) error {
-	newC := New(c.addr, c.db, c.sql, c.tenant, c.uid, c.ctx, c.e,
-		c.proc, c.stmt, c.isInternal, c.cnLabel)
-	if err := newC.Compile(c.ctx, pn, nil, nil); err != nil {
-		return err
-	}
-	return newC.Run(0)
 }
