@@ -32,6 +32,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/defines"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/frontend"
+	"github.com/matrixorigin/matrixone/pkg/incrservice"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
 	"github.com/matrixorigin/matrixone/pkg/logservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
@@ -477,10 +478,8 @@ func (s *service) getTxnClient() (c client.TxnClient, err error) {
 			return
 		}
 		var opts []client.TxnClientCreateOption
-		// if s.cfg.TurnOnPushModel {
 		opts = append(opts,
 			client.WithTimestampWaiter(s.timestampWaiter))
-		// }
 		if s.cfg.Txn.EnableSacrificingFreshness {
 			opts = append(opts,
 				client.WithEnableSacrificingFreshness())
@@ -565,7 +564,27 @@ func (s *service) initInternalSQlExecutor(mp *mpool.MPool) {
 	runtime.ProcessLevelRuntime().SetGlobalVariables(runtime.InternalSQLExecutor, exec)
 }
 
+func (s *service) initIncrService() {
+	rt := runtime.ProcessLevelRuntime()
+	v, ok := rt.GetGlobalVariables(runtime.InternalSQLExecutor)
+	if !ok {
+		panic("missing internal sql executor")
+	}
+
+	store, err := incrservice.NewSQLStore(v.(executor.SQLExecutor))
+	if err != nil {
+		panic(err)
+	}
+	incrService := incrservice.NewIncrService(
+		store,
+		s.cfg.AutoIncrement)
+	runtime.ProcessLevelRuntime().SetGlobalVariables(
+		runtime.AutoIncrmentService,
+		incrService)
+}
+
 func (s *service) bootstrap() error {
+	s.initIncrService()
 	return s.stopper.RunTask(func(ctx context.Context) {
 		rt := runtime.ProcessLevelRuntime()
 		v, ok := rt.GetGlobalVariables(runtime.InternalSQLExecutor)
@@ -573,7 +592,7 @@ func (s *service) bootstrap() error {
 			panic("missing internal sql executor")
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		b := bootstrap.NewBootstrapper(
 			&locker{hakeeperClient: s._hakeeperClient},
