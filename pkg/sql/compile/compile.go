@@ -698,7 +698,8 @@ func (c *Compile) compilePlanScope(ctx context.Context, step int32, curNodeIdx i
 			rs.Instructions = append(rs.Instructions, vm.Instruction{
 				Op: vm.MergeDelete,
 				Arg: &mergedelete.Argument{
-					DelSource: arg.DeleteCtx.Source,
+					DelSource:        arg.DeleteCtx.Source,
+					PartitionSources: arg.DeleteCtx.PartitionSources,
 				},
 			})
 			rs.Magic = MergeDelete

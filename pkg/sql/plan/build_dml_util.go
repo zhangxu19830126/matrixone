@@ -50,6 +50,7 @@ func getDmlPlanCtx() *dmlPlanCtx {
 	ctx.isFkRecursionCall = false
 	ctx.lockTable = false
 	ctx.checkInsertPkDup = false
+	ctx.pkFilterExpr = nil
 	return ctx
 }
 
@@ -90,6 +91,7 @@ type dmlPlanCtx struct {
 	isFkRecursionCall bool //if update plan was recursion called by parent table( ref foreign key), we do not check parent's foreign key contraint
 	lockTable         bool //we need lock table in stmt: delete from tbl
 	checkInsertPkDup  bool //if we need check for duplicate values in insert batch.  eg:insert into t values (1).  load data will not check
+	pkFilterExpr      *Expr
 }
 
 // information of deleteNode, which is about the deleted table
@@ -109,7 +111,8 @@ type deleteNodeInfo struct {
 // buildInsertPlans  build insert plan.
 func buildInsertPlans(
 	ctx CompilerContext, builder *QueryBuilder, bindCtx *BindContext,
-	objRef *ObjectRef, tableDef *TableDef, lastNodeId int32, checkInsertPkDup bool) error {
+	objRef *ObjectRef, tableDef *TableDef, lastNodeId int32,
+	checkInsertPkDup bool, pkFilterExpr *Expr) error {
 
 	// add plan: -> preinsert -> sink
 	lastNodeId = appendPreInsertNode(builder, bindCtx, objRef, tableDef, lastNodeId, false)
@@ -118,7 +121,7 @@ func buildInsertPlans(
 
 	// make insert plans
 	insertBindCtx := NewBindContext(builder, nil)
-	err := makeInsertPlan(ctx, builder, insertBindCtx, objRef, tableDef, 0, sourceStep, true, false, checkInsertPkDup)
+	err := makeInsertPlan(ctx, builder, insertBindCtx, objRef, tableDef, 0, sourceStep, true, false, checkInsertPkDup, pkFilterExpr)
 	return err
 }
 
@@ -191,7 +194,8 @@ func buildUpdatePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 
 	// build insert plan.
 	insertBindCtx := NewBindContext(builder, nil)
-	err = makeInsertPlan(ctx, builder, insertBindCtx, updatePlanCtx.objRef, updatePlanCtx.tableDef, updatePlanCtx.updateColLength, sourceStep, false, updatePlanCtx.isFkRecursionCall, updatePlanCtx.checkInsertPkDup)
+	err = makeInsertPlan(ctx, builder, insertBindCtx, updatePlanCtx.objRef, updatePlanCtx.tableDef, updatePlanCtx.updateColLength,
+		sourceStep, false, updatePlanCtx.isFkRecursionCall, updatePlanCtx.checkInsertPkDup, updatePlanCtx.pkFilterExpr)
 
 	return err
 }
@@ -295,7 +299,7 @@ func buildDeletePlans(ctx CompilerContext, builder *QueryBuilder, bindCtx *BindC
 								insertUniqueTableDef.Cols = append(insertUniqueTableDef.Cols[:j], insertUniqueTableDef.Cols[j+1:]...)
 							}
 						}
-						err = makeInsertPlan(ctx, builder, bindCtx, uniqueObjRef, insertUniqueTableDef, 1, preUKStep, false, false, true)
+						err = makeInsertPlan(ctx, builder, bindCtx, uniqueObjRef, insertUniqueTableDef, 1, preUKStep, false, false, true, nil)
 						if err != nil {
 							return err
 						}
@@ -701,6 +705,7 @@ func makeInsertPlan(
 	addAffectedRows bool,
 	isFkRecursionCall bool,
 	checkInsertPkDup bool,
+	pkFilterExpr *Expr,
 ) error {
 	var lastNodeId int32
 	var err error
@@ -773,7 +778,7 @@ func makeInsertPlan(
 					return err
 				}
 
-				err = makeInsertPlan(ctx, builder, bindCtx, idxRef, idxTableDef, 0, newSourceStep, false, false, checkInsertPkDup)
+				err = makeInsertPlan(ctx, builder, bindCtx, idxRef, idxTableDef, 0, newSourceStep, false, false, checkInsertPkDup, nil)
 				if err != nil {
 					return err
 				}
@@ -893,63 +898,110 @@ func makeInsertPlan(
 			lastNodeId = appendSinkScanNode(builder, bindCtx, sourceStep)
 			isUpdate := updateColLength > 0
 
-			pkColExpr := &Expr{
-				Typ: pkTyp,
-				Expr: &plan.Expr_Col{
-					Col: &ColRef{
-						ColPos: int32(pkPos),
-						Name:   tableDef.Pkey.PkeyColName,
-					},
-				},
-			}
-			rightExpr := &Expr{
-				Typ: pkTyp,
-				Expr: &plan.Expr_Col{
-					Col: &plan.ColRef{
-						RelPos: 1,
-						Name:   tableDef.Pkey.PkeyColName,
-					},
-				},
-			}
-			condExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "=", []*Expr{pkColExpr, rightExpr})
-			if err != nil {
-				return err
-			}
-
 			if isUpdate {
 				rowIdDef := MakeRowIdColDef()
 				tableDef.Cols = append(tableDef.Cols, rowIdDef)
+				scanTableDef := DeepCopyTableDef(tableDef)
 
-				rowIdExpr := &Expr{
+				colPos := make(map[int32]int32)
+				colPos[int32(pkPos)] = 0
+				if pkFilterExpr != nil {
+					getColPos(pkFilterExpr, colPos)
+				}
+				var newCols []*ColDef
+				rowIdIdx := len(scanTableDef.Cols) - 1
+				for idx, col := range scanTableDef.Cols {
+					if _, ok := colPos[int32(idx)]; ok {
+						colPos[int32(idx)] = int32(len(newCols))
+						newCols = append(newCols, col)
+					}
+					if col.Name == catalog.Row_ID {
+						colPos[int32(idx)] = int32(len(newCols))
+						newCols = append(newCols, col)
+					}
+				}
+				scanTableDef.Cols = newCols
+
+				scanPkExpr := &Expr{
+					Typ: pkTyp,
+					Expr: &plan.Expr_Col{
+						Col: &ColRef{
+							ColPos: colPos[int32(pkPos)],
+							Name:   tableDef.Pkey.PkeyColName,
+						},
+					},
+				}
+				scanRowIdExpr := &Expr{
 					Typ: rowIdDef.Typ,
 					Expr: &plan.Expr_Col{
 						Col: &ColRef{
-							ColPos: int32(len(tableDef.Cols) - 1),
+							ColPos: colPos[int32(rowIdIdx)],
 							Name:   rowIdDef.Name,
 						},
 					},
 				}
-				rightId := builder.appendNode(&Node{
+				scanNode := &Node{
 					NodeType:    plan.Node_TABLE_SCAN,
 					Stats:       &plan.Stats{},
 					ObjRef:      objRef,
-					TableDef:    tableDef,
-					ProjectList: []*Expr{pkColExpr, rowIdExpr},
-				}, bindCtx)
+					TableDef:    scanTableDef,
+					ProjectList: []*Expr{scanPkExpr, scanRowIdExpr},
+				}
+				if pkFilterExpr != nil {
+					resetColPos(pkFilterExpr, colPos)
+					filterExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "=", []*Expr{scanPkExpr, pkFilterExpr})
+					if err != nil {
+						return err
+					}
+					scanNode.FilterList = []*Expr{filterExpr}
+				}
+				rightId := builder.appendNode(scanNode, bindCtx)
+
+				pkColExpr := &Expr{
+					Typ: pkTyp,
+					Expr: &plan.Expr_Col{
+						Col: &ColRef{
+							RelPos: 1,
+							ColPos: int32(pkPos),
+							Name:   tableDef.Pkey.PkeyColName,
+						},
+					},
+				}
+				rightExpr := &Expr{
+					Typ: pkTyp,
+					Expr: &plan.Expr_Col{
+						Col: &plan.ColRef{
+							Name: tableDef.Pkey.PkeyColName,
+						},
+					},
+				}
+				condExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "=", []*Expr{pkColExpr, rightExpr})
+				if err != nil {
+					return err
+				}
 				rightRowIdExpr := &Expr{
 					Typ: rowIdDef.Typ,
 					Expr: &plan.Expr_Col{
 						Col: &ColRef{
-							RelPos: 1,
 							ColPos: 1,
+							Name:   rowIdDef.Name,
+						},
+					},
+				}
+				rowIdExpr := &Expr{
+					Typ: rowIdDef.Typ,
+					Expr: &plan.Expr_Col{
+						Col: &ColRef{
+							RelPos: 1,
+							ColPos: int32(len(tableDef.Cols) - 1),
 							Name:   rowIdDef.Name,
 						},
 					},
 				}
 				lastNodeId = builder.appendNode(&plan.Node{
 					NodeType:    plan.Node_JOIN,
-					Children:    []int32{lastNodeId, rightId},
-					JoinType:    plan.Node_LEFT,
+					Children:    []int32{rightId, lastNodeId},
+					JoinType:    plan.Node_RIGHT,
 					OnList:      []*Expr{condExpr},
 					ProjectList: []*Expr{rowIdExpr, rightRowIdExpr, pkColExpr},
 				}, bindCtx)
@@ -1082,20 +1134,52 @@ func makeInsertPlan(
 				}, bindCtx)
 				builder.appendStep(lastNodeId)
 			} else {
+				scanTableDef := DeepCopyTableDef(tableDef)
+				scanTableDef.Cols = []*ColDef{scanTableDef.Cols[pkPos]}
 				rightId := builder.appendNode(&plan.Node{
-					NodeType:    plan.Node_TABLE_SCAN,
-					Stats:       &plan.Stats{},
-					ObjRef:      objRef,
-					TableDef:    tableDef,
-					ProjectList: []*Expr{pkColExpr},
+					NodeType: plan.Node_TABLE_SCAN,
+					Stats:    &plan.Stats{},
+					ObjRef:   objRef,
+					TableDef: scanTableDef,
+					ProjectList: []*Expr{{
+						Typ: pkTyp,
+						Expr: &plan.Expr_Col{
+							Col: &ColRef{
+								ColPos: 0,
+								Name:   tableDef.Pkey.PkeyColName,
+							},
+						},
+					}},
 				}, bindCtx)
 
+				leftExpr := &Expr{
+					Typ: pkTyp,
+					Expr: &plan.Expr_Col{
+						Col: &ColRef{
+							ColPos: int32(pkPos),
+							Name:   tableDef.Pkey.PkeyColName,
+						},
+					},
+				}
+				rightExpr := &Expr{
+					Typ: pkTyp,
+					Expr: &plan.Expr_Col{
+						Col: &plan.ColRef{
+							RelPos: 1,
+							Name:   tableDef.Pkey.PkeyColName,
+						},
+					},
+				}
+				condExpr, err := bindFuncExprImplByPlanExpr(builder.GetContext(), "=", []*Expr{leftExpr, rightExpr})
+				if err != nil {
+					return err
+				}
 				lastNodeId = builder.appendNode(&plan.Node{
 					NodeType:    plan.Node_JOIN,
 					Children:    []int32{lastNodeId, rightId},
 					JoinType:    plan.Node_SEMI,
 					OnList:      []*Expr{condExpr},
-					ProjectList: []*Expr{pkColExpr},
+					ProjectList: []*Expr{leftExpr},
 				}, bindCtx)
 
 				colExpr := &Expr{
@@ -1544,15 +1628,31 @@ func appendPreInsertNode(builder *QueryBuilder, bindCtx *BindContext,
 		}
 	}
 	if len(hiddenColumnTyp) > 0 {
-		for i, typ := range hiddenColumnTyp {
-			preInsertProjection = append(preInsertProjection, &plan.Expr{
-				Typ: typ,
-				Expr: &plan.Expr_Col{Col: &plan.ColRef{
-					RelPos: -1,
-					ColPos: int32(i),
-					Name:   hiddenColumnName[i],
-				}},
-			})
+		if isUpdate {
+			rowIdProj := preInsertProjection[len(preInsertProjection)-1]
+			preInsertProjection = preInsertProjection[:len(preInsertProjection)-1]
+			for i, typ := range hiddenColumnTyp {
+				preInsertProjection = append(preInsertProjection, &plan.Expr{
+					Typ: typ,
+					Expr: &plan.Expr_Col{Col: &plan.ColRef{
+						RelPos: -1,
+						ColPos: int32(i),
+						Name:   hiddenColumnName[i],
+					}},
+				})
+			}
+			preInsertProjection = append(preInsertProjection, rowIdProj)
+		} else {
+			for i, typ := range hiddenColumnTyp {
+				preInsertProjection = append(preInsertProjection, &plan.Expr{
+					Typ: typ,
+					Expr: &plan.Expr_Col{Col: &plan.ColRef{
+						RelPos: -1,
+						ColPos: int32(i),
+						Name:   hiddenColumnName[i],
+					}},
+				})
+			}
 		}
 	}
 
@@ -1991,4 +2091,27 @@ func makePreUpdateDeletePlan(
 	nextSourceStep := builder.appendStep(lastNodeId)
 
 	return nextSourceStep, nil
+}
+
+func getColPos(expr *Expr, colPos map[int32]int32) {
+	switch e := expr.Expr.(type) {
+	case *plan.Expr_Col:
+		colPos[e.Col.ColPos] = 0
+	case *plan.Expr_F:
+		for _, arg := range e.F.Args {
+			getColPos(arg, colPos)
+		}
+	}
+}
+
+func resetColPos(expr *Expr, colPos map[int32]int32) {
+	switch e := expr.Expr.(type) {
+	case *plan.Expr_Col:
+		e.Col.ColPos = colPos[e.Col.ColPos]
+	case *plan.Expr_F:
+		for _, arg := range e.F.Args {
+			resetColPos(arg, colPos)
+		}
+	}
+
 }
