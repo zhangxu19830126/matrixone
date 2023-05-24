@@ -6854,16 +6854,6 @@ func InitSysTenant(ctx context.Context, aicm *defines.AutoIncrCacheManager) erro
 		return err
 	}
 
-	err = bh.Exec(ctx, createMoIndexesSql)
-	if err != nil {
-		return err
-	}
-
-	err = bh.Exec(ctx, createAutoTableSql)
-	if err != nil {
-		return err
-	}
-
 	err = bh.Exec(ctx, createDbInformationSchemaSql)
 	if err != nil {
 		return err

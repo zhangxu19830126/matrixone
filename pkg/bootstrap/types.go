@@ -21,7 +21,19 @@ import (
 // Bootstrapper is used to create some internal databases and tables at the time
 // of MO initialization according to a specific logic. It provides the necessary
 // dependencies for other components to be launched later.
+//
+// Note that, this bootstrapper is not used to bootstrap logservice and dn. The
+// internal databases and tables as below:
+// 1. mo_indexes in mo_catalog
+// 2. task inferstructure database
 type Bootstrapper interface {
 	// Bootstrap creates some internal databases and tables at the time of MO
 	Bootstrap(ctx context.Context) error
+}
+
+// Locker locker is used to get lock to bootstrap. Only one cn can get lock to bootstrap.
+// Other cns need to wait bootstrap completed.
+type Locker interface {
+	// Get return true means get lock
+	Get(ctx context.Context) (bool, error)
 }
