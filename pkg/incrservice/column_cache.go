@@ -19,7 +19,6 @@ import (
 	"math"
 	"sync"
 
-	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixone/pkg/common/log"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
@@ -55,12 +54,13 @@ func newColumnCache(
 		overflow:  col.Offset == math.MaxUint64,
 		ranges:    &ranges{step: col.Step, values: make([]uint64, 0, 1)},
 	}
-	item.preAllocate(ctx, tableID, cfg.CountPerAllocate)
-	item.Lock()
-	defer item.Unlock()
-	if err := item.waitPrevAllocatingLocked(ctx); err != nil {
-		return nil, err
-	}
+	// item.preAllocate(ctx, tableID, cfg.CountPerAllocate)
+	// item.Lock()
+	// defer item.Unlock()
+	// if err := item.waitPrevAllocatingLocked(ctx); err != nil {
+	// 	return nil, err
+	// }
+	item.ranges.add(310000, math.MaxUint64)
 	return item, nil
 }
 
@@ -246,39 +246,9 @@ func (col *columnCache) applyAutoValues(
 	col.Lock()
 	defer col.Unlock()
 
-	if err := col.waitPrevAllocatingLocked(ctx); err != nil {
-		return err
-	}
-
-	wait := func() (bool, error) {
-		if col.overflow {
-			return true, nil
-		}
-
-		if col.ranges.empty() {
-			if err := col.allocateLocked(ctx, tableID, rows); err != nil {
-				return false, err
-			}
-		}
-		return false, nil
-	}
 	for i := 0; i < rows; i++ {
 		if filter(i) {
 			continue
-		}
-		if skipped != nil &&
-			skipped.left() > 0 {
-			if err := apply(i, skipped.next()); err != nil {
-				return err
-			}
-			continue
-		}
-		overflow, err := wait()
-		if err != nil {
-			return err
-		}
-		if overflow {
-			return apply(i, 0)
 		}
 		if err := apply(i, col.ranges.next()); err != nil {
 			return err
@@ -414,61 +384,21 @@ func insertAutoValues[T constraints.Integer](
 	// all values are filled after insert
 	defer func() {
 		vec.SetNulls(nil)
-		col.maybeAllocate(tableID)
+		// col.maybeAllocate(tableID)
 	}()
 
 	vs := vector.MustFixedCol[T](vec)
 	autoCount := vec.GetNulls().Count()
 	lastInsertValue := uint64(0)
 
-	// has manual values, we reuse skipped auto values, and update cache max value to store
-	var skipped *ranges
-	if autoCount < rows {
-		skipped = &ranges{step: col.col.Step}
-		manuals := roaring64.NewBitmap()
-		maxValue := uint64(0)
-		col.lockDo(func() {
-			for _, v := range vs {
-				if v > 0 {
-					manuals.Add(uint64(v))
-				}
-			}
-			if manuals.GetCardinality() > 0 {
-				// use a bitmap to store the manually inserted values and iterate through these manual
-				// values in order to skip the automatic values.
-				iter := manuals.Iterator()
-				for {
-					if !iter.HasNext() {
-						break
-					}
-					maxValue = iter.Next()
-					col.ranges.setManual(maxValue, skipped)
-				}
-			}
-		})
-		if maxValue > 0 {
-			if err := col.updateTo(
-				ctx,
-				tableID,
-				rows,
-				maxValue); err != nil {
-				return 0, err
-			}
-		}
-	}
-	col.preAllocate(ctx, tableID, rows)
 	err := col.applyAutoValues(
 		ctx,
 		tableID,
 		rows,
-		skipped,
+		nil,
 		func(i int) bool {
-			filter := autoCount < rows &&
+			return autoCount < rows &&
 				!nulls.Contains(vec.GetNulls(), uint64(i))
-			if filter && skipped != nil {
-				skipped.updateTo(uint64(vs[i]))
-			}
-			return filter
 		},
 		func(i int, v uint64) error {
 			if v > uint64(max) ||
