@@ -192,9 +192,7 @@ func (client *txnClient) New(
 		if id, ok := client.mu.flags[op.option.flag]; ok {
 			logutil.Fatalf("last txn[%s] is not closed, create new, session %s\n", id, op.option.flag)
 		}
-		client.mu.Lock()
 		client.mu.flags[op.option.flag] = hex.EncodeToString(txnMeta.ID)
-		client.mu.Unlock()
 	}
 
 	logutil.Infof(">>>>>>>>> txn created, %s, %s, %s\n",
