@@ -17,11 +17,13 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/util"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
@@ -74,6 +76,8 @@ func (l *localLockTable) lock(
 	ctx, span := trace.Debug(ctx, "lockservice.lock.local")
 	defer span.End()
 
+	fmt.Printf(">>>>>>>>>>> table(%d) lock on %+v, txn %s\n", l.bind.Table, rows, hex.EncodeToString(txn.txnID))
+
 	logLocalLock(l.bind.ServiceID, txn, l.bind.Table, rows, opts)
 	c := newLockContext(ctx, txn, rows, opts, cb, l.bind)
 	if opts.async {
@@ -95,6 +99,7 @@ func (l *localLockTable) doLock(
 			if err != nil {
 				logLocalLockFailed(l.bind.ServiceID, c.txn, table, c.rows, c.opts, err)
 				c.done(err)
+				fmt.Printf(">>>>>>>>>>> table(%d) lock on %+v end, txn %s\n", l.bind.Table, c.rows, hex.EncodeToString(c.txn.txnID))
 				return
 			}
 			// no waiter, all locks are added
@@ -105,6 +110,7 @@ func (l *localLockTable) doLock(
 					c.result.Timestamp = c.lockedTS
 				}
 				c.done(nil)
+				fmt.Printf(">>>>>>>>>>> table(%d) lock on %+v end, txn %s\n", l.bind.Table, c.rows, hex.EncodeToString(c.txn.txnID))
 				return
 			}
 
@@ -151,14 +157,26 @@ func (l *localLockTable) unlock(
 		return
 	}
 
+	fmt.Printf(">>>>>>>> table(%d) unlock keys %d, %s\n",
+		l.bind.Table,
+		locks.len(), hex.EncodeToString(txn.txnID))
+
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
+				if next != nil {
+					fmt.Printf(">>>>>>>> table(%d) key %+v notify next, %s, next %s\n",
+						l.bind.Table,
+						key,
+						hex.EncodeToString(txn.txnID),
+						hex.EncodeToString(next.txnID))
+				}
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
 			}
 			l.mu.store.Delete(key)
+			fmt.Printf(">>>>>>>> table(%d) key %+v removed, %s\n", l.bind.Table, key, hex.EncodeToString(txn.txnID))
 		}
 		return true
 	})
@@ -334,6 +352,11 @@ func (l *localLockTable) handleLockConflictLocked(
 		panic("BUG: active dead lock check can not fail")
 	}
 	logLocalLockWaitOn(l.bind.ServiceID, txn, l.bind.Table, w, key, conflictWith)
+	logutil.Infof(">>>>>>>>>>> table(%d) lock wait %s on %+v, txn %s\n",
+		l.bind.Table,
+		hex.EncodeToString(conflictWith.txnID),
+		key,
+		hex.EncodeToString(txn.txnID))
 }
 
 func getWaiter(

@@ -418,6 +418,7 @@ func (ses *Session) Close() {
 	ses.seqCurValues = nil
 	ses.seqLastValue = ""
 	ses.sqlHelper = nil
+	fmt.Printf(">>>>>>>>> %p closed\n", ses)
 }
 
 // BackgroundSession executing the sql in background

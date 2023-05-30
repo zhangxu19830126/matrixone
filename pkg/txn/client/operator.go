@@ -17,10 +17,12 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -133,6 +135,12 @@ func WithTxnIsolation(value txn.TxnIsolation) TxnOption {
 	}
 }
 
+func WithFlag(flag string) TxnOption {
+	return func(tc *txnOperator) {
+		tc.option.flag = flag
+	}
+}
+
 type txnOperator struct {
 	sender rpc.TxnSender
 	txnID  []byte
@@ -143,6 +151,7 @@ type txnOperator struct {
 		disable1PCOpt    bool
 		coordinator      bool
 		lockService      lockservice.LockService
+		flag             string
 	}
 
 	mu struct {
@@ -349,6 +358,7 @@ func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnReq
 }
 
 func (tc *txnOperator) Commit(ctx context.Context) error {
+	logutil.Infof(">>>>>>> txn commit, %s\n", hex.EncodeToString(tc.txnID))
 	util.LogTxnCommit(tc.getTxnMeta(false))
 
 	if tc.option.readyOnly {
@@ -369,6 +379,7 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 }
 
 func (tc *txnOperator) Rollback(ctx context.Context) error {
+	logutil.Infof(">>>>>>> txn rollback, %s\n", hex.EncodeToString(tc.txnID))
 	util.LogTxnRollback(tc.getTxnMeta(false))
 
 	tc.mu.Lock()

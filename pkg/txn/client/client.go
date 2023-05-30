@@ -17,11 +17,14 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"runtime/debug"
 	"sort"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/pb/txn"
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
@@ -119,6 +122,8 @@ type txnClient struct {
 		// cn-based commit ts when the session-level last commit ts have
 		// been processed.
 		latestCommitTS timestamp.Timestamp
+
+		flags map[string]string
 	}
 }
 
@@ -134,6 +139,7 @@ func NewTxnClient(
 		opt(c)
 	}
 	c.adjust()
+	c.mu.flags = make(map[string]string)
 	return c
 }
 
@@ -173,7 +179,28 @@ func (client *txnClient) New(
 	op.timestampWaiter = client.timestampWaiter
 	op.AppendEventCallback(ClosedEvent,
 		client.updateLastCommitTS,
-		client.popTransaction)
+		client.popTransaction,
+		func(tm txn.TxnMeta) {
+			client.mu.Lock()
+			defer client.mu.Unlock()
+			delete(client.mu.flags, op.option.flag)
+		})
+
+	if op.option.flag != "" {
+		op.mu.Lock()
+		defer op.mu.Unlock()
+		if id, ok := client.mu.flags[op.option.flag]; ok {
+			logutil.Fatalf("last txn[%s] is not closed, create new, session %s\n", id, op.option.flag)
+		}
+		client.mu.Lock()
+		client.mu.flags[op.option.flag] = hex.EncodeToString(txnMeta.ID)
+		client.mu.Unlock()
+	}
+
+	logutil.Infof(">>>>>>>>> txn created, %s, %s, %s\n",
+		hex.EncodeToString(txnMeta.ID),
+		op.option.flag,
+		debug.Stack())
 	return op, nil
 }
 

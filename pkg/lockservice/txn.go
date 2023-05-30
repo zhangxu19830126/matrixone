@@ -16,6 +16,8 @@ package lockservice
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/util"
@@ -109,6 +111,10 @@ func (txn *activeTxn) lockAdded(
 		defer txn.Unlock()
 	}
 	defer logTxnLockAdded(serviceID, txn, locks)
+	fmt.Printf(">>>>>>>>>> table(%d) lock added %+v, %s, %p\n", table, locks, hex.EncodeToString(txn.txnID), txn)
+	defer func() {
+		fmt.Printf(">>>>>>>>>> table(%d) lock added %+v, %s, %+v, %p\n", table, locks, hex.EncodeToString(txn.txnID), txn.holdLocks, txn)
+	}()
 	v, ok := txn.holdLocks[table]
 	if ok {
 		v.append(locks)

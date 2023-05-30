@@ -19,8 +19,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -241,6 +243,9 @@ func (w *waiter) wait(
 		logWaiterGetNotify(serviceID, w, v)
 		w.setStatus(serviceID, completed)
 		return v
+	case <-time.After(time.Second * 120):
+		debug.FreeOSMemory()
+		getLogger().Fatal("wait txn timeout", zap.String("txn", hex.EncodeToString(w.txnID)))
 	case <-ctx.Done():
 	}
 
