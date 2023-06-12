@@ -320,7 +320,10 @@ func (c *Compile) Run(_ uint64) error {
 			}
 		}
 		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
-			logutil.Fatalf("txn %s first need retry skipped, exec type %d, sql<%s>\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), c.info.Typ, c.sql)
+			logutil.Fatalf("txn %s first need retry skipped, exec type %d, sql<%s>, stats %s\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
+				c.info.Typ,
+				c.sql,
+				plan2.PrintStats(c.pn.GetQuery()))
 		}
 		return err
 	}
