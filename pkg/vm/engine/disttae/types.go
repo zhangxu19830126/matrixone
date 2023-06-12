@@ -212,7 +212,7 @@ func (b *deletedBlocks) iter(fn func(*types.Blockid, []int64) bool) {
 func (txn *Transaction) AddSQL(sql string) {
 	txn.Lock()
 	defer txn.Unlock()
-	txn.sqls = append(txn.sqls, sql)
+	txn.sqls = append(txn.sqls, sql, "\n\n")
 }
 
 func (txn *Transaction) GetSQLs() []string {
