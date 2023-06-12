@@ -286,9 +286,9 @@ func (c *Compile) fatalLog(retry int, err error) {
 		return
 	}
 
-	locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
-	if err != nil {
-		logutil.Fatal(err.Error())
+	locks, e := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
+	if e != nil {
+		logutil.Fatal(e.Error())
 	}
 	logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
