@@ -158,6 +158,7 @@ type Transaction struct {
 	rollbackCount int
 	statementID   int
 	statements    []int
+	sqls          []string
 }
 
 type Pos struct {
@@ -206,6 +207,18 @@ func (b *deletedBlocks) iter(fn func(*types.Blockid, []int64) bool) {
 			return
 		}
 	}
+}
+
+func (txn *Transaction) AddSQL(sql string) {
+	txn.Lock()
+	defer txn.Unlock()
+	txn.sqls = append(txn.sqls, sql)
+}
+
+func (txn *Transaction) GetSQLs() []string {
+	txn.Lock()
+	defer txn.Unlock()
+	return txn.sqls
 }
 
 func (txn *Transaction) PutCnBlockDeletes(blockId *types.Blockid, offsets []int64) {

@@ -181,4 +181,6 @@ type Workspace interface {
 	IncrStatemenetID(ctx context.Context) error
 	// RollbackLastStatement rollback the last statement.
 	RollbackLastStatement(ctx context.Context) error
+	AddSQL(string)
+	GetSQLs() []string
 }

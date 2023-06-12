@@ -273,8 +273,36 @@ func (c *Compile) run(s *Scope) error {
 	return nil
 }
 
+func (c *Compile) fatalLog(retry int, err error) {
+	if err == nil {
+		return
+	}
+	fatal := moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
+		moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
+		moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry)
+	if !fatal {
+		return
+	}
+
+	locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
+	if err != nil {
+		logutil.Fatal(err.Error())
+	}
+	logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n",
+		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
+		retry,
+		err.Error(),
+		locks,
+		c.proc.TxnOperator.GetWorkspace().GetSQLs())
+}
+
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) error {
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+	c.proc.TxnOperator.GetWorkspace().AddSQL(sql)
 	if err := c.runOnce(); err != nil {
 		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
 			locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
@@ -314,21 +342,10 @@ func (c *Compile) Run(_ uint64) error {
 				return err
 			}
 			err := cc.runOnce()
-			if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
-				locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
-				if err != nil {
-					logutil.Fatal(err.Error())
-				}
-				logutil.Fatalf("txn %s second need retry, locks %+v, type %d\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks, c.info.Typ)
-				return err
-			}
+			c.fatalLog(1, err)
+			return err
 		}
-		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
-			logutil.Fatalf("txn %s first need retry skipped, exec type %d, sql<%s>, stats %s\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
-				c.info.Typ,
-				c.originSQL,
-				plan2.PrintStats(c.pn.GetQuery()))
-		}
+		c.fatalLog(0, err)
 		return err
 	}
 	return nil
