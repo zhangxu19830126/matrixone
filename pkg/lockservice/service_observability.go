@@ -64,3 +64,22 @@ func (s *service) GetLockTableBind(tableID uint64) (pb.LockTable, error) {
 	}
 	return l.getBind(), nil
 }
+
+func (s *service) GetHoldLocks(txnID []byte) ([][]byte, error) {
+	txn := s.activeTxnHolder.getActiveTxn(txnID, false, "")
+	if txn == nil {
+		return nil, nil
+	}
+	var locks [][]byte
+	txn.RLock()
+	defer txn.RUnlock()
+	for _, cs := range txn.holdLocks {
+		v := cs.slice()
+		v.iter(func(b []byte) bool {
+			locks = append(locks, b)
+			return true
+		})
+		v.unref()
+	}
+	return locks, nil
+}

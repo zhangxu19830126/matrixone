@@ -105,6 +105,7 @@ type LockService interface {
 	ForceRefreshLockTableBinds()
 	// GetLockTableBind returns lock table bind
 	GetLockTableBind(tableID uint64) (pb.LockTable, error)
+	GetHoldLocks(txnID []byte) ([][]byte, error)
 }
 
 // lockTable is used to manage all locks of a Table. LockTable can be local or remote, as determined

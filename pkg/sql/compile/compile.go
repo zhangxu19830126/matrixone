@@ -16,6 +16,7 @@ package compile
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -271,6 +272,14 @@ func (c *Compile) run(s *Scope) error {
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) error {
 	if err := c.runOnce(); err != nil {
+		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+			locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
+			if err != nil {
+				logutil.Fatal(err.Error())
+			}
+			fmt.Printf("txn %s first need retry, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
+		}
+
 		//  if the error is ErrTxnNeedRetry and the transaction is RC isolation, we need to retry the statement
 		if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) &&
 			c.proc.TxnOperator.Txn().IsRCIsolation() &&
@@ -300,7 +309,15 @@ func (c *Compile) Run(_ uint64) error {
 			if err := cc.Compile(c.proc.Ctx, c.pn, c.u, c.fill); err != nil {
 				return err
 			}
-			return cc.runOnce()
+			err := cc.runOnce()
+			if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+				locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
+				if err != nil {
+					logutil.Fatal(err.Error())
+				}
+				logutil.Fatalf("txn %s second need retry, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
+				return err
+			}
 		}
 		return err
 	}
