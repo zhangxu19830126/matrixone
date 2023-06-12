@@ -319,6 +319,13 @@ func (c *Compile) Run(_ uint64) error {
 				return err
 			}
 		}
+		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+			locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
+			if err != nil {
+				logutil.Fatal(err.Error())
+			}
+			logutil.Fatalf("txn %s first need retry skipped, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
+		}
 		return err
 	}
 	return nil
