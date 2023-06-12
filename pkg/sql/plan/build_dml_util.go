@@ -24,6 +24,8 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
 )
 
+var CNPrimaryCheck = false
+
 var dmlPlanCtxPool = sync.Pool{
 	New: func() any {
 		return &dmlPlanCtx{}
@@ -919,8 +921,7 @@ func makeInsertPlan(
 	}
 
 	// make plan: sink_scan -> join -> filter	// check if pk is unique in rows & snapshot
-
-	{
+	if CNPrimaryCheck {
 		if pkPos, pkTyp := getPkPos(tableDef, true); pkPos != -1 {
 			lastNodeId = appendSinkScanNode(builder, bindCtx, sourceStep)
 			isUpdate := updateColLength > 0
@@ -2176,7 +2177,6 @@ func resetColPos(expr *Expr, colPos map[int32]int32) {
 			resetColPos(arg, colPos)
 		}
 	}
-
 }
 
 func appendInsertNode(
