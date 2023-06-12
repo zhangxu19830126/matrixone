@@ -315,16 +315,12 @@ func (c *Compile) Run(_ uint64) error {
 				if err != nil {
 					logutil.Fatal(err.Error())
 				}
-				logutil.Fatalf("txn %s second need retry, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
+				logutil.Fatalf("txn %s second need retry, locks %+v, type %d\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks, c.info.Typ)
 				return err
 			}
 		}
 		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
-			locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
-			if err != nil {
-				logutil.Fatal(err.Error())
-			}
-			logutil.Fatalf("txn %s first need retry skipped, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
+			logutil.Fatalf("txn %s first need retry skipped, exec type %d, sql<%s>\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), c.info.Typ, c.sql)
 		}
 		return err
 	}
