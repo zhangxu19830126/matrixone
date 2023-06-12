@@ -279,7 +279,9 @@ func (c *Compile) fatalLog(retry int, err error) {
 	}
 	fatal := moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
 		moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
-		moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry)
+		moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) ||
+		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY) ||
+		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME)
 	if !fatal {
 		return
 	}
