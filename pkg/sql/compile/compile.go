@@ -119,6 +119,10 @@ func (c *Compile) SetTempEngine(ctx context.Context, te engine.Engine) {
 	c.ctx = ctx
 }
 
+func (c *Compile) SetOriginSQL(sql string) {
+	c.originSQL = sql
+}
+
 // Compile is the entrance of the compute-execute-layer.
 // It generates a scope (logic pipeline) for a query plan.
 func (c *Compile) Compile(ctx context.Context, pn *plan.Plan, u any, fill func(any, *batch.Batch) error) (err error) {
@@ -322,7 +326,7 @@ func (c *Compile) Run(_ uint64) error {
 		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
 			logutil.Fatalf("txn %s first need retry skipped, exec type %d, sql<%s>, stats %s\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
 				c.info.Typ,
-				c.sql,
+				c.originSQL,
 				plan2.PrintStats(c.pn.GetQuery()))
 		}
 		return err
