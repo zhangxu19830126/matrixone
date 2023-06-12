@@ -309,6 +309,8 @@ func (c *Compile) Run(_ uint64) error {
 	}
 	c.proc.TxnOperator.GetWorkspace().AddSQL(sql)
 	if err := c.runOnce(); err != nil {
+		c.fatalLog(0, err)
+
 		if err != nil && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
 			locks, err := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
 			if err != nil {
@@ -316,11 +318,9 @@ func (c *Compile) Run(_ uint64) error {
 			}
 			fmt.Printf("txn %s first need retry, locks %+v\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), locks)
 		}
-
 		//  if the error is ErrTxnNeedRetry and the transaction is RC isolation, we need to retry the statement
 		if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) &&
-			c.proc.TxnOperator.Txn().IsRCIsolation() &&
-			c.info.Typ == plan2.ExecTypeTP {
+			c.proc.TxnOperator.Txn().IsRCIsolation() {
 			// clear the workspace of the failed statement
 			if err = c.proc.TxnOperator.GetWorkspace().RollbackLastStatement(c.ctx); err != nil {
 				return err
@@ -350,7 +350,6 @@ func (c *Compile) Run(_ uint64) error {
 			c.fatalLog(1, err)
 			return err
 		}
-		c.fatalLog(0, err)
 		return err
 	}
 	return nil
