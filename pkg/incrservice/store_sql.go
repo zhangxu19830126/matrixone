@@ -77,7 +77,7 @@ func (s *sqlStore) Allocate(
 	var curr, next, step uint64
 	ok := false
 
-	fetchSQL := fmt.Sprintf(`select offset, step from %s where table_id = %d and col_name = '%s'`,
+	fetchSQL := fmt.Sprintf(`select offset, step from %s where table_id = %d and col_name = '%s' for update`,
 		incrTableName,
 		tableID,
 		colName)
