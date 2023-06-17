@@ -288,9 +288,6 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if retry == 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
 		return
 	}
-	if retry == 0 && moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) {
-		return
-	}
 
 	locks, e := c.proc.LockService.GetHoldLocks(c.proc.TxnOperator.Txn().ID)
 	if e != nil {
