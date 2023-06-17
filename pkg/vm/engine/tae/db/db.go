@@ -24,8 +24,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	gc2 "github.com/matrixorigin/matrixone/pkg/vm/engine/tae/db/gc"
 
-	"github.com/matrixorigin/matrixone/pkg/objectio"
-
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -53,10 +51,7 @@ type DB struct {
 
 	Catalog *catalog.Catalog
 
-	IndexCache model.LRUCache
-
-	TxnMgr        *txnbase.TxnManager
-	TransferTable *model.HashPageTable
+	TxnMgr *txnbase.TxnManager
 
 	LogtailMgr *logtail.Manager
 	Wal        wal.Driver
@@ -71,7 +66,11 @@ type DB struct {
 	DiskCleaner *gc2.DiskCleaner
 	Pipeline    *blockio.IoPipeline
 
-	Fs *objectio.ObjectFS
+	// Fs *objectio.ObjectFS
+	// TransferTable *model.HashPageTable
+	// IndexCache model.LRUCache
+
+	Runtime *model.Runtime
 
 	DBLocker io.Closer
 
@@ -119,7 +118,7 @@ func (db *DB) StartTxnWithLatestTS(info []byte) (txnif.AsyncTxn, error) {
 }
 
 func (db *DB) CommitTxn(txn txnif.AsyncTxn) (err error) {
-	return txn.Commit()
+	return txn.Commit(context.Background())
 }
 
 func (db *DB) GetTxnByID(id []byte) (txn txnif.AsyncTxn, err error) {
@@ -138,7 +137,7 @@ func (db *DB) GetOrCreateTxnWithMeta(
 }
 
 func (db *DB) RollbackTxn(txn txnif.AsyncTxn) error {
-	return txn.Rollback()
+	return txn.Rollback(context.Background())
 }
 
 func (db *DB) Replay(dataFactory *tables.DataFactory, maxTs types.TS) {
@@ -167,6 +166,6 @@ func (db *DB) Close() error {
 	db.Wal.Close()
 	db.Opts.Catalog.Close()
 	db.DiskCleaner.Stop()
-	db.TransferTable.Close()
+	db.Runtime.TransferTable.Close()
 	return db.DBLocker.Close()
 }

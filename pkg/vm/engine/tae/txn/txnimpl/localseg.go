@@ -15,6 +15,7 @@
 package txnimpl
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -165,7 +166,7 @@ func (seg *localSegment) prepareApplyANode(node *anode) error {
 		seg.tableHandle = tableData.GetHandle()
 	}
 	appended := uint32(0)
-	vec := containers.MakeVector(objectio.RowidType)
+	vec := seg.table.store.rt.VectorPool.Transient.GetVector(&objectio.RowidType)
 	for appended < node.Rows() {
 		appender, err := seg.tableHandle.GetAppender()
 		if moerr.IsMoErrCode(err, moerr.ErrAppendableSegmentNotFound) {
@@ -500,12 +501,13 @@ func (seg *localSegment) GetColumnDataByIds(
 }
 
 func (seg *localSegment) GetColumnDataById(
+	ctx context.Context,
 	blk *catalog.BlockEntry,
 	colIdx int,
 ) (view *model.ColumnView, err error) {
 	_, pos := blk.ID.Offsets()
 	n := seg.nodes[int(pos)]
-	return n.GetColumnDataById(colIdx)
+	return n.GetColumnDataById(ctx, colIdx)
 }
 
 func (seg *localSegment) Prefetch(blk *catalog.BlockEntry, idxes []uint16) error {
