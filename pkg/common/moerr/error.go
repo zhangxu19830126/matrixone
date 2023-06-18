@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"sync/atomic"
 
 	moerrpb "github.com/matrixorigin/matrixone/pkg/pb/moerr"
@@ -885,7 +886,8 @@ func NewDuplicate(ctx context.Context) *Error {
 }
 
 func NewDuplicateEntry(ctx context.Context, entry string, key string) *Error {
-	return newError(ctx, ErrDuplicateEntry, entry, key)
+	stack := debug.Stack()
+	return newError(ctx, ErrDuplicateEntry, entry, key+"\n"+string(stack))
 }
 
 func NewWrongValueCountOnRow(ctx context.Context, row int) *Error {

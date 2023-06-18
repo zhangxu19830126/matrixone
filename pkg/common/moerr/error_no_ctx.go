@@ -17,6 +17,7 @@ package moerr
 import (
 	"encoding/hex"
 	"fmt"
+	"runtime/debug"
 )
 
 func NewInfoNoCtx(msg string) *Error {
@@ -256,7 +257,8 @@ func NewDuplicateNoCtx() *Error {
 }
 
 func NewDuplicateEntryNoCtx(entry string, key string) *Error {
-	return newError(Context(), ErrDuplicateEntry, entry, key)
+	stack := debug.Stack()
+	return newError(Context(), ErrDuplicateEntry, entry, key+"\n"+string(stack))
 }
 
 func NewRoleGrantedToSelfNoCtx(from, to string) *Error {
