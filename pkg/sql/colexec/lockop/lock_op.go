@@ -17,6 +17,7 @@ package lockop
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -332,6 +333,7 @@ func doLock(
 	if err != nil {
 		return timestamp.Timestamp{}, err
 	}
+	fmt.Printf(">>> get lock on table %d, rows %v, txn %s\n", tableID, rows, hex.EncodeToString(txnOp.Txn().ID))
 
 	// add bind locks
 	if err := txnOp.AddLockTable(result.LockedOn); err != nil {

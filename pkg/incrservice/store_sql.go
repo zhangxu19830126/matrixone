@@ -81,7 +81,7 @@ func (s *sqlStore) Allocate(
 		incrTableName,
 		tableID,
 		colName)
-	opts := executor.Options{}.WithDatabase(database).WithTxn(txnOp)
+	opts := executor.Options{}.WithDatabase(database).WithTxn(txnOp).WithWaitCommittedLogApplied()
 	for {
 		err := s.exec.ExecTxn(
 			ctx,
