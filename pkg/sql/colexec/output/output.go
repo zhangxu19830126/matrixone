@@ -16,6 +16,11 @@ package output
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
+
+	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -34,6 +39,17 @@ func Call(_ int, proc *process.Process, arg any, isFirst bool, isLast bool) (boo
 		for i := range bat.Zs {
 			bat.Zs[i] = 1
 		}
+
+		if bat.Length() == 2 {
+			v := bat.GetVector(1)
+			if v.GetType().Oid == types.T_int32 {
+				vs := vector.MustFixedCol[int32](v)
+				if len(vs) == 1 {
+					fmt.Printf("txn %s output %d", hex.EncodeToString(proc.TxnOperator.Txn().ID), vs[0])
+				}
+			}
+		}
+
 		if err := ap.Func(ap.Data, bat); err != nil {
 			proc.PutBatch(bat)
 			return false, err

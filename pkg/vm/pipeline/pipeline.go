@@ -91,7 +91,7 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (end bool, err er
 				dids := vector.MustFixedCol[int32](bat.GetVector(1))
 				nextOids := vector.MustFixedCol[int32](bat.GetVector(3))
 				for i := range wids {
-					fmt.Printf("txn %s, %d[w_id] %d[d_id] = %d\n", txnID, wids[i], dids[i], nextOids[i])
+					fmt.Printf("txn %s, (%d,%d,%d)\n", txnID, wids[i], dids[i], nextOids[i])
 				}
 			}
 
