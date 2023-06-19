@@ -16,8 +16,12 @@ package pipeline
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
+	"strings"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
@@ -81,6 +85,10 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (end bool, err er
 			return false, err
 		}
 		if bat != nil {
+			if len(p.attrs) == 2 && strings.Contains(p.attrs[1], "d_id") {
+				fmt.Printf("txn %s read values: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), vector.MustFixedCol[int32](bat.GetVector(1)))
+			}
+
 			bat.Cnt = 1
 
 			analyzeIdx := p.instructions[0].Idx
