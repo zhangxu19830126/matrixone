@@ -86,8 +86,8 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (end bool, err er
 		}
 		if bat != nil {
 			fmt.Printf("txn %s read attrs: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), p.attrs)
-			if len(p.attrs) == 2 && strings.Contains(p.attrs[1], "d_next_o_id") {
-				fmt.Printf("txn %s read values: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), vector.MustFixedCol[int32](bat.GetVector(1)))
+			if len(p.attrs) == 12 && strings.Contains(p.attrs[4], "d_next_o_id") {
+				fmt.Printf("txn %s read values: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), vector.MustFixedCol[int32](bat.GetVector(4)))
 			}
 
 			bat.Cnt = 1
