@@ -45,7 +45,7 @@ func Call(_ int, proc *process.Process, arg any, isFirst bool, isLast bool) (boo
 			if v.GetType().Oid == types.T_int32 {
 				vs := vector.MustFixedCol[int32](v)
 				if len(vs) == 1 {
-					fmt.Printf("txn %s output %d", hex.EncodeToString(proc.TxnOperator.Txn().ID), vs[0])
+					fmt.Printf("txn %s output %d\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), vs[0])
 				}
 			}
 		}
