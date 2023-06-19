@@ -293,12 +293,13 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if e != nil {
 		logutil.Fatal(e.Error())
 	}
-	logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n",
+	logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n%s\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
 		retry,
 		err.Error(),
 		locks,
-		c.proc.TxnOperator.GetWorkspace().GetSQLs())
+		c.proc.TxnOperator.GetWorkspace().GetSQLs(),
+		DebugShowScopes(c.scope))
 }
 
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
