@@ -85,6 +85,10 @@ func Call(
 		getLogger().Fatal("invalid argument",
 			zap.Any("argument", arg))
 	}
+	fmt.Printf("txn %s call lockop, block %+v \n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.block)
+	defer func() {
+		fmt.Printf("txn %s call lockop, block %+v end\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.block)
+	}()
 
 	txnOp := proc.TxnOperator
 	if !txnOp.Txn().IsPessimistic() {
