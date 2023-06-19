@@ -16,11 +16,8 @@ package pipeline
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
-	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
@@ -85,16 +82,6 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (end bool, err er
 		}
 
 		if bat != nil {
-			if len(p.attrs) == 5 && p.attrs[3] == "d_next_o_id" {
-				txnID := hex.EncodeToString(proc.TxnOperator.Txn().ID)
-				wids := vector.MustFixedCol[int32](bat.GetVector(0))
-				dids := vector.MustFixedCol[int32](bat.GetVector(1))
-				nextOids := vector.MustFixedCol[int32](bat.GetVector(3))
-				for i := range wids {
-					fmt.Printf("txn %s, (%d,%d,%d)\n", txnID, wids[i], dids[i], nextOids[i])
-				}
-			}
-
 			bat.Cnt = 1
 
 			analyzeIdx := p.instructions[0].Idx
