@@ -83,10 +83,16 @@ func (p *Pipeline) Run(r engine.Reader, proc *process.Process) (end bool, err er
 			p.cleanup(proc, true)
 			return false, err
 		}
+
 		if bat != nil {
-			fmt.Printf("txn %s read attrs: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), p.attrs)
 			if len(p.attrs) == 5 && p.attrs[3] == "d_next_o_id" {
-				fmt.Printf("txn %s read values: %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), vector.MustFixedCol[int32](bat.GetVector(3)))
+				txnID := hex.EncodeToString(proc.TxnOperator.Txn().ID)
+				wids := vector.MustFixedCol[int32](bat.GetVector(0))
+				dids := vector.MustFixedCol[int32](bat.GetVector(1))
+				nextOids := vector.MustFixedCol[int32](bat.GetVector(3))
+				for i := range wids {
+					fmt.Printf("txn %s, %d[w_id] %d[d_id] = %d\n", txnID, wids[i], dids[i], nextOids[i])
+				}
 			}
 
 			bat.Cnt = 1
