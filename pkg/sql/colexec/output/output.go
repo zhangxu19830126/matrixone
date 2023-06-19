@@ -40,7 +40,7 @@ func Call(_ int, proc *process.Process, arg any, isFirst bool, isLast bool) (boo
 			bat.Zs[i] = 1
 		}
 
-		if bat.Length() == 2 {
+		if bat.VectorCount() == 2 {
 			v := bat.GetVector(1)
 			if v.GetType().Oid == types.T_int32 {
 				vs := vector.MustFixedCol[int32](v)
