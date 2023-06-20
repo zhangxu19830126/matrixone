@@ -293,7 +293,7 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if e != nil {
 		logutil.Fatal(e.Error())
 	}
-	logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n%s\n",
+	fmt.Printf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n%s\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
 		retry,
 		err.Error(),
