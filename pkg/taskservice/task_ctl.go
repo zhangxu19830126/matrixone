@@ -32,5 +32,5 @@ func taskFrameworkDisabled() bool {
 	if v := disableTaskFramework.Load(); v != nil {
 		return v.(bool)
 	}
-	return true
+	return false
 }
