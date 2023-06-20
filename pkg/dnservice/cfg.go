@@ -238,5 +238,6 @@ func (c *Config) Validate() error {
 	c.Ctl.Adjust(foundMachineHost, defaultCtlListenAddress)
 	c.LockService.ServiceID = c.UUID
 	c.LockService.Validate()
+	c.Txn.IncrementalDedup = true
 	return nil
 }

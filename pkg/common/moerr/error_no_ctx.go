@@ -188,7 +188,7 @@ func NewTxnClosedNoCtx(txnID []byte) *Error {
 	if len(txnID) > 0 {
 		id = hex.EncodeToString(txnID)
 	}
-	return newError(Context(), ErrTxnClosed, id)
+	return newError(Context(), ErrTxnClosed, id, string(debug.Stack()))
 }
 
 func NewTxnWriteConflictNoCtx(msg string, args ...any) *Error {

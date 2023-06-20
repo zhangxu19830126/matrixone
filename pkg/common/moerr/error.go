@@ -311,7 +311,7 @@ var errorMsgRefer = map[uint16]moErrorMsgItem{
 	ErrBackendCannotConnect: {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "can not connect to remote backend"},
 
 	// Group 6: txn
-	ErrTxnClosed:                 {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "the transaction %s has been committed or aborted"},
+	ErrTxnClosed:                 {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "the transaction %s has been committed or aborted. \n %s"},
 	ErrTxnWriteConflict:          {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "txn write conflict %s"},
 	ErrMissingTxn:                {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "missing txn"},
 	ErrUnresolvedConflict:        {ER_UNKNOWN_ERROR, []string{MySQLDefaultSqlState}, "unresolved conflict"},
@@ -770,7 +770,7 @@ func NewTxnClosed(ctx context.Context, txnID []byte) *Error {
 	if len(txnID) > 0 {
 		id = hex.EncodeToString(txnID)
 	}
-	return newError(ctx, ErrTxnClosed, id)
+	return newError(ctx, ErrTxnClosed, id, string(debug.Stack()))
 }
 
 func NewTxnWriteConflict(ctx context.Context, msg string, args ...any) *Error {

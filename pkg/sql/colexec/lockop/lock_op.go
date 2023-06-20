@@ -339,9 +339,10 @@ func doLock(
 			Mode:        opts.mode,
 		})
 	if err != nil {
+		fmt.Printf(">>> txn %s get lock on table %d failed\n", hex.EncodeToString(txnOp.Txn().ID), tableID)
 		return timestamp.Timestamp{}, err
 	}
-	fmt.Printf(">>> get lock on table %d, rows %v, txn %s\n", tableID, rows, hex.EncodeToString(txnOp.Txn().ID))
+	fmt.Printf(">>> txn %s get lock on table %d, rows %v\n", hex.EncodeToString(txnOp.Txn().ID), tableID, rows)
 
 	// add bind locks
 	if err := txnOp.AddLockTable(result.LockedOn); err != nil {

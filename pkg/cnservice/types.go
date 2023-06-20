@@ -269,11 +269,7 @@ func (c *Config) Validate() error {
 	c.Ctl.Adjust(foundMachineHost, defaultCtlListenAddress)
 	c.LockService.ServiceID = c.UUID
 	c.LockService.Validate()
-	if c.PrimaryKeyCheck {
-		plan.CNPrimaryCheck = true
-	} else {
-		plan.CNPrimaryCheck = false
-	}
+	plan.CNPrimaryCheck = true
 	return nil
 }
 
