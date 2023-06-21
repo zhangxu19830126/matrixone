@@ -328,16 +328,25 @@ func doLock(
 		opts.filter,
 		opts.filterCols)
 
+	txn := txnOp.Txn()
+	options := lock.LockOptions{
+		Granularity: g,
+		Policy:      lock.WaitPolicy_Wait,
+		Mode:        opts.mode,
+	}
+	if txn.Mirror {
+		options.ForwardTo = txn.LockService
+		if options.ForwardTo == "" {
+			panic("forward to empty lock service")
+		}
+	}
+
 	result, err := lockService.Lock(
 		ctx,
 		tableID,
 		rows,
-		txnOp.Txn().ID,
-		lock.LockOptions{
-			Granularity: g,
-			Policy:      lock.WaitPolicy_Wait,
-			Mode:        opts.mode,
-		})
+		txn.ID,
+		options)
 	if err != nil {
 		fmt.Printf(">>> txn %s get lock on table %d failed\n", hex.EncodeToString(txnOp.Txn().ID), tableID)
 		return timestamp.Timestamp{}, err
