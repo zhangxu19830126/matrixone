@@ -80,7 +80,13 @@ func (l *remoteLockTable) lock(
 	req.Lock.ServiceID = l.serviceID
 	req.Lock.Rows = rows
 
-	fmt.Printf("txn %s remote lock %s\n", hex.EncodeToString(txn.txnID), req)
+	fmt.Printf("txn %s remote lock %s, %s\n", hex.EncodeToString(txn.txnID), req, l.bind.String())
+	if l.bind.Table == 0 {
+		getLogger().Fatal("invalid remote lock table",
+			zap.String("bind", l.bind.String()),
+			zap.String("req", req.String()),
+			zap.String("txn", hex.EncodeToString(txn.txnID)))
+	}
 
 	// rpc maybe wait too long, to avoid deadlock, we need unlock txn, and lock again
 	// after rpc completed
