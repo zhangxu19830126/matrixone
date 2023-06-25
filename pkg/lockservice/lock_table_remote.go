@@ -17,6 +17,8 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/log"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -77,6 +79,8 @@ func (l *remoteLockTable) lock(
 	req.Lock.TxnID = txn.txnID
 	req.Lock.ServiceID = l.serviceID
 	req.Lock.Rows = rows
+
+	fmt.Printf("txn %s remote lock %s\n", hex.EncodeToString(txn.txnID), req)
 
 	// rpc maybe wait too long, to avoid deadlock, we need unlock txn, and lock again
 	// after rpc completed
