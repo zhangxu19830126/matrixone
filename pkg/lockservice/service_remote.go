@@ -17,6 +17,8 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/morpc"
@@ -80,6 +82,10 @@ func (s *service) handleRemoteLock(
 		// lock table binding.
 		writeResponse(ctx, resp, err, cs)
 		return
+	}
+
+	if _, ok := l.(*remoteLockTable); ok {
+		panic(fmt.Sprintf("txn %s invalid remote lock table %d", hex.EncodeToString(req.Lock.TxnID), req.LockTable.Table))
 	}
 
 	txn := s.activeTxnHolder.getActiveTxn(req.Lock.TxnID, true, req.Lock.ServiceID)
