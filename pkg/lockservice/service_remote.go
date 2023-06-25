@@ -85,7 +85,12 @@ func (s *service) handleRemoteLock(
 	}
 
 	if _, ok := l.(*remoteLockTable); ok {
-		panic(fmt.Sprintf("txn %s invalid remote lock table %d, %+v", hex.EncodeToString(req.Lock.TxnID), req.LockTable.Table, req))
+		panic(fmt.Sprintf("txn %s invalid remote lock table %d, %+v, current sid %s, from sid %s",
+			hex.EncodeToString(req.Lock.TxnID),
+			req.LockTable.Table,
+			req,
+			s.cfg.ServiceID,
+			req.Lock.ServiceID))
 	}
 
 	txn := s.activeTxnHolder.getActiveTxn(req.Lock.TxnID, true, req.Lock.ServiceID)
