@@ -94,6 +94,12 @@ func (l *remoteLockTable) lock(
 			zap.String("txn", hex.EncodeToString(txn.txnID)))
 	}
 
+	if l.bind.ServiceID == l.serviceID {
+		getLogger().Fatal("invalid remote lock service",
+			zap.String("bind", l.bind.String()),
+			zap.String("current", l.serviceID))
+	}
+
 	// rpc maybe wait too long, to avoid deadlock, we need unlock txn, and lock again
 	// after rpc completed
 	txn.Unlock()
