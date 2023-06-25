@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/log"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -103,7 +104,15 @@ func (l *remoteLockTable) lock(
 	// rpc maybe wait too long, to avoid deadlock, we need unlock txn, and lock again
 	// after rpc completed
 	txn.Unlock()
-	resp, err := l.client.Send(ctx, req)
+	ctx2, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+	resp, err := l.client.Send(ctx2, req)
+	if err != nil {
+		getLogger().Fatal("remote lock failed",
+			zap.String("bind", l.bind.String()),
+			zap.String("current", l.serviceID),
+			zap.Error(err))
+	}
 	txn.Lock()
 
 	// txn closed
