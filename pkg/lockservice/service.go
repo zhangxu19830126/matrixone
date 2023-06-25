@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
 	"github.com/matrixorigin/matrixone/pkg/util/list"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
+	"go.uber.org/zap"
 )
 
 type service struct {
@@ -80,6 +81,11 @@ func (s *service) Lock(
 	// FIXME(fagongzi): too many mem alloc in trace
 	ctx, span := trace.Debug(ctx, "lockservice.lock")
 	defer span.End()
+
+	fmt.Printf("txn %s lock on table %d\n", hex.EncodeToString(txnID), tableID)
+	if tableID == 0 {
+		getLogger().Fatal("invalid table id", zap.String("txn", hex.EncodeToString(txnID)))
+	}
 
 	if options.ForwardTo != "" {
 		return s.forwardLock(ctx, tableID, rows, txnID, options)
