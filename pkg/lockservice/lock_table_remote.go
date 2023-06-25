@@ -73,6 +73,12 @@ func (l *remoteLockTable) lock(
 	req := acquireRequest()
 	defer releaseRequest(req)
 
+	if l.serviceID == l.bind.ServiceID {
+		getLogger().Fatal("send remote lock on self",
+			zap.String("to", l.bind.ServiceID),
+			zap.String("current", l.serviceID))
+	}
+
 	req.LockTable = l.bind
 	req.Method = pb.Method_Lock
 	req.Lock.Options = opts.LockOptions
