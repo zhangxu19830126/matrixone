@@ -15,7 +15,9 @@
 package lockservice
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 )
@@ -65,21 +67,41 @@ func (s *service) GetLockTableBind(tableID uint64) (pb.LockTable, error) {
 	return l.getBind(), nil
 }
 
-func (s *service) GetHoldLocks(txnID []byte) ([][]byte, error) {
+func (s *service) GetHoldLocks(txnID []byte) ([]HoldLock, error) {
 	txn := s.activeTxnHolder.getActiveTxn(txnID, false, "")
 	if txn == nil {
 		return nil, nil
 	}
-	var locks [][]byte
+	var locks []HoldLock
 	txn.RLock()
 	defer txn.RUnlock()
-	for _, cs := range txn.holdLocks {
+	for tid, cs := range txn.holdLocks {
+		hl := HoldLock{TableID: tid}
 		v := cs.slice()
 		v.iter(func(b []byte) bool {
-			locks = append(locks, b)
+			hl.Locks = append(hl.Locks, b)
 			return true
 		})
 		v.unref()
+		locks = append(locks, hl)
 	}
 	return locks, nil
+}
+
+type HoldLock struct {
+	TableID uint64
+	Locks   [][]byte
+}
+
+func (hl HoldLock) String() string {
+	return fmt.Sprintf("table %d, locks %+v", hl.Locks)
+}
+
+func ToString(locks []HoldLock) string {
+	var s bytes.Buffer
+	for _, v := range locks {
+		s.WriteString(v.String())
+		s.WriteString(":")
+	}
+	return s.String()
 }

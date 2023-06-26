@@ -17,6 +17,8 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -192,6 +194,9 @@ func (client *txnClient) New(
 		client.updateLastCommitTS,
 		client.popTransaction)
 	client.addToLeakCheck(op)
+	fmt.Printf("txn %s start ts %s\n",
+		hex.EncodeToString(txnMeta.ID),
+		txnMeta.SnapshotTS.String())
 	return op, nil
 }
 
