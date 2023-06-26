@@ -118,7 +118,7 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 			if node.GetTxn() != nil {
 				fmt.Printf("w-w with txn %s", strings.ToLower(node.GetTxn().Repr()))
 			} else {
-				fmt.Printf("w-w with committed txn, maybe the rowid is wrong")
+				fmt.Printf("w-w with committed txn, maybe the rowid is wrong\n")
 			}
 			yes = true
 			break
@@ -128,7 +128,7 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 			if node.GetTxn() != nil {
 				fmt.Printf("w-w with txn %s", strings.ToLower(node.GetTxn().Repr()))
 			} else {
-				fmt.Printf("w-w with committed txn, maybe the rowid is wrong")
+				fmt.Printf("w-w with committed txn, maybe the rowid is wrong\n")
 			}
 			yes = true
 			break
