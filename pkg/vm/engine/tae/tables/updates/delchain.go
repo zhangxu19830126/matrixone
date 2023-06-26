@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/common"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/iface/handle"
@@ -113,10 +114,22 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 	var yes bool
 	for i := start; i < end+1; i++ {
 		if chain.mask.Contains(i) {
+			node := chain.GetDeleteNodeByRow(uint32(i))
+			if node.GetTxn() != nil {
+				logutil.Infof("w-w with txn %v", node.GetTxn().Repr())
+			} else {
+				logutil.Infof("w-w with committed txn, maybe the rowid is wrong")
+			}
 			yes = true
 			break
 		}
 		if chain.persisted != nil && chain.persisted.Contains(i) {
+			node := chain.GetDeleteNodeByRow(uint32(i))
+			if node.GetTxn() != nil {
+				logutil.Infof("w-w with txn %v", node.GetTxn().Repr())
+			} else {
+				logutil.Infof("w-w with committed txn, maybe the rowid is wrong")
+			}
 			yes = true
 			break
 		}
