@@ -17,6 +17,8 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -370,6 +372,12 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 
 	result, err := tc.doWrite(ctx, nil, true)
 	if err != nil {
+		if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) {
+			util.GetLogger().Fatal("failed",
+				zap.String("sql", fmt.Sprintf("%+v", tc.GetWorkspace().GetSQLs())),
+				zap.Error(err),
+				zap.String("txn", hex.EncodeToString(tc.txnID)))
+		}
 		return err
 	}
 	if result != nil {
