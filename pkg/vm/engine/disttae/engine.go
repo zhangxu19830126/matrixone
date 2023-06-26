@@ -16,6 +16,8 @@ package disttae
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -388,6 +390,7 @@ func (e *Engine) Commit(ctx context.Context, op client.TxnOperator) error {
 	if txn == nil {
 		return moerr.NewTxnClosedNoCtx(op.Txn().ID)
 	}
+	fmt.Printf("txn %s incr statement by commit\n", hex.EncodeToString(op.Txn().ID))
 	txn.IncrStatemenetID(ctx)
 	defer e.delTransaction(txn)
 	if txn.readOnly.Load() {

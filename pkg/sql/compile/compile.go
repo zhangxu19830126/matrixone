@@ -133,6 +133,7 @@ func (c *Compile) Compile(ctx context.Context, pn *plan.Plan, u any, fill func(a
 	}()
 	txnOp := c.proc.TxnOperator
 	if txnOp != nil {
+		fmt.Printf("txn %s incr statement by compile\n", hex.EncodeToString(txnOp.Txn().ID))
 		err := txnOp.GetWorkspace().IncrStatemenetID(c.proc.Ctx)
 		if err != nil {
 			return nil
@@ -309,6 +310,7 @@ func (c *Compile) Run(_ uint64) error {
 	if sql == "" {
 		sql = c.sql
 	}
+	fmt.Printf("txn %s run sql %s\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID), sql)
 	c.proc.TxnOperator.GetWorkspace().AddSQL(sql)
 	if err := c.runOnce(); err != nil {
 		c.fatalLog(0, err)
@@ -328,6 +330,7 @@ func (c *Compile) Run(_ uint64) error {
 				return err
 			}
 			//  increase the statement id
+			fmt.Printf("txn %s incr statement by retry\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID))
 			if err = c.proc.TxnOperator.GetWorkspace().IncrStatemenetID(c.ctx); err != nil {
 				return err
 			}
