@@ -16,6 +16,7 @@ package updates
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -113,10 +114,22 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 	var yes bool
 	for i := start; i < end+1; i++ {
 		if chain.mask.Contains(i) {
+			node := chain.GetDeleteNodeByRow(uint32(i))
+			if node.GetTxn() != nil {
+				fmt.Printf("w-w with txn %s", strings.ToLower(node.GetTxn().Repr()))
+			} else {
+				fmt.Printf("w-w with committed txn, maybe the rowid is wrong")
+			}
 			yes = true
 			break
 		}
 		if chain.persisted != nil && chain.persisted.Contains(i) {
+			node := chain.GetDeleteNodeByRow(uint32(i))
+			if node.GetTxn() != nil {
+				fmt.Printf("w-w with txn %s", strings.ToLower(node.GetTxn().Repr()))
+			} else {
+				fmt.Printf("w-w with committed txn, maybe the rowid is wrong")
+			}
 			yes = true
 			break
 		}
