@@ -53,8 +53,14 @@ func newMemoryNode(block *baseBlock) *memoryNode {
 	// Get the lastest schema, it will not be modified, so just keep the pointer
 	schema := block.meta.GetSchema()
 	impl.writeSchema = schema
-	impl.data = containers.BuildBatchWithPool(
-		schema.AllNames(), schema.AllTypes(), 0, block.rt.VectorPool.Memtable,
+	// impl.data = containers.BuildBatchWithPool(
+	// 	schema.AllNames(), schema.AllTypes(), 0, block.rt.VectorPool.Memtable,
+	// )
+	opts := containers.Options{
+		Allocator: common.MutMemAllocator,
+	}
+	impl.data = containers.BuildBatch(
+		schema.AllNames(), schema.AllTypes(), opts,
 	)
 	impl.initPKIndex(schema)
 	impl.OnZeroCB = impl.close
@@ -159,21 +165,24 @@ func (node *memoryNode) GetDataWindowOnWriteSchema(
 
 func (node *memoryNode) GetDataWindow(
 	readSchema *catalog.Schema,
-	from, to uint32) (bat *containers.Batch, err error) {
+	colIdxes []int,
+	from, to uint32,
+) (bat *containers.Batch, err error) {
 	// manually clone data
-	bat = containers.NewBatchWithCapacity(len(readSchema.ColDefs))
+	bat = containers.NewBatchWithCapacity(len(colIdxes))
 	if node.data.Deletes != nil {
 		bat.Deletes = bat.WindowDeletes(int(from), int(to-from), false)
 	}
-	for _, col := range readSchema.ColDefs {
-		idx, ok := node.writeSchema.SeqnumMap[col.SeqNum]
+	for _, colIdx := range colIdxes {
+		colDef := readSchema.ColDefs[colIdx]
+		idx, ok := node.writeSchema.SeqnumMap[colDef.SeqNum]
 		var vec containers.Vector
 		if !ok {
-			vec = containers.FillConstVector(int(from-to), col.Type, nil)
+			vec = containers.FillConstVector(int(to-from), colDef.Type, nil)
 		} else {
 			vec = node.data.Vecs[idx].CloneWindowWithPool(int(from), int(to-from), node.block.rt.VectorPool.Transient)
 		}
-		bat.AddVector(col.Name, vec)
+		bat.AddVector(colDef.Name, vec)
 	}
 	return
 }
@@ -416,13 +425,13 @@ func (node *memoryNode) resolveInMemoryColumnDatas(
 		// blk.RUnlock()
 		return
 	}
-	data, err := node.GetDataWindow(readSchema, 0, maxRow)
+	data, err := node.GetDataWindow(readSchema, colIdxes, 0, maxRow)
 	if err != nil {
 		return
 	}
 	view = containers.NewBlockView()
-	for _, colIdx := range colIdxes {
-		view.SetData(colIdx, data.Vecs[colIdx])
+	for i, colIdx := range colIdxes {
+		view.SetData(colIdx, data.Vecs[i])
 	}
 	if skipDeletes {
 		return

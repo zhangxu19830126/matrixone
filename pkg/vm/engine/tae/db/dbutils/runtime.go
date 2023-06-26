@@ -15,6 +15,7 @@
 package dbutils
 
 import (
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/containers"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/model"
@@ -66,6 +67,12 @@ func WithRuntimeOptions(opts *options.Options) RuntimeOption {
 	}
 }
 
+func WithRuntimeThrottle(t *Throttle) RuntimeOption {
+	return func(r *Runtime) {
+		r.Throttle = t
+	}
+}
+
 type Runtime struct {
 	VectorPool struct {
 		Memtable  *containers.VectorPool
@@ -75,6 +82,8 @@ type Runtime struct {
 	Cache struct {
 		FilterIndex model.LRUCache
 	}
+
+	Throttle *Throttle
 
 	Fs *objectio.ObjectFS
 
@@ -100,4 +109,12 @@ func (r *Runtime) fillDefaults() {
 	if r.VectorPool.Transient == nil {
 		r.VectorPool.Transient = MakeDefaultTransientPool("trasient-vector-pool")
 	}
+	if r.Throttle == nil {
+		r.Throttle = NewThrottle()
+	}
+}
+
+func (r *Runtime) PrintVectorPoolUsage() {
+	logutil.Info(r.VectorPool.Transient.String())
+	logutil.Info(r.VectorPool.Memtable.String())
 }

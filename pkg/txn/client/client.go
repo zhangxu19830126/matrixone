@@ -23,8 +23,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/pb/txn"
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
@@ -109,6 +111,13 @@ func WithEnableLeakCheck(
 
 var _ TxnClient = (*txnClient)(nil)
 
+type txnClientStatus bool
+
+const (
+	paused txnClientStatus = false
+	normal txnClientStatus = true
+)
+
 type txnClient struct {
 	clock                      clock.Clock
 	sender                     rpc.TxnSender
@@ -123,6 +132,9 @@ type txnClient struct {
 	mu struct {
 		sync.RWMutex
 		txns []txn.TxnMeta
+
+		// indicate whether the CN can provide service normally.
+		state txnClientStatus
 
 		// Minimum Active Transaction Timestamp
 		minTS timestamp.Timestamp
@@ -144,6 +156,7 @@ func NewTxnClient(
 		clock:  runtime.ProcessLevelRuntime().Clock(),
 		sender: sender,
 	}
+	c.mu.state = paused
 	for _, opt := range options {
 		opt(c)
 	}
@@ -165,7 +178,7 @@ func (client *txnClient) New(
 	ctx context.Context,
 	minTS timestamp.Timestamp,
 	options ...TxnOption) (TxnOperator, error) {
-	epoch, ts, err := client.determineTxnSnapshot(ctx, minTS)
+	ts, err := client.determineTxnSnapshot(ctx, minTS)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +192,10 @@ func (client *txnClient) New(
 		txnMeta.LockService = client.lockService.GetConfig().ServiceID
 	}
 
-	client.pushTransaction(txnMeta)
+	err = client.pushTransaction(txnMeta)
+	if err != nil {
+		return nil, err
+	}
 
 	options = append(options,
 		WithTxnCNCoordinator(),
@@ -190,7 +206,6 @@ func (client *txnClient) New(
 		txnMeta,
 		options...)
 	op.timestampWaiter = client.timestampWaiter
-	op.mu.epoch = epoch
 	op.AppendEventCallback(ClosedEvent,
 		client.updateLastCommitTS,
 		client.popTransaction)
@@ -250,7 +265,7 @@ func (client *txnClient) updateLastCommitTS(txn txn.TxnMeta) {
 // timestamp for all things is ts+1.
 func (client *txnClient) determineTxnSnapshot(
 	ctx context.Context,
-	minTS timestamp.Timestamp) (uint64, timestamp.Timestamp, error) {
+	minTS timestamp.Timestamp) (timestamp.Timestamp, error) {
 	// always use the current ts as txn's snapshot ts is enableSacrificingFreshness
 	if !client.enableSacrificingFreshness ||
 		client.getTxnIsolation() == txn.TxnIsolation_RC {
@@ -264,17 +279,17 @@ func (client *txnClient) determineTxnSnapshot(
 	}
 
 	if client.timestampWaiter == nil {
-		return 0, minTS, nil
+		return minTS, nil
 	}
 
-	epoch, ts, err := client.timestampWaiter.GetTimestamp(ctx, minTS)
+	ts, err := client.timestampWaiter.GetTimestamp(ctx, minTS)
 	if err != nil {
-		return 0, ts, err
+		return ts, err
 	}
 	util.LogTxnSnapshotTimestamp(
 		minTS,
 		ts)
-	return epoch, ts, nil
+	return ts, nil
 }
 
 func (client *txnClient) adjustTimestamp(ts timestamp.Timestamp) timestamp.Timestamp {
@@ -295,7 +310,7 @@ func (client *txnClient) SetLatestCommitTS(ts timestamp.Timestamp) {
 	if client.timestampWaiter != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 		defer cancel()
-		_, _, err := client.timestampWaiter.GetTimestamp(ctx, ts)
+		_, err := client.timestampWaiter.GetTimestamp(ctx, ts)
 		if err != nil {
 			util.GetLogger().Fatal("wait latest commit ts failed", zap.Error(err))
 		}
@@ -323,20 +338,50 @@ func (client *txnClient) popTransaction(txn txn.TxnMeta) {
 	client.removeFromLeakCheck(txn.ID)
 }
 
-func (client *txnClient) pushTransaction(txn txn.TxnMeta) {
+func (client *txnClient) pushTransaction(txn txn.TxnMeta) error {
 	client.mu.Lock()
 	defer client.mu.Unlock()
-	i := sort.Search(len(client.mu.txns), func(i int) bool {
-		return client.mu.txns[i].SnapshotTS.GreaterEq(txn.SnapshotTS)
-	})
-	if i == len(client.mu.txns) {
-		client.mu.txns = append(client.mu.txns, txn)
-	} else {
-		client.mu.txns = append(client.mu.txns[:i+1], client.mu.txns[i:]...)
-		client.mu.txns[i] = txn
+
+	if client.mu.state == normal {
+		i := sort.Search(len(client.mu.txns), func(i int) bool {
+			return client.mu.txns[i].SnapshotTS.GreaterEq(txn.SnapshotTS)
+		})
+		if i == len(client.mu.txns) {
+			client.mu.txns = append(client.mu.txns, txn)
+		} else {
+			client.mu.txns = append(client.mu.txns[:i+1], client.mu.txns[i:]...)
+			client.mu.txns[i] = txn
+		}
+		if client.mu.minTS.IsEmpty() || txn.SnapshotTS.Less(client.mu.minTS) {
+			client.mu.minTS = txn.SnapshotTS
+		}
+		return nil
 	}
-	if client.mu.minTS.IsEmpty() || txn.SnapshotTS.Less(client.mu.minTS) {
-		client.mu.minTS = txn.SnapshotTS
+	return moerr.NewInternalErrorNoCtx("cn service is not ready, plz retry later")
+}
+
+func (client *txnClient) Pause() {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	logutil.Infof("txn client status changed to paused")
+	client.mu.state = paused
+}
+
+func (client *txnClient) Resume() {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	logutil.Infof("txn client status changed to normal")
+	client.mu.state = normal
+}
+
+func (client *txnClient) AbortAllRunningTxn() {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	for i := 0; i < len(client.mu.txns); i++ {
+		client.mu.txns[i].Status = txn.TxnStatus_Aborted
 	}
 }
 
