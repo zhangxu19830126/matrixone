@@ -281,7 +281,8 @@ func (c *Compile) fatalLog(retry int, err error) {
 		moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
 		moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) ||
 		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY) ||
-		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME)
+		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME) ||
+		err.Error() == "w-w conflict"
 	if !fatal {
 		return
 	}

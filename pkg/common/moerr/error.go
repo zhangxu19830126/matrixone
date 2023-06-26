@@ -906,6 +906,7 @@ func NewTxnRWConflict(ctx context.Context) *Error {
 }
 
 func NewTxnWWConflict(ctx context.Context) *Error {
+	panic("w-w conflict")
 	return newError(ctx, ErrTxnWWConflict)
 }
 

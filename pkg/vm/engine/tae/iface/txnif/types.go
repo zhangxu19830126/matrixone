@@ -21,7 +21,6 @@ import (
 
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 
-	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/logstore/entry"
 
 	"github.com/RoaringBitmap/roaring"
@@ -33,7 +32,7 @@ import (
 )
 
 var (
-	ErrTxnWWConflict = moerr.NewTxnWWConflictNoCtx()
+// ErrTxnWWConflict = moerr.NewTxnWWConflictNoCtx()
 )
 
 type Txn2PC interface {
