@@ -85,11 +85,6 @@ func Call(
 		getLogger().Fatal("invalid argument",
 			zap.Any("argument", arg))
 	}
-	fmt.Printf("txn %s call lockop, block %+v \n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.block)
-	defer func() {
-		fmt.Printf("txn %s call lockop, block %+v end\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.block)
-	}()
-
 	txnOp := proc.TxnOperator
 	if !txnOp.Txn().IsPessimistic() {
 		return false, nil
@@ -129,11 +124,6 @@ func callBlocking(
 	arg *Argument,
 	isFirst bool,
 	isLast bool) (bool, error) {
-	fmt.Printf("txn %s call blocking in step %d\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.rt.step)
-	defer func() {
-		fmt.Printf("txn %s call blocking in step %d end, error %+v\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), arg.rt.step, arg.rt.retryError)
-	}()
-
 	anal := proc.GetAnalyze(idx)
 	anal.Start()
 	defer anal.Stop()
