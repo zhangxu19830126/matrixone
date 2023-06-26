@@ -185,6 +185,7 @@ func (client *txnClient) New(
 		WithTxnCNCoordinator(),
 		WithTxnLockService(client.lockService))
 	op := newTxnOperator(
+		client.clock,
 		client.sender,
 		txnMeta,
 		options...)
