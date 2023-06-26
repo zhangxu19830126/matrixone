@@ -16,6 +16,8 @@ package compile
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/common/runtime"
@@ -178,6 +180,7 @@ func (exec *txnExecutor) Exec(sql string) (executor.Result, error) {
 	// maybe we should fix it.
 	txnOp := exec.opts.Txn()
 	if txnOp != nil {
+		fmt.Printf("txn %s incr statement by internal executor\n", hex.EncodeToString(txnOp.Txn().ID))
 		err := txnOp.GetWorkspace().IncrStatementID(exec.ctx)
 		if err != nil {
 			return executor.Result{}, err

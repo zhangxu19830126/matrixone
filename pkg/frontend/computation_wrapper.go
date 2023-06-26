@@ -16,6 +16,8 @@ package frontend
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/clusterservice"
@@ -211,6 +213,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 	// See `func (exec *txnExecutor) Exec(sql string)` for details.
 	txnOp := cwft.GetProcess().TxnOperator
 	if txnOp != nil {
+		fmt.Printf("txn %s incr statement by compile\n", hex.EncodeToString(txnOp.Txn().ID))
 		err := txnOp.GetWorkspace().IncrStatementID(requestCtx)
 		if err != nil {
 			return nil, err
