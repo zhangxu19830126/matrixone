@@ -373,7 +373,9 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 	result, err := tc.doWrite(ctx, nil, true)
 	if err != nil {
 		if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) {
+			locks, _ := tc.option.lockService.GetHoldLocks(tc.txnID)
 			util.GetLogger().Fatal("failed",
+				zap.String("locks", fmt.Sprintf("%+v", locks)),
 				zap.String("sql", fmt.Sprintf("%+v", tc.GetWorkspace().GetSQLs())),
 				zap.Error(err),
 				zap.String("txn", hex.EncodeToString(tc.txnID)))
