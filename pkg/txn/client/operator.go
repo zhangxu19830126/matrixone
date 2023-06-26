@@ -288,6 +288,7 @@ func (tc *txnOperator) UpdateSnapshot(
 	}
 	tc.mu.epoch = epoch
 	tc.mu.txn.SnapshotTS = lastSnapshotTS
+	fmt.Printf("txn %s update snapshot ts to %s\n", hex.EncodeToString(tc.mu.txn.ID), lastSnapshotTS.String())
 	return nil
 }
 
