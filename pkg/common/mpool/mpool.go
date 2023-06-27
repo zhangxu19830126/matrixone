@@ -518,7 +518,6 @@ func sizeToIdx(size int) int {
 
 func (mp *MPool) Alloc(sz int) ([]byte, error) {
 	if sz < 0 || sz > GB {
-		logutil.Fatalf("Invalid alloc size %d", sz)
 		return nil, moerr.NewInternalErrorNoCtx("Invalid alloc size %d", sz)
 	}
 

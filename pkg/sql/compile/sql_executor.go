@@ -181,7 +181,7 @@ func (exec *txnExecutor) Exec(sql string) (executor.Result, error) {
 	txnOp := exec.opts.Txn()
 	if txnOp != nil {
 		fmt.Printf("txn %s incr statement by internal executor\n", hex.EncodeToString(txnOp.Txn().ID))
-		err := txnOp.GetWorkspace().IncrStatementID(exec.ctx)
+		err := txnOp.GetWorkspace().IncrStatementID(exec.ctx, false)
 		if err != nil {
 			return executor.Result{}, err
 		}
@@ -252,11 +252,6 @@ func (exec *txnExecutor) commit() error {
 	if exec.opts.ExistsTxn() {
 		return nil
 	}
-	if err := exec.s.eng.Commit(
-		exec.ctx,
-		exec.opts.Txn()); err != nil {
-		return err
-	}
 	return exec.opts.Txn().Commit(exec.ctx)
 }
 
@@ -264,9 +259,6 @@ func (exec *txnExecutor) rollback() error {
 	if exec.opts.ExistsTxn() {
 		return nil
 	}
-	err := exec.s.eng.Rollback(
-		exec.ctx,
-		exec.opts.Txn())
-	return multierr.Append(err,
+	return multierr.Append(nil,
 		exec.opts.Txn().Rollback(exec.ctx))
 }

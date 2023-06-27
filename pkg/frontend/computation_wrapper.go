@@ -214,7 +214,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 	txnOp := cwft.GetProcess().TxnOperator
 	if txnOp != nil {
 		fmt.Printf("txn %s incr statement by compile\n", hex.EncodeToString(txnOp.Txn().ID))
-		err := txnOp.GetWorkspace().IncrStatementID(requestCtx)
+		err := txnOp.GetWorkspace().IncrStatementID(requestCtx, false)
 		if err != nil {
 			return nil, err
 		}

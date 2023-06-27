@@ -377,7 +377,7 @@ func (c *Compile) Run(_ uint64) error {
 			}
 			//  increase the statement id
 			fmt.Printf("txn %s incr statement by retry\n", hex.EncodeToString(c.proc.TxnOperator.Txn().ID))
-			if err = c.proc.TxnOperator.GetWorkspace().IncrStatementID(c.ctx); err != nil {
+			if err = c.proc.TxnOperator.GetWorkspace().IncrStatementID(c.ctx, false); err != nil {
 				return err
 			}
 
@@ -790,7 +790,7 @@ func (c *Compile) compilePlanScope(ctx context.Context, step int32, curNodeIdx i
 		c.setAnalyzeCurrent(ss, curr)
 
 		if n.Stats.Shuffle {
-			ss = c.compileBucketGroup(n, ss, ns)
+			ss = c.compileShuffleGroup(n, ss, ns)
 			return c.compileSort(n, ss), nil
 		} else {
 			ss = c.compileMergeGroup(n, ss, ns)
@@ -1966,11 +1966,11 @@ func (c *Compile) compileMergeGroup(n *plan.Node, ss []*Scope, ns []*plan.Node) 
 	return []*Scope{rs}
 }
 
-func (c *Compile) compileBucketGroup(n *plan.Node, ss []*Scope, ns []*plan.Node) []*Scope {
+func (c *Compile) compileShuffleGroup(n *plan.Node, ss []*Scope, ns []*plan.Node) []*Scope {
 	currentIsFirst := c.anal.isFirst
 	c.anal.isFirst = false
 	dop := plan2.GetShuffleDop()
-	parent, children := c.newScopeListForGroup(validScopeCount(ss), dop)
+	parent, children := c.newScopeListForShuffleGroup(validScopeCount(ss), dop)
 
 	j := 0
 	for i := range ss {
@@ -2160,7 +2160,7 @@ func (c *Compile) newScopeList(childrenCount int, blocks int) []*Scope {
 	return ss
 }
 
-func (c *Compile) newScopeListForGroup(childrenCount int, blocks int) ([]*Scope, []*Scope) {
+func (c *Compile) newScopeListForShuffleGroup(childrenCount int, blocks int) ([]*Scope, []*Scope) {
 	var parent = make([]*Scope, 0, len(c.cnList))
 	var children = make([]*Scope, 0, len(c.cnList))
 
@@ -2168,6 +2168,11 @@ func (c *Compile) newScopeListForGroup(childrenCount int, blocks int) ([]*Scope,
 	for _, n := range c.cnList {
 		c.anal.isFirst = currentFirstFlag
 		scopes := c.newScopeListWithNode(c.generateCPUNumber(n.Mcpu, blocks), childrenCount, n.Addr)
+		for _, s := range scopes {
+			for _, rr := range s.Proc.Reg.MergeReceivers {
+				rr.Ch = make(chan *batch.Batch, 16)
+			}
+		}
 		children = append(children, scopes...)
 		parent = append(parent, c.newMergeRemoteScope(scopes, n))
 	}

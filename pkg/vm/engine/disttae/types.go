@@ -234,7 +234,7 @@ func (txn *Transaction) PutCnBlockDeletes(blockId *types.Blockid, offsets []int6
 	txn.deletedBlocks.addDeletedBlocks(blockId, offsets)
 }
 
-func (txn *Transaction) IncrStatementID(ctx context.Context) error {
+func (txn *Transaction) IncrStatementID(ctx context.Context, commit bool) error {
 	if err := txn.mergeTxnWorkspace(); err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (txn *Transaction) IncrStatementID(ctx context.Context) error {
 	// For RC isolation, update the snapshot TS of transaction for each statement including
 	// the first one. Means that, the timestamp of the first statement is not the transaction's
 	// begin timestamp, but its own timestamp.
-	if txn.meta.IsRCIsolation() {
+	if !commit && txn.meta.IsRCIsolation() {
 		if err := txn.op.UpdateSnapshot(
 			ctx,
 			timestamp.Timestamp{}); err != nil {
@@ -474,19 +474,14 @@ type blockReader struct {
 	currentStep int
 
 	// block list to scan
-	blks    []*catalog.BlockInfo
-	blkDels map[types.Blockid][]int64
-	//proc    *process.Process
+	blks []*catalog.BlockInfo
+	//buffer for block's deletes
+	buffer []int64
 }
 
-// TODO::blockMergeReader should inherit from blockReader.
 type blockMergeReader struct {
-	withFilterMixin
-
-	table     *txnTable
-	dirtyBlks []*catalog.BlockInfo
-	buffer    []int64
-	//proc      *process.Process
+	*blockReader
+	table *txnTable
 }
 
 type mergeReader struct {
@@ -495,11 +490,6 @@ type mergeReader struct {
 
 type emptyReader struct {
 }
-
-//type ModifyBlockMeta struct {
-//	meta    catalog.BlockInfo
-//	deletes []int64
-//}
 
 type pkRange struct {
 	isRange bool
