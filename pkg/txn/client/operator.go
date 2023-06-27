@@ -694,7 +694,7 @@ func (tc *txnOperator) handleErrorResponse(resp txn.TxnResponse) error {
 		if err != nil {
 			if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) {
 				locks, _ := tc.option.lockService.GetHoldLocks(tc.txnID)
-				util.GetLogger().Fatal("failed",
+				util.GetLogger().Error("failed",
 					zap.String("locks", fmt.Sprintf("%+v", locks)),
 					zap.String("sql", fmt.Sprintf("%+v", tc.GetWorkspace().GetSQLs())),
 					zap.Error(err),
