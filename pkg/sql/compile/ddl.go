@@ -53,9 +53,10 @@ func (s *Scope) CreateDatabase(c *Compile) error {
 		return moerr.NewDBAlreadyExists(c.ctx, dbName)
 	}
 
-	if err := lockMoDatabase(c, dbName); err != nil {
-		return err
-	}
+	// TODO: fix lock
+	// if err := lockMoDatabase(c, dbName); err != nil {
+	// 	return err
+	// }
 
 	fmtCtx := tree.NewFmtCtx(dialect.MYSQL, tree.WithQuoteString(true))
 	c.stmt.Format(fmtCtx)
@@ -515,9 +516,10 @@ func (s *Scope) CreateTable(c *Compile) error {
 	}
 	tblName := qry.GetTableDef().GetName()
 
-	if err := lockMoTable(c, dbName, tblName); err != nil {
-		return err
-	}
+	// TODO: fix lock
+	// if err := lockMoTable(c, dbName, tblName); err != nil {
+	// 	return err
+	// }
 
 	dbSource, err := c.e.Database(c.ctx, dbName, c.proc.TxnOperator)
 	if err != nil {
