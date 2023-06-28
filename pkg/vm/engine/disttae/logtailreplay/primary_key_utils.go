@@ -47,6 +47,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	to types.TS,
 	key []byte,
 ) bool {
+	fmt.Printf("txn %s rows %d\n", hex.EncodeToString(txnID), p.rows.Len())
 	iter2 := p.NewRowsIter(
 		to,
 		nil,
