@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -243,6 +244,9 @@ func (w *waiter) wait(
 		w.setStatus(serviceID, completed)
 		return v
 	case <-ctx.Done():
+
+	case <-time.After(time.Minute * 10):
+		getLogger().Fatal("wait too long", zap.String("txn", hex.EncodeToString(w.txnID)))
 	}
 
 	w.beforeSwapStatusAdjustFunc()
