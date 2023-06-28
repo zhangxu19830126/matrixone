@@ -413,7 +413,7 @@ func doLock(
 		}
 
 		// if [snapshotTS, lockedTS) has been modified, need retry at new snapshot ts
-		changed, err := fn(proc.Ctx, txnOp, tableID, nil, vec, snapshotTS.Prev(), lockedTS)
+		changed, err := fn(proc.Ctx, txnOp, tableID, eng, vec, snapshotTS.Prev(), lockedTS)
 		if err != nil {
 			return timestamp.Timestamp{}, err
 		}
