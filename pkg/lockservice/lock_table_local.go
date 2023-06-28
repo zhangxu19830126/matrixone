@@ -175,9 +175,9 @@ func (l *localLockTable) unlock(
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
-				fmt.Printf("%s unlock table %d, row %+v\n", hex.EncodeToString(txn.txnID), l.bind.Table, key)
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
+				fmt.Printf("%s unlock table %d, row %+v, next %s\n", hex.EncodeToString(txn.txnID), l.bind.Table, key, next.String())
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
 			}
 			l.mu.store.Delete(key)
@@ -357,7 +357,7 @@ func (l *localLockTable) handleLockConflictLocked(
 		panic("BUG: active dead lock check can not fail")
 	}
 	logLocalLockWaitOn(l.bind.ServiceID, txn, l.bind.Table, w, key, conflictWith)
-	fmt.Printf("txn %s wait %s on %+v\n", hex.EncodeToString(txn.txnID), hex.EncodeToString(conflictWith.txnID), key)
+	fmt.Printf("txn %s wait %s on table %d, key %+v, waiter %s\n", hex.EncodeToString(txn.txnID), hex.EncodeToString(conflictWith.txnID), l.bind.Table, key, w.String())
 }
 
 func getWaiter(

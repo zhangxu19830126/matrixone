@@ -246,7 +246,7 @@ func (w *waiter) wait(
 	case <-ctx.Done():
 
 	case <-time.After(time.Minute * 2):
-		getLogger().Fatal("wait too long", zap.String("txn", hex.EncodeToString(w.txnID)))
+		getLogger().Fatal("wait too long", zap.String("waiter", w.String()))
 	}
 
 	w.beforeSwapStatusAdjustFunc()
