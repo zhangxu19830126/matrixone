@@ -333,6 +333,15 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if e != nil {
 		logutil.Fatal(e.Error())
 	}
+	if retry > 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+		logutil.Fatalf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n%s\n",
+			hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
+			retry,
+			err.Error(),
+			locks,
+			c.proc.TxnOperator.GetWorkspace().GetSQLs(),
+			DebugShowScopes(c.scope))
+	}
 	fmt.Printf("txn %s retry %d, error %+v, locks %+v, execute sql %+v\n%s\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
 		retry,
