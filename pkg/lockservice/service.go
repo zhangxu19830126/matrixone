@@ -305,8 +305,9 @@ type mapBasedTxnHolder struct {
 		// remoteServices known remote service
 		remoteServices map[string]*list.Element[remote]
 		// head(oldest) -> tail (newest)
-		dequeue    list.Deque[remote]
-		activeTxns map[string]*activeTxn
+		dequeue           list.Deque[remote]
+		activeTxns        map[string]*activeTxn
+		activeTxnServices map[string]string
 	}
 }
 
@@ -317,6 +318,7 @@ func newMapBasedTxnHandler(
 	h.fsp = fsp
 	h.serviceID = serviceID
 	h.mu.activeTxns = make(map[string]*activeTxn, 1024)
+	h.mu.activeTxnServices = make(map[string]string)
 	h.mu.remoteServices = make(map[string]*list.Element[remote])
 	h.mu.dequeue = list.New[remote]()
 	return h
@@ -353,6 +355,7 @@ func (h *mapBasedTxnHolder) getActiveTxn(
 
 	txn := newActiveTxn(txnID, txnKey, h.fsp, remoteService)
 	h.mu.activeTxns[txnKey] = txn
+	h.mu.activeTxnServices[txnKey] = txn.remoteService
 
 	if remoteService != "" {
 		if _, ok := h.mu.remoteServices[remoteService]; !ok {
@@ -374,6 +377,7 @@ func (h *mapBasedTxnHolder) deleteActiveTxn(txnID []byte) *activeTxn {
 	v, ok := h.mu.activeTxns[txnKey]
 	if ok {
 		delete(h.mu.activeTxns, txnKey)
+		delete(h.mu.activeTxnServices, txnKey)
 	}
 	return v
 }
@@ -417,12 +421,12 @@ func (h *mapBasedTxnHolder) getTimeoutRemoveTxn(
 			return true
 		})
 
-		for _, txn := range h.mu.activeTxns {
-			txn.Lock()
-			if _, ok := timeoutServices[txn.remoteService]; ok {
-				timeoutTxns = append(timeoutTxns, txn.txnID)
+		for txnKey := range h.mu.activeTxns {
+			remoteService := h.mu.activeTxnServices[txnKey]
+			if _, ok := timeoutServices[remoteService]; ok {
+				timeoutTxns = append(timeoutTxns, util.UnsafeStringToBytes(txnKey))
 			}
-			txn.Unlock()
+
 		}
 	}
 	return timeoutTxns, wait
