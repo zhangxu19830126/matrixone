@@ -379,6 +379,10 @@ func doLock(
 		}
 	}
 
+	fmt.Printf(">>> %s try get lock on table %d, rows %v\n", hex.EncodeToString(txnOp.Txn().ID), tableID, rows)
+	defer func() {
+		fmt.Printf(">>> %s try get lock on table %d, rows %v end\n", hex.EncodeToString(txnOp.Txn().ID), tableID, rows)
+	}()
 	result, err := lockService.Lock(
 		ctx,
 		tableID,
@@ -386,10 +390,10 @@ func doLock(
 		txn.ID,
 		options)
 	if err != nil {
-		fmt.Printf(">>> txn %s get lock on table %d failed\n", hex.EncodeToString(txnOp.Txn().ID), tableID)
+		fmt.Printf(">>> %s get lock on table %d failed\n", hex.EncodeToString(txnOp.Txn().ID), tableID)
 		return timestamp.Timestamp{}, err
 	}
-	fmt.Printf(">>> txn %s get lock on table %d, rows %v\n", hex.EncodeToString(txnOp.Txn().ID), tableID, rows)
+	fmt.Printf(">>>%s get lock on table %d, rows %v\n", hex.EncodeToString(txnOp.Txn().ID), tableID, rows)
 
 	// add bind locks
 	if err := txnOp.AddLockTable(result.LockedOn); err != nil {
