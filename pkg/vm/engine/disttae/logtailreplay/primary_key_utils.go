@@ -47,6 +47,16 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	to types.TS,
 	key []byte,
 ) bool {
+	iter2 := p.NewRowsIter(
+		to,
+		nil,
+		false,
+	)
+	for iter2.Next() {
+		row := iter2.Entry()
+		fmt.Printf("txn %s batch: %+v\n", hex.EncodeToString(txnID), row.Batch)
+	}
+
 	iter := p.NewPrimaryKeyIter(to, Exact(key))
 	defer iter.Close()
 
