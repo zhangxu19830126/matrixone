@@ -494,16 +494,14 @@ func (s *service) getTxnClient() (c client.TxnClient, err error) {
 			opts = append(opts,
 				client.WithEnableRefreshExpression())
 		}
-		if s.cfg.Txn.EnableLeakCheck {
-			opts = append(opts, client.WithEnableLeakCheck(
-				s.cfg.Txn.MaxActiveAges.Duration,
-				func(txnID []byte, createAt time.Time, createBy string) {
-					runtime.DefaultRuntime().Logger().Fatal("found leak txn",
-						zap.String("txn-id", hex.EncodeToString(txnID)),
-						zap.Time("create-at", createAt),
-						zap.String("create-by", createBy))
-				}))
-		}
+		opts = append(opts, client.WithEnableLeakCheck(
+			time.Minute*10,
+			func(txnID []byte, createAt time.Time, createBy string) {
+				runtime.DefaultRuntime().Logger().Fatal("found leak txn",
+					zap.String("txn-id", hex.EncodeToString(txnID)),
+					zap.Time("create-at", createAt),
+					zap.String("create-by", createBy))
+			}))
 		opts = append(opts, client.WithLockService(s.lockService))
 		c = client.NewTxnClient(
 			sender,
