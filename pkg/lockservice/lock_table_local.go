@@ -17,6 +17,7 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -355,6 +356,7 @@ func (l *localLockTable) handleLockConflictLocked(
 		panic("BUG: active dead lock check can not fail")
 	}
 	logLocalLockWaitOn(l.bind.ServiceID, txn, l.bind.Table, w, key, conflictWith)
+	fmt.Printf("txn %s wait %s on %+v\n", hex.EncodeToString(txn.txnID), hex.EncodeToString(conflictWith.txnID), key)
 }
 
 func getWaiter(

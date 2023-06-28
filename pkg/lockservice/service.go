@@ -83,14 +83,17 @@ func (s *service) Lock(
 	defer span.End()
 
 	st := time.Now()
-	fmt.Printf("txn %s lock on table %d\n", hex.EncodeToString(txnID), tableID)
+	fmt.Printf("txn %s lock on table %d rows %+v\n", hex.EncodeToString(txnID), tableID, rows)
 	if tableID == 0 {
 		getLogger().Fatal("invalid table id", zap.String("txn", hex.EncodeToString(txnID)))
 	}
 	defer func() {
 		cost := time.Since(st)
 		if cost > time.Second*40 {
-			getLogger().Fatal("BUG: lock too long failed\n", zap.String("txn", hex.EncodeToString(txnID)), zap.Uint64("table", tableID))
+			getLogger().Fatal("BUG: lock too long failed\n",
+				zap.String("txn", hex.EncodeToString(txnID)),
+				zap.Uint64("table", tableID),
+				zap.Any("rows", rows))
 		}
 	}()
 
