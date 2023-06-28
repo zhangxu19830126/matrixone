@@ -838,6 +838,7 @@ func (tc *txnOperator) unlock(ctx context.Context) {
 		}
 	}
 
+	fmt.Printf("%s unlock on service %s, is mirror %+v\n", hex.EncodeToString(tc.txnID), tc.option.lockService.GetConfig().ServiceID, tc.mu.txn.Mirror)
 	if err := tc.option.lockService.Unlock(
 		ctx,
 		tc.mu.txn.ID,

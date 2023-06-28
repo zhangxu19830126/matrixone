@@ -245,7 +245,7 @@ func (w *waiter) wait(
 		return v
 	case <-ctx.Done():
 
-	case <-time.After(time.Minute * 10):
+	case <-time.After(time.Minute * 2):
 		getLogger().Fatal("wait too long", zap.String("txn", hex.EncodeToString(w.txnID)))
 	}
 

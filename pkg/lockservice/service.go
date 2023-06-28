@@ -83,7 +83,7 @@ func (s *service) Lock(
 	defer span.End()
 
 	st := time.Now()
-	fmt.Printf("txn %s lock on table %d rows %+v\n", hex.EncodeToString(txnID), tableID, rows)
+	fmt.Printf("txn %s lock on table %d rows %+v, on service %s\n", hex.EncodeToString(txnID), tableID, rows, s.cfg.ServiceID)
 	if tableID == 0 {
 		getLogger().Fatal("invalid table id", zap.String("txn", hex.EncodeToString(txnID)))
 	}
@@ -133,7 +133,7 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
-	fmt.Printf(">>> unlock txn %s, commit: %s, %+v\n", hex.EncodeToString(txnID), commitTS.String(), time.Now())
+	fmt.Printf(">>> unlock txn %s, commit: %s, %+v, on service %s\n", hex.EncodeToString(txnID), commitTS.String(), time.Now(), s.cfg.ServiceID)
 	// FIXME(fagongzi): too many mem alloc in trace
 	_, span := trace.Debug(ctx, "lockservice.unlock")
 	defer span.End()

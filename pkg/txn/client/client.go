@@ -210,10 +210,11 @@ func (client *txnClient) New(
 		client.updateLastCommitTS,
 		client.popTransaction)
 	client.addToLeakCheck(op)
-	fmt.Printf("txn %s start ts %s, %+v\n",
+	fmt.Printf("txn %s start ts %s, %+v, on service %s\n",
 		hex.EncodeToString(txnMeta.ID),
 		txnMeta.SnapshotTS.String(),
-		time.Now())
+		time.Now(),
+		op.option.lockService.GetConfig().ServiceID)
 	return op, nil
 }
 
