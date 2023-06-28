@@ -702,6 +702,9 @@ func hasNewVersionInRange(
 	if err != nil {
 		return false, err
 	}
+	if err := txnOp.GetWorkspace().IncrStatementID(ctx, false); err != nil {
+		return false, nil
+	}
 	_, err = rel.Ranges(ctx, nil)
 	if err != nil {
 		return false, err
