@@ -94,7 +94,7 @@ type HoldLock struct {
 }
 
 func (hl HoldLock) String() string {
-	return fmt.Sprintf("table %d, locks %+v", hl.Locks)
+	return fmt.Sprintf("table %d, locks %+v", hl.TableID, hl.Locks)
 }
 
 func ToString(locks []HoldLock) string {
