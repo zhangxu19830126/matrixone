@@ -327,6 +327,7 @@ func (client *txnClient) SetLatestCommitTS(ts timestamp.Timestamp) {
 }
 
 func (client *txnClient) popTransaction(txn txn.TxnMeta) {
+	return
 	var i int
 
 	client.mu.Lock()
@@ -348,6 +349,7 @@ func (client *txnClient) popTransaction(txn txn.TxnMeta) {
 }
 
 func (client *txnClient) pushTransaction(txn txn.TxnMeta) error {
+	return nil
 	client.mu.Lock()
 	defer client.mu.Unlock()
 
