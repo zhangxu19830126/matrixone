@@ -89,11 +89,8 @@ func (s *service) Lock(
 	}
 	defer func() {
 		cost := time.Since(st)
-		if cost > time.Second*40 {
-			getLogger().Fatal("BUG: lock too long failed\n",
-				zap.String("txn", hex.EncodeToString(txnID)),
-				zap.Uint64("table", tableID),
-				zap.Any("rows", rows))
+		if cost > time.Second*30 {
+			fmt.Printf("BUG: lock too long failed %s cost %+v\n", hex.EncodeToString(txnID), cost)
 		}
 	}()
 
