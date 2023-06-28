@@ -238,6 +238,15 @@ func (client *txnClient) MinTimestamp() timestamp.Timestamp {
 	return client.mu.minTS
 }
 
+func (client *txnClient) WaitLogTailAppliedAt(
+	ctx context.Context,
+	ts timestamp.Timestamp) (timestamp.Timestamp, error) {
+	if client.timestampWaiter == nil {
+		return timestamp.Timestamp{}, nil
+	}
+	return client.timestampWaiter.GetTimestamp(ctx, ts)
+}
+
 func (client *txnClient) getTxnIsolation() txn.TxnIsolation {
 	if v, ok := runtime.ProcessLevelRuntime().GetGlobalVariables(runtime.TxnIsolation); ok {
 		return v.(txn.TxnIsolation)
