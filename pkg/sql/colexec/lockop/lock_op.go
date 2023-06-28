@@ -702,7 +702,10 @@ func hasNewVersionInRange(
 	if err != nil {
 		return false, err
 	}
-
+	_, err = rel.Ranges(ctx, nil)
+	if err != nil {
+		return false, err
+	}
 	fromTS := types.BuildTS(from.PhysicalTime, from.LogicalTime)
 	toTS := types.BuildTS(to.PhysicalTime, to.LogicalTime)
 	return rel.PrimaryKeysMayBeModified(ctx, fromTS, toTS, vec)
