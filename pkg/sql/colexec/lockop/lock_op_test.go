@@ -251,6 +251,7 @@ func TestLockWithHasNewVersionInLockedTS(t *testing.T) {
 			require.NoError(t, Prepare(proc, arg))
 			arg.rt.hasNewVersionInRange = func(
 				ctx context.Context,
+				proc *process.Process,
 				txnOp client.TxnOperator,
 				tableID uint64,
 				eng engine.Engine,

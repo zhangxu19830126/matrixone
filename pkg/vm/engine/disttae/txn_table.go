@@ -1725,9 +1725,9 @@ func (tbl *txnTable) newReader(
 // get the table's snapshot.
 // it is only initialized once for a transaction and will not change.
 func (tbl *txnTable) getPartitionState(ctx context.Context, txnID []byte) (*logtailreplay.PartitionState, error) {
-	fmt.Printf("txn %s getPartitionState start", hex.EncodeToString(txnID))
+	fmt.Printf("txn %s getPartitionState start\n", hex.EncodeToString(txnID))
 	if tbl._partState == nil {
-		fmt.Printf("txn %s getPartitionState in nil", hex.EncodeToString(txnID))
+		fmt.Printf("txn %s getPartitionState in nil\n", hex.EncodeToString(txnID))
 		if err := tbl.updateLogtail(ctx, txnID); err != nil {
 			return nil, err
 		}

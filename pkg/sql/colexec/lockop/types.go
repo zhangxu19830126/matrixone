@@ -82,6 +82,7 @@ type RowsFilter func(row int, filterCols []int32) bool
 
 type hasNewVersionInRangeFunc func(
 	ctx context.Context,
+	proc *process.Process,
 	txnOp client.TxnOperator,
 	tableID uint64,
 	eng engine.Engine,

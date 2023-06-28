@@ -426,7 +426,7 @@ func doLock(
 		if err := eng.New(proc.Ctx, checkTxn); err != nil {
 			return timestamp.Timestamp{}, err
 		}
-		changed, err := fn(proc.Ctx, checkTxn, tableID, eng, vec, snapshotTS.Prev(), lockedTS)
+		changed, err := fn(proc.Ctx, proc, checkTxn, tableID, eng, vec, snapshotTS.Prev(), lockedTS)
 		if err != nil {
 			return timestamp.Timestamp{}, err
 		}
@@ -684,15 +684,25 @@ func getRowsFilter(
 // 2. otherwise return true, changed
 func hasNewVersionInRange(
 	ctx context.Context,
+	proc *process.Process,
 	txnOp client.TxnOperator,
 	tableID uint64,
 	eng engine.Engine,
 	vec *vector.Vector,
 	from, to timestamp.Timestamp) (bool, error) {
-	_, _, rel, err := eng.GetRelationById(ctx, txnOp, tableID)
+	dbName, tableName, _, err := eng.GetRelationById(ctx, txnOp, tableID)
 	if err != nil {
 		return false, err
 	}
+	db, err := eng.Database(ctx, dbName, txnOp)
+	if err != nil {
+		return false, err
+	}
+	rel, err := db.Relation(ctx, tableName, proc)
+	if err != nil {
+		return false, err
+	}
+
 	fromTS := types.BuildTS(from.PhysicalTime, from.LogicalTime)
 	toTS := types.BuildTS(to.PhysicalTime, to.LogicalTime)
 	return rel.PrimaryKeysMayBeModified(ctx, fromTS, toTS, vec)
