@@ -15,13 +15,17 @@
 package logtailreplay
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 )
 
 func (p *PartitionState) PrimaryKeysMayBeModified(
-	from types.TS,
-	to types.TS,
+	txnID []byte,
+	from types.TS, // snapshot ts
+	to types.TS, // locked ts
 	keysVector *vector.Vector,
 	packer *types.Packer,
 ) bool {
@@ -29,7 +33,7 @@ func (p *PartitionState) PrimaryKeysMayBeModified(
 
 	keys := EncodePrimaryKeyVector(keysVector, packer)
 	for _, key := range keys {
-		if p.PrimaryKeyMayBeModified(from, to, key) {
+		if p.PrimaryKeyMayBeModified(txnID, from, to, key) {
 			return true
 		}
 	}
@@ -38,6 +42,7 @@ func (p *PartitionState) PrimaryKeysMayBeModified(
 }
 
 func (p *PartitionState) PrimaryKeyMayBeModified(
+	txnID []byte,
 	from types.TS,
 	to types.TS,
 	key []byte,
@@ -50,6 +55,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 		empty = false
 		row := iter.Entry()
 		if row.Time.Greater(from) {
+			fmt.Printf("txn %s found changed, from %+v, found ts %+v for %+v", hex.EncodeToString(txnID), from.ToTimestamp(), row.Time, key)
 			return true
 		}
 	}

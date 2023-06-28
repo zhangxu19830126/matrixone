@@ -417,6 +417,9 @@ func doLock(
 		if err != nil {
 			return timestamp.Timestamp{}, err
 		}
+		newID := checkTxn.TxnRef().ID
+		oldID := txnOp.Txn().ID
+		checkTxn.TxnRef().ID = append(newID, oldID...)
 		defer func() {
 			_ = checkTxn.Rollback(proc.Ctx)
 		}()

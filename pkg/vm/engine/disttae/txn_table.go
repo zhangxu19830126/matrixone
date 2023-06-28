@@ -1814,5 +1814,5 @@ func (tbl *txnTable) PrimaryKeysMayBeModified(ctx context.Context, from types.TS
 	if err != nil {
 		return false, err
 	}
-	return part.PrimaryKeysMayBeModified(from, to, keysVector, packer), nil
+	return part.PrimaryKeysMayBeModified(tbl.db.txn.meta.ID, from, to, keysVector, packer), nil
 }
