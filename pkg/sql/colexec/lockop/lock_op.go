@@ -418,6 +418,7 @@ func doLock(
 			return timestamp.Timestamp{}, err
 		}
 		if changed {
+			fmt.Printf("txn %s found changed\n", hex.EncodeToString(txnOp.Txn().ID))
 			if err := txnOp.UpdateSnapshot(ctx, newSnapshotTS); err != nil {
 				return timestamp.Timestamp{}, err
 			}
