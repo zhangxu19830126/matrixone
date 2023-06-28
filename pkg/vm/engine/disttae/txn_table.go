@@ -128,7 +128,7 @@ func (tbl *txnTable) Rows(ctx context.Context) (rows int64, err error) {
 	}
 
 	ts := types.TimestampToTS(tbl.db.txn.meta.SnapshotTS)
-	partition, err := tbl.getPartitionState(ctx)
+	partition, err := tbl.getPartitionState(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -172,7 +172,7 @@ func (tbl *txnTable) MaxAndMinValues(ctx context.Context) ([][2]any, []uint8, er
 		err  error
 		part *logtailreplay.PartitionState
 	)
-	if part, err = tbl.getPartitionState(ctx); err != nil {
+	if part, err = tbl.getPartitionState(ctx, nil); err != nil {
 		return nil, nil, err
 	}
 
@@ -236,7 +236,7 @@ func (tbl *txnTable) MaxAndMinValues(ctx context.Context) ([][2]any, []uint8, er
 // Get all neede column exclude the hidden size
 func (tbl *txnTable) Size(ctx context.Context, name string) (int64, error) {
 	ts := types.TimestampToTS(tbl.db.txn.meta.SnapshotTS)
-	part, err := tbl.getPartitionState(ctx)
+	part, err := tbl.getPartitionState(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -350,7 +350,7 @@ func (tbl *txnTable) GetColumMetadataScanInfo(ctx context.Context, name string) 
 		err  error
 		part *logtailreplay.PartitionState
 	)
-	if part, err = tbl.getPartitionState(ctx); err != nil {
+	if part, err = tbl.getPartitionState(ctx, nil); err != nil {
 		return nil, err
 	}
 
@@ -563,7 +563,7 @@ func (tbl *txnTable) Ranges(ctx context.Context, exprs []*plan.Expr) (ranges [][
 
 	// get the table's snapshot
 	var part *logtailreplay.PartitionState
-	if part, err = tbl.getPartitionState(ctx); err != nil {
+	if part, err = tbl.getPartitionState(ctx, nil); err != nil {
 		return
 	}
 
@@ -1570,7 +1570,7 @@ func (tbl *txnTable) newReader(
 	txn := tbl.db.txn
 	ts := txn.meta.SnapshotTS
 	fs := txn.engine.fs
-	state, err := tbl.getPartitionState(ctx)
+	state, err := tbl.getPartitionState(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1723,12 +1723,12 @@ func (tbl *txnTable) newReader(
 
 // get the table's snapshot.
 // it is only initialized once for a transaction and will not change.
-func (tbl *txnTable) getPartitionState(ctx context.Context) (*logtailreplay.PartitionState, error) {
+func (tbl *txnTable) getPartitionState(ctx context.Context, txnID []byte) (*logtailreplay.PartitionState, error) {
 	if tbl._partState == nil {
-		if err := tbl.updateLogtail(ctx); err != nil {
+		if err := tbl.updateLogtail(ctx, txnID); err != nil {
 			return nil, err
 		}
-		tbl._partState = tbl.db.txn.engine.getPartition(tbl.db.databaseId, tbl.tableId).Snapshot()
+		tbl._partState = tbl.db.txn.engine.getPartition(txnID, tbl.db.databaseId, tbl.tableId).Snapshot()
 	}
 	return tbl._partState, nil
 }
@@ -1742,7 +1742,7 @@ func (tbl *txnTable) updateBlockInfos(ctx context.Context) (err error) {
 	// 2. generate block infos
 	// 3. update the blockInfosUpdated and blockInfos fields of the table
 	if !created && !tbl.blockInfosUpdated {
-		if err = tbl.updateLogtail(ctx); err != nil {
+		if err = tbl.updateLogtail(ctx, nil); err != nil {
 			return
 		}
 		var blocks []catalog.BlockInfo
@@ -1755,7 +1755,7 @@ func (tbl *txnTable) updateBlockInfos(ctx context.Context) (err error) {
 	return
 }
 
-func (tbl *txnTable) updateLogtail(ctx context.Context) (err error) {
+func (tbl *txnTable) updateLogtail(ctx context.Context, txnID []byte) (err error) {
 	// if the logtail is updated, skip
 	if tbl.logtailUpdated {
 		return
@@ -1798,7 +1798,7 @@ func (tbl *txnTable) updateLogtail(ctx context.Context) (err error) {
 	if err = tbl.db.txn.engine.UpdateOfPush(ctx, tbl.db.databaseId, tableId, tbl.db.txn.meta.SnapshotTS); err != nil {
 		return
 	}
-	if err = tbl.db.txn.engine.lazyLoad(ctx, tbl); err != nil {
+	if err = tbl.db.txn.engine.lazyLoad(ctx, txnID, tbl); err != nil {
 		return
 	}
 
@@ -1810,7 +1810,7 @@ func (tbl *txnTable) PrimaryKeysMayBeModified(ctx context.Context, from types.TS
 	var packer *types.Packer
 	put := tbl.db.txn.engine.packerPool.Get(&packer)
 	defer put.Put()
-	part, err := tbl.getPartitionState(ctx)
+	part, err := tbl.getPartitionState(ctx, tbl.db.txn.meta.ID)
 	if err != nil {
 		return false, err
 	}

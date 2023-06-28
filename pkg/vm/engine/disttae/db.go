@@ -16,6 +16,8 @@ package disttae
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
@@ -252,19 +254,22 @@ func (e *Engine) init(ctx context.Context, m *mpool.MPool) error {
 	return nil
 }
 
-func (e *Engine) getPartition(databaseId, tableId uint64) *logtailreplay.Partition {
+func (e *Engine) getPartition(txnID []byte, databaseId, tableId uint64) *logtailreplay.Partition {
 	e.Lock()
 	defer e.Unlock()
 	partition, ok := e.partitions[[2]uint64{databaseId, tableId}]
 	if !ok { // create a new table
+		if len(txnID) > 0 {
+			fmt.Printf("txn %s empty partition, database id %d, table id %d\n", hex.EncodeToString(txnID), databaseId, tableId)
+		}
 		partition = logtailreplay.NewPartition()
 		e.partitions[[2]uint64{databaseId, tableId}] = partition
 	}
 	return partition
 }
 
-func (e *Engine) lazyLoad(ctx context.Context, tbl *txnTable) error {
-	part := e.getPartition(tbl.db.databaseId, tbl.tableId)
+func (e *Engine) lazyLoad(ctx context.Context, txnID []byte, tbl *txnTable) error {
+	part := e.getPartition(txnID, tbl.db.databaseId, tbl.tableId)
 
 	select {
 	case <-part.Lock():

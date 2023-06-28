@@ -38,7 +38,7 @@ func (txn *Transaction) getBlockInfos(
 	tbl *txnTable,
 ) (blocks []catalog.BlockInfo, err error) {
 	ts := types.TimestampToTS(txn.meta.SnapshotTS)
-	state, err := tbl.getPartitionState(ctx)
+	state, err := tbl.getPartitionState(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -380,7 +380,7 @@ func (r *blockMergeReader) loadDeletes(ctx context.Context) error {
 	}
 	// load deletes from partition state for the specified block
 	{
-		state, err := r.table.getPartitionState(ctx)
+		state, err := r.table.getPartitionState(ctx, nil)
 		if err != nil {
 			return err
 		}
