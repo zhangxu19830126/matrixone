@@ -44,6 +44,7 @@ require (
 	github.com/prometheus/client_model v0.4.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
+	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/shirou/gopsutil/v3 v3.22.4
 	github.com/smartystreets/goconvey v1.8.0
 	github.com/spf13/cobra v1.7.0
@@ -109,6 +110,7 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/dns v1.1.53 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pingcap/errors v0.11.5-0.20201029093017-5a7df2af2ac7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
