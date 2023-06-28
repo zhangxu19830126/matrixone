@@ -277,7 +277,7 @@ func (client *txnClient) determineTxnSnapshot(
 	minTS timestamp.Timestamp) (timestamp.Timestamp, error) {
 	// always use the current ts as txn's snapshot ts is enableSacrificingFreshness
 	if !client.enableSacrificingFreshness ||
-		client.getTxnIsolation() == txn.TxnIsolation_RC {
+		(client.getTxnIsolation() == txn.TxnIsolation_RC && minTS.IsEmpty()) {
 		// TODO: Consider how to handle clock offsets. If use Clock-SI, can use the current
 		// time minus the maximum clock offset as the transaction's snapshotTimestamp to avoid
 		// conflicts due to clock uncertainty.

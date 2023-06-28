@@ -413,7 +413,17 @@ func doLock(
 		}
 
 		// if [snapshotTS, lockedTS) has been modified, need retry at new snapshot ts
-		changed, err := fn(proc.Ctx, txnOp, tableID, eng, vec, snapshotTS.Prev(), lockedTS)
+		checkTxn, err := txnClient.New(proc.Ctx, lockedTS.Prev())
+		if err != nil {
+			return timestamp.Timestamp{}, err
+		}
+		defer func() {
+			_ = checkTxn.Rollback(proc.Ctx)
+		}()
+		if err := eng.New(proc.Ctx, checkTxn); err != nil {
+			return timestamp.Timestamp{}, err
+		}
+		changed, err := fn(proc.Ctx, checkTxn, tableID, eng, vec, snapshotTS.Prev(), lockedTS)
 		if err != nil {
 			return timestamp.Timestamp{}, err
 		}
