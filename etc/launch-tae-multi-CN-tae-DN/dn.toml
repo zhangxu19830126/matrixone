@@ -42,11 +42,11 @@ backend = "TAE"
 log-backend = "logservice"
 
 [dn.Ckp]
-flush-interval = "60s"
-min-count = 100
-scan-interval = "5s"
-incremental-interval = "180s"
-global-min-count = 60
+flush-interval = "600000000s"
+min-count = 100000000
+scan-interval = "5000000s"
+incremental-interval = "180000000s"
+global-min-count = 600000000
 
 [dn.LogtailServer]
 listen-address = "0.0.0.0:32003"

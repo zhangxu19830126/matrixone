@@ -51,6 +51,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	defer iter.Close()
 
 	empty := true
+	fmt.Printf("txn %s try to check changed, from %+v, found ts %+v", hex.EncodeToString(txnID), from.ToTimestamp(), key)
 	for iter.Next() {
 		empty = false
 		row := iter.Entry()
