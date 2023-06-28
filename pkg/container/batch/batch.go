@@ -267,7 +267,7 @@ func (bat *Batch) String() string {
 
 	for i, vec := range bat.Vecs {
 		buf.WriteString(fmt.Sprintf("%v\n", i))
-		if len(bat.Zs) > 0 {
+		if len(bat.Zs) > 0 && (vec.GetType().IsInt() || vec.GetType().IsUInt()) {
 			buf.WriteString(fmt.Sprintf("\t%s\n", vec))
 		}
 	}

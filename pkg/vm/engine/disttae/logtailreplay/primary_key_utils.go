@@ -54,7 +54,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	)
 	for iter2.Next() {
 		row := iter2.Entry()
-		fmt.Printf("txn %s batch: %+v\n", hex.EncodeToString(txnID), row.Batch)
+		fmt.Printf("txn %s batch: %s\n", hex.EncodeToString(txnID), row.Batch.String())
 	}
 
 	iter := p.NewPrimaryKeyIter(to, Exact(key))
