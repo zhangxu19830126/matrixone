@@ -175,6 +175,7 @@ func (l *localLockTable) unlock(
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
+				fmt.Printf("%s unlock table %d, row %+v\n", hex.EncodeToString(txn.txnID), l.bind.Table, key)
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
