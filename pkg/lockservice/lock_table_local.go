@@ -177,7 +177,19 @@ func (l *localLockTable) unlock(
 			if lock.isLockRow() || lock.isLockRangeEnd() {
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
-				fmt.Printf("%s unlock table %d, row %+v, next %s\n", hex.EncodeToString(txn.txnID), l.bind.Table, key, next.String())
+				waiters := "["
+				if next != nil {
+					for _, w := range next.waiters.all() {
+						waiters += w.String() + ","
+					}
+				}
+				waiters += "]"
+				fmt.Printf("%s unlock table %d, row %+v, next %s, waiters: %+v\n",
+					hex.EncodeToString(txn.txnID),
+					l.bind.Table,
+					key,
+					next.String(),
+					waiters)
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
 			}
 			l.mu.store.Delete(key)
