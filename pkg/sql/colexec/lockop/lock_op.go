@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
@@ -696,6 +697,9 @@ func hasNewVersionInRange(
 	from, to timestamp.Timestamp) (bool, error) {
 	dbName, tableName, _, err := eng.GetRelationById(ctx, txnOp, tableID)
 	if err != nil {
+		if strings.Contains(err.Error(), "can not find table by id") {
+			return false, nil
+		}
 		return false, err
 	}
 	db, err := eng.Database(ctx, dbName, txnOp)

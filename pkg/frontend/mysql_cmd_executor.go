@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -2599,6 +2600,7 @@ func (mce *MysqlCmdExecutor) executeStmt(requestCtx context.Context,
 			ses.SetOptionBits(OPTION_ATTACH_ABORT_TRANSACTION_ERROR)
 		}
 		logError(ses, ses.GetDebugString(), err.Error())
+		fmt.Printf("txn %s rollback, because %+v\n", hex.EncodeToString(ses.GetTxnHandler().txnOperator.Txn().ID), err.Error())
 		txnErr = ses.TxnRollbackSingleStatement(stmt)
 		if txnErr != nil {
 			logStatementStatus(requestCtx, ses, stmt, fail, txnErr)
