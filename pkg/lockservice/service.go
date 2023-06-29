@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -133,7 +134,7 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
-	fmt.Printf(">>> unlock txn %s, commit: %s, %+v, on service %s\n", hex.EncodeToString(txnID), commitTS.String(), time.Now(), s.cfg.ServiceID)
+	fmt.Printf(">>> unlock txn %s, commit: %s, %+v, on service %s, stack %s\n", hex.EncodeToString(txnID), commitTS.String(), time.Now(), s.cfg.ServiceID, string(debug.Stack()))
 	// FIXME(fagongzi): too many mem alloc in trace
 	_, span := trace.Debug(ctx, "lockservice.unlock")
 	defer span.End()
