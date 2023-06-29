@@ -370,7 +370,19 @@ func (l *localLockTable) handleLockConflictLocked(
 		panic("BUG: active dead lock check can not fail")
 	}
 	logLocalLockWaitOn(l.bind.ServiceID, txn, l.bind.Table, w, key, conflictWith)
-	fmt.Printf("txn %s wait %s on table %d, key %+v, waiter %s\n", hex.EncodeToString(txn.txnID), hex.EncodeToString(conflictWith.txnID), l.bind.Table, key, w.String())
+
+	waiters := "["
+	for _, v := range conflictWith.waiter.waiters.all() {
+		waiters += v.String() + ","
+	}
+	waiters += "]"
+
+	fmt.Printf("txn %s wait %s on table %d, key %+v, waiter %s, waiters: %s\n",
+		hex.EncodeToString(txn.txnID),
+		hex.EncodeToString(conflictWith.txnID),
+		l.bind.Table, key,
+		w.String(),
+		waiters)
 }
 
 func getWaiter(
