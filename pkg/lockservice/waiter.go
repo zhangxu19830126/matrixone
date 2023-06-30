@@ -21,7 +21,6 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -238,15 +237,21 @@ func (w *waiter) wait(
 
 	w.beforeSwapStatusAdjustFunc()
 
-	select {
-	case v := <-w.c:
+	apply := func(v notifyValue) {
 		logWaiterGetNotify(serviceID, w, v)
 		w.setStatus(serviceID, completed)
+	}
+	select {
+	case v := <-w.c:
+		apply(v)
 		return v
 	case <-ctx.Done():
-
-	case <-time.After(time.Minute * 2):
-		getLogger().Fatal("wait too long", zap.String("waiter", w.String()))
+		select {
+		case v := <-w.c:
+			apply(v)
+			return v
+		default:
+		}
 	}
 
 	w.beforeSwapStatusAdjustFunc()
@@ -368,4 +373,8 @@ func (w *waiter) reset(serviceID string) {
 type notifyValue struct {
 	err error
 	ts  timestamp.Timestamp
+}
+
+func (v notifyValue) String() string {
+	return fmt.Sprintf("ts %s, error %+v", v.ts.DebugString(), v.err)
 }
