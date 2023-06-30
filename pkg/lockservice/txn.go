@@ -27,7 +27,7 @@ import (
 )
 
 func init() {
-	deadlock.Opts.DeadlockTimeout = time.Minute * 20
+	deadlock.Opts.DeadlockTimeout = time.Second * 20
 }
 
 var (
