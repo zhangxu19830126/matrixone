@@ -43,8 +43,9 @@ type localLockTable struct {
 	events   *waiterEvents
 	mu       struct {
 		deadlock.RWMutex
-		closed bool
-		store  LockStorage
+		closed          bool
+		store           LockStorage
+		lastCommittedTS timestamp.Timestamp
 	}
 }
 
@@ -62,6 +63,7 @@ func newLocalLockTable(
 		events:   events,
 	}
 	l.mu.store = newBtreeBasedStorage()
+	l.mu.lastCommittedTS, _ = clock.Now()
 	return l
 }
 
@@ -171,6 +173,10 @@ func (l *localLockTable) unlock(
 	defer l.mu.Unlock()
 	if l.mu.closed {
 		return
+	}
+
+	if commitTS.Greater(l.mu.lastCommittedTS) {
+		l.mu.lastCommittedTS = commitTS
 	}
 
 	locks.iter(func(key []byte) bool {
@@ -330,9 +336,9 @@ func (l *localLockTable) acquireRangeLockLocked(c lockContext) lockContext {
 		// lock added, need create new waiter next time
 		c.w = nil
 	}
-	now, _ := l.clock.Now()
+	// now, _ := l.clock.Now()
 	c.offset = 0
-	c.lockedTS = now
+	c.lockedTS = l.mu.lastCommittedTS
 	return c
 }
 

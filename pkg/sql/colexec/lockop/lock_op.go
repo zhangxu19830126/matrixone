@@ -695,6 +695,8 @@ func hasNewVersionInRange(
 	eng engine.Engine,
 	vec *vector.Vector,
 	from, to timestamp.Timestamp) (bool, error) {
+	return from.GreaterEq(to), nil
+
 	dbName, tableName, _, err := eng.GetRelationById(ctx, txnOp, tableID)
 	if err != nil {
 		if strings.Contains(err.Error(), "can not find table by id") {
