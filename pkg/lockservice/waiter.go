@@ -97,6 +97,7 @@ type waiter struct {
 	refCount       atomic.Int32
 	latestCommitTS timestamp.Timestamp
 	waitTxn        pb.WaitTxn
+	belongTo       pb.WaitTxn
 	event          event
 
 	// just used for testing

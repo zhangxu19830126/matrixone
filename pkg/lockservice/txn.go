@@ -18,12 +18,17 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/util"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/sasha-s/go-deadlock"
 )
+
+func init() {
+	deadlock.Opts.DeadlockTimeout = time.Minute * 20
+}
 
 var (
 	txnPool = sync.Pool{New: func() any {
