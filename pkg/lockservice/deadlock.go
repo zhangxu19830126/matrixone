@@ -17,6 +17,7 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -38,6 +39,33 @@ var (
 		return true, nil
 	}
 )
+
+func waitInfo(txnID []byte) string {
+	var buf bytes.Buffer
+	mu.Lock()
+	defer mu.Unlock()
+
+	getWaiterInfo(txnID, &buf)
+	return buf.String()
+}
+
+func getWaiterInfo(txnID []byte, buf *bytes.Buffer) {
+	buf.WriteString(hex.EncodeToString(txnID))
+	buf.WriteString("[")
+	getWaiters(txnID, buf)
+	buf.WriteString("]")
+}
+
+func getWaiters(txnID []byte, buf *bytes.Buffer) {
+	waiters, ok := detectedTxns[util.UnsafeBytesToString(txnID)]
+	if !ok || len(waiters) == 0 {
+		return
+	}
+	for _, w := range waiters {
+		getWaiterInfo(util.UnsafeStringToBytes(w), buf)
+		buf.WriteString(",")
+	}
+}
 
 func remove(txnID []byte) {
 	mu.Lock()
