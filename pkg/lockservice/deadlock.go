@@ -61,7 +61,7 @@ func add(waitingID, holdingTxnID []byte) {
 	ws = append(ws, waitingTxn)
 	detectedTxns[holdingTxn] = ws
 
-	w := &waiters{}
+	w := &waiters{ignoreTxns: &sync.Map{}}
 	w.reset(deadlockTxn{holdTxnID: holdingTxnID, waitTxn: pb.WaitTxn{TxnID: waitingID}})
 	for {
 		if w.completed() {
