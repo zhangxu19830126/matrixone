@@ -155,7 +155,12 @@ func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *
 		return nil
 	}
 
+	st := time.Now()
 	data, err := s.storage.Write(ctx, request.Txn, request.CNRequest.OpCode, request.CNRequest.Payload)
+	end := time.Now()
+	if end.Sub(st) > time.Second*30 {
+		util.GetLogger().Fatal("write txn too slow", zap.Duration("cost", end.Sub(st)))
+	}
 	if err != nil {
 		util.LogTxnWriteFailed(newTxn, err)
 		response.TxnError = txn.WrapError(err, moerr.ErrTAEWrite)
@@ -232,8 +237,12 @@ func (s *service) Commit(ctx context.Context, request *txn.TxnRequest, response 
 	// fast path: write in only one DNShard.
 	if len(newTxn.DNShards) == 1 {
 		util.LogTxnStart1PCCommit(newTxn)
-
+		st := time.Now()
 		commitTS, err := s.storage.Commit(ctx, newTxn)
+		end := time.Now()
+		if end.Sub(st) > time.Second*30 {
+			util.GetLogger().Fatal("commit txn too slow", zap.Duration("cost", end.Sub(st)))
+		}
 		if err != nil {
 			util.LogTxnStart1PCCommitFailed(newTxn, err)
 			response.TxnError = txn.WrapError(err, moerr.ErrTAECommit)

@@ -17,6 +17,7 @@ package rpc
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -216,6 +217,8 @@ func (s *server) onMessage(
 	}
 	n := len(s.queue)
 	if n > s.options.maxChannelBufferSize/2 {
+		fmt.Printf("txn request handle channel is busy, current %d, max %d\n",
+			n, s.options.maxChannelBufferSize)
 		s.rt.Logger().Warn("txn request handle channel is busy",
 			zap.Int("size", n),
 			zap.Int("max", s.options.maxChannelBufferSize))
