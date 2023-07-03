@@ -120,7 +120,7 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
-	fmt.Printf("%s unlocked\n", hex.EncodeToString(txnID))
+	fmt.Printf("%s unlocked on %s\n", hex.EncodeToString(txnID), s.cfg.ServiceID)
 	remove(txnID)
 
 	// FIXME(fagongzi): too many mem alloc in trace
