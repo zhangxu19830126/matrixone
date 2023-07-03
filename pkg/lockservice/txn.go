@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/util"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
+	"github.com/sasha-s/go-deadlock"
 )
 
 var (
@@ -32,7 +33,7 @@ var (
 
 // activeTxn one goroutine write, multi goroutine read
 type activeTxn struct {
-	sync.RWMutex
+	deadlock.RWMutex
 	txnID          []byte
 	txnKey         string
 	fsp            *fixedSlicePool

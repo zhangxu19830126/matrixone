@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
+	"github.com/sasha-s/go-deadlock"
 )
 
 const (
@@ -40,7 +41,7 @@ type localLockTable struct {
 	clock    clock.Clock
 	events   *waiterEvents
 	mu       struct {
-		sync.RWMutex
+		deadlock.RWMutex
 		closed bool
 		store  LockStorage
 	}
