@@ -244,6 +244,15 @@ func (w *waiter) wait(
 		w.setStatus(serviceID, completed)
 	}
 
+	st := time.Now()
+	defer func() {
+		if time.Since(st) > time.Minute {
+			fmt.Printf("%s wait too long, %s, wait result\n",
+				hex.EncodeToString(w.txnID),
+				w.String())
+		}
+	}()
+
 OUTER:
 	for {
 		select {
@@ -251,8 +260,9 @@ OUTER:
 			apply(v)
 			return v
 		case <-time.After(time.Minute):
-			fmt.Printf("%s wait too long, waiters info: %s\n",
+			fmt.Printf("%s wait too long, %s, waiters info: %s\n",
 				hex.EncodeToString(w.txnID),
+				w.String(),
 				waitInfo(w.txnID))
 		case <-ctx.Done():
 			select {
