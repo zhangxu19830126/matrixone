@@ -25,6 +25,59 @@ import (
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 )
 
+var (
+	mu           sync.Mutex
+	detectedTxns = make(map[string][]string)
+	fn           = func(v pb.WaitTxn, w *waiters) (bool, error) {
+		ws := detectedTxns[util.UnsafeBytesToString(v.TxnID)]
+		for _, v := range ws {
+			if !w.add(pb.WaitTxn{TxnID: util.UnsafeStringToBytes(v)}) {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+)
+
+func remove(txnID []byte) {
+	mu.Lock()
+	defer mu.Unlock()
+	delete(detectedTxns, util.UnsafeBytesToString(txnID))
+}
+
+func add(waitingID, holdingTxnID []byte) {
+	waitingTxn := util.UnsafeBytesToString(waitingID)
+	holdingTxn := util.UnsafeBytesToString(holdingTxnID)
+
+	mu.Lock()
+	defer mu.Unlock()
+	ws := detectedTxns[holdingTxn]
+	for _, v := range ws {
+		if v == waitingTxn {
+			return
+		}
+	}
+
+	ws = append(ws, waitingTxn)
+	detectedTxns[holdingTxn] = ws
+
+	w := &waiters{}
+	w.reset(deadlockTxn{holdTxnID: holdingTxnID, waitTxn: pb.WaitTxn{TxnID: waitingID}})
+	for {
+		if w.completed() {
+			return
+		}
+
+		// find deadlock
+		txn := w.getCheckTargetTxn()
+		added, _ := fn(txn, w)
+		if !added {
+			getLogger().Fatal("deadlock found")
+		}
+		w.next()
+	}
+}
+
 type detector struct {
 	serviceID         string
 	c                 chan deadlockTxn
@@ -77,6 +130,8 @@ func (d *detector) txnClosed(txnID []byte) {
 func (d *detector) check(
 	holdTxnID []byte,
 	txn pb.WaitTxn) error {
+	add(txn.TxnID, holdTxnID)
+
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if d.mu.closed {
