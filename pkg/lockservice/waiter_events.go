@@ -16,6 +16,8 @@ package lockservice
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
@@ -97,6 +99,16 @@ func (mw *waiterEvents) start() {
 			panic(err)
 		}
 	}
+	mw.stopper.RunTask(func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second * 10):
+				fmt.Printf("waiterEvents: %d\n", len(mw.eventC))
+			}
+		}
+	})
 }
 
 func (mw *waiterEvents) close() {
