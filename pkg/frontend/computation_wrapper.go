@@ -251,7 +251,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		// The default count is 1. Setting it to 2 ensures that memory will not be reclaimed.
 		//  Convenient to reuse memory next time
 		if prepareStmt.InsertBat != nil {
-			prepareStmt.InsertBat.SetCnt(2)
+			prepareStmt.InsertBat.SetCnt(10000)
 			cwft.proc.SetPrepareBatch(prepareStmt.InsertBat)
 			cwft.proc.SetPrepareExprList(prepareStmt.exprList)
 		}
