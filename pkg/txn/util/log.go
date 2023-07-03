@@ -17,6 +17,7 @@ package util
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/log"
@@ -93,6 +94,7 @@ func LogTxnWrite(txnMeta txn.TxnMeta) {
 
 // LogTxnCommit log txn commit
 func LogTxnCommit(txnMeta txn.TxnMeta) {
+	fmt.Printf("%s commit\n", hex.EncodeToString(txnMeta.ID))
 	logger := getSkipLogger()
 	if logger.Enabled(zap.DebugLevel) {
 		logger.Debug("txn commit", zap.String("txn", txnMeta.DebugString()))
@@ -101,6 +103,7 @@ func LogTxnCommit(txnMeta txn.TxnMeta) {
 
 // LogTxnRollback log txn rollback
 func LogTxnRollback(txnMeta txn.TxnMeta) {
+	fmt.Printf("%s rollback\n", hex.EncodeToString(txnMeta.ID))
 	logger := getSkipLogger()
 	if logger.Enabled(zap.DebugLevel) {
 		logger.Debug("txn rollback", zap.String("txn", txnMeta.DebugString()))
