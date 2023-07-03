@@ -49,6 +49,28 @@ func waitInfo(txnID []byte) string {
 	return buf.String()
 }
 
+func blockedBy(txnID []byte) string {
+	tid := util.UnsafeBytesToString(txnID)
+	var buf bytes.Buffer
+	buf.WriteString("[]")
+	mu.Lock()
+	defer mu.Unlock()
+
+	for id, ws := range detectedTxns {
+		if id == tid {
+			continue
+		}
+		for _, s := range ws {
+			if s == tid {
+				break
+			}
+			buf.WriteString(hex.EncodeToString(util.UnsafeStringToBytes(id)))
+		}
+	}
+	buf.WriteString("]")
+	return buf.String()
+}
+
 func getWaiterInfo(txnID []byte, buf *bytes.Buffer) {
 	buf.WriteString(hex.EncodeToString(txnID))
 	buf.WriteString("[")
