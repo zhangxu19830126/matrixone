@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
 	"github.com/sasha-s/go-deadlock"
+	"go.uber.org/zap"
 )
 
 const (
@@ -432,6 +433,12 @@ func (l *localLockTable) addRangeLockLocked(
 	}
 
 	if len(conflictKey) > 0 {
+		if bytes.Compare(conflictKey, end) > 0 {
+			getLogger().Fatal("invalid conflict",
+				zap.Any("start", start),
+				zap.Any("end", end),
+				zap.Any("conflict", conflictKey))
+		}
 		mc.rollback()
 		return conflictKey, conflictWith
 	}
