@@ -260,10 +260,9 @@ OUTER:
 			apply(v)
 			return v
 		case <-time.After(time.Minute):
-			fmt.Printf("%s wait too long, %s, waiters info: %s, waiting-for: %s\n",
-				hex.EncodeToString(w.txnID),
-				w.String(),
+			fmt.Printf("%s wait too long %s,  waiting-for: %s\n",
 				waitInfo(w.txnID),
+				w.String(),
 				blockedBy(w.txnID))
 		case <-ctx.Done():
 			select {
