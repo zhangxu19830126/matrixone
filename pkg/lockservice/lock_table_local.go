@@ -438,7 +438,7 @@ func (l *localLockTable) addRangeLockLocked(
 			getLogger().Fatal("invalid conflict",
 				zap.String("start", hex.EncodeToString(start)),
 				zap.String("end", hex.EncodeToString(end)),
-				zap.Any("conflict", conflictKey))
+				zap.Any("conflict", hex.EncodeToString(conflictKey)))
 		}
 		mc.rollback()
 		return conflictKey, conflictWith
