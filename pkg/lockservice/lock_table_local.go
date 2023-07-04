@@ -17,6 +17,7 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -435,8 +436,8 @@ func (l *localLockTable) addRangeLockLocked(
 	if len(conflictKey) > 0 {
 		if bytes.Compare(conflictKey, end) > 0 {
 			getLogger().Fatal("invalid conflict",
-				zap.Any("start", start),
-				zap.Any("end", end),
+				zap.String("start", hex.EncodeToString(start)),
+				zap.String("end", hex.EncodeToString(end)),
 				zap.Any("conflict", conflictKey))
 		}
 		mc.rollback()
