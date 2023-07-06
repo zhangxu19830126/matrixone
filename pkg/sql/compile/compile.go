@@ -16,6 +16,7 @@ package compile
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -160,6 +161,10 @@ func (c *Compile) SetTempEngine(ctx context.Context, te engine.Engine) {
 	e := c.e.(*engine.EntireEngine)
 	e.TempEngine = te
 	c.ctx = ctx
+}
+
+func (c *Compile) SetOriginSQL(sql string) {
+	c.originSQL = sql
 }
 
 // Compile is the entrance of the compute-execute-layer.
@@ -308,6 +313,37 @@ func (c *Compile) run(s *Scope) error {
 	return nil
 }
 
+func (c *Compile) fatalLog(retry int, err error) {
+	if err == nil {
+		return
+	}
+	fatal := moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
+		moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
+		moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) ||
+		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY) ||
+		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME)
+	if !fatal {
+		return
+	}
+	if retry == 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+		return
+	}
+
+	if retry > 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
+		logutil.Fatalf("txn %s retry %d, error %+v, execute sql %+v\n%s\n",
+			hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
+			retry,
+			err.Error(),
+			c.proc.TxnOperator.GetWorkspace().GetSQLs(),
+			DebugShowScopes(c.scope))
+	}
+	logutil.Fatalf("txn %s retry %d, error %+v, execute sql %+v\n",
+		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
+		retry,
+		err.Error(),
+		c.proc.TxnOperator.GetWorkspace().GetSQLs())
+}
+
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) error {
 	defer func() {
@@ -356,7 +392,9 @@ func (c *Compile) Run(_ uint64) error {
 			if err := cc.Compile(c.proc.Ctx, c.pn, c.u, c.fill); err != nil {
 				return err
 			}
-			return cc.runOnce()
+			err := cc.runOnce()
+			c.fatalLog(1, err)
+			return err
 		}
 		return err
 	}

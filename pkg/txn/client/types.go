@@ -197,4 +197,6 @@ type Workspace interface {
 
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
+	AddSQL(string)
+	GetSQLs() []string
 }

@@ -168,6 +168,7 @@ type Transaction struct {
 	rollbackCount int
 	statementID   int
 	statements    []int
+	sqls          []string
 }
 
 type Pos struct {
@@ -287,6 +288,18 @@ func (txn *Transaction) resetSnapshot() error {
 		return true
 	})
 	return nil
+}
+
+func (txn *Transaction) AddSQL(sql string) {
+	txn.Lock()
+	defer txn.Unlock()
+	txn.sqls = append(txn.sqls, sql, "\n\n")
+}
+
+func (txn *Transaction) GetSQLs() []string {
+	txn.Lock()
+	defer txn.Unlock()
+	return txn.sqls
 }
 
 // Entry represents a delete/insert
