@@ -323,6 +323,7 @@ func (c *Compile) fatalLog(retry int, err error) {
 		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY) ||
 		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME)
 	if !fatal {
+		fmt.Printf(">>> %+v\n", err)
 		return
 	}
 	if retry == 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
