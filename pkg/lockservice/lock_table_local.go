@@ -17,9 +17,9 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/util"
@@ -463,8 +463,6 @@ func (l *localLockTable) addRangeLockLocked(
 	return nil, Lock{}
 }
 
-var mergedCount atomic.Uint64
-
 func (l *localLockTable) mergeRangeLocked(
 	w *waiter,
 	start, end []byte,
@@ -518,10 +516,7 @@ func (l *localLockTable) mergeRangeLocked(
 
 	mc.mergeLocks([][]byte{oldStart, oldEnd})
 	mc.mergeWaiter(l.bind.ServiceID, seekLock.waiter, w)
-	n := mergedCount.Add(1)
-	if n == 10 {
-		fmt.Printf("merged %d \n", n)
-	}
+	fmt.Printf("%s merged range lock\n", hex.EncodeToString(txn.txnID))
 	return w, min, max
 }
 
