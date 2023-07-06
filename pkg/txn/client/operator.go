@@ -17,6 +17,8 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -714,7 +716,17 @@ func (tc *txnOperator) handleErrorResponse(resp txn.TxnResponse) error {
 		if err := tc.checkResponseTxnStatusForCommit(resp); err != nil {
 			return err
 		}
-		return tc.checkTxnError(resp.TxnError, commitTxnErrors)
+		err := tc.checkTxnError(resp.TxnError, commitTxnErrors)
+		if err != nil {
+			if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
+				moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) {
+				util.GetLogger().Fatal("failed",
+					zap.String("sql", fmt.Sprintf("%+v", tc.GetWorkspace().GetSQLs())),
+					zap.Error(err),
+					zap.String("txn", hex.EncodeToString(tc.txnID)))
+			}
+			return err
+		}
 	case txn.TxnMethod_Rollback:
 		if err := tc.checkResponseTxnStatusForRollback(resp); err != nil {
 			return err
