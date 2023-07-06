@@ -2,7 +2,7 @@ service-type = "CN"
 data-dir = "./mo-data"
 
 [log]
-level = "info"
+level = "fatal"
 format = "console"
 max-size = 512
 
@@ -39,6 +39,7 @@ disableMetric = true
 uuid = "dd1dccb5-4d3c-41f8-b482-5251dc7a41bf"
 listen-address = "0.0.0.0:7002"
 service-address = "127.0.0.1:7002"
+primary-key-check = true
 
 [cn.Engine]
 type = "distributed-tae"
@@ -58,3 +59,5 @@ service-address = "127.0.0.1:9958"
 [cn.txn]
 enable-sacrificing-freshness = false
 enable-cn-based-consistency = false
+mode = "Pessimistic"
+isolation = "RC"
