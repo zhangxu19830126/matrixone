@@ -330,14 +330,6 @@ func (c *Compile) fatalLog(retry int, err error) {
 		return
 	}
 
-	if retry > 0 && moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) {
-		logutil.Fatalf("txn %s retry %d, error %+v, execute sql %+v\n%s\n",
-			hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
-			retry,
-			err.Error(),
-			c.proc.TxnOperator.GetWorkspace().GetSQLs(),
-			DebugShowScopes(c.scope))
-	}
 	logutil.Fatalf("txn %s retry %d, error %+v, execute sql %+v\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
 		retry,
@@ -367,6 +359,8 @@ func (c *Compile) Run(_ uint64) error {
 		c.proc.TxnOperator.ResetRetry(false)
 	}
 	if err := c.runOnce(); err != nil {
+		c.fatalLog(0, err)
+
 		//  if the error is ErrTxnNeedRetry and the transaction is RC isolation, we need to retry the statement
 		if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) &&
 			c.proc.TxnOperator.Txn().IsRCIsolation() {
@@ -374,10 +368,12 @@ func (c *Compile) Run(_ uint64) error {
 
 			// clear the workspace of the failed statement
 			if err = c.proc.TxnOperator.GetWorkspace().RollbackLastStatement(c.ctx); err != nil {
+				c.fatalLog(1, err)
 				return err
 			}
 			//  increase the statement id
 			if err = c.proc.TxnOperator.GetWorkspace().IncrStatementID(c.ctx, false); err != nil {
+				c.fatalLog(1, err)
 				return err
 			}
 
@@ -396,6 +392,7 @@ func (c *Compile) Run(_ uint64) error {
 				c.isInternal,
 				c.cnLabel)
 			if err := cc.Compile(c.proc.Ctx, c.pn, c.u, c.fill); err != nil {
+				c.fatalLog(1, err)
 				return err
 			}
 			err := cc.runOnce()
