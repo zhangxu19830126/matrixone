@@ -357,6 +357,11 @@ func (c *Compile) Run(_ uint64) error {
 		c.proc.CleanValueScanBatchs()
 		pool.Put(c)
 	}()
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+	c.proc.TxnOperator.GetWorkspace().AddSQL(sql)
 	if c.proc.TxnOperator != nil {
 		c.proc.TxnOperator.ResetRetry(false)
 	}
