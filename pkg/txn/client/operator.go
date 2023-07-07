@@ -717,7 +717,7 @@ func (tc *txnOperator) handleErrorResponse(resp txn.TxnResponse) error {
 			return err
 		}
 		err := tc.checkTxnError(resp.TxnError, commitTxnErrors)
-		if err != nil {
+		if err != nil && tc.mu.txn.IsPessimistic() {
 			if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
 				moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) {
 				util.GetLogger().Fatal("failed",

@@ -359,11 +359,10 @@ func (c *Compile) Run(_ uint64) error {
 		c.proc.TxnOperator.ResetRetry(false)
 	}
 	if err := c.runOnce(); err != nil {
-		c.fatalLog(0, err)
-
 		//  if the error is ErrTxnNeedRetry and the transaction is RC isolation, we need to retry the statement
 		if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) &&
 			c.proc.TxnOperator.Txn().IsRCIsolation() {
+			c.fatalLog(0, err)
 			c.proc.TxnOperator.ResetRetry(true)
 
 			// clear the workspace of the failed statement
