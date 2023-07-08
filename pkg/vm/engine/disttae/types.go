@@ -16,6 +16,7 @@ package disttae
 
 import (
 	"context"
+	"encoding/hex"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -37,6 +39,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
+	"go.uber.org/zap"
 )
 
 const (
@@ -294,6 +297,11 @@ func (txn *Transaction) AddSQL(sql string) {
 	txn.Lock()
 	defer txn.Unlock()
 	txn.sqls = append(txn.sqls, sql, "\n\n")
+	if len(txn.sqls)/2 > 200 {
+		logutil.Fatal("execute too match sql",
+			zap.String("hex", hex.EncodeToString(txn.meta.ID)),
+			zap.Any("sql", txn.sqls))
+	}
 }
 
 func (txn *Transaction) GetSQLs() []string {
