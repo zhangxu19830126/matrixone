@@ -3261,9 +3261,10 @@ func (mce *MysqlCmdExecutor) doComQuery(requestCtx context.Context, input *UserI
 	beginInstant := time.Now()
 	ses := mce.GetSession()
 	if input != nil {
-		fmt.Printf("%p exec %s\n", ses, input.sql)
+		sql := input.sql
+		fmt.Printf("%p exec %s\n", ses, sql)
 		defer func() {
-			fmt.Printf("%p exec %s completed\n", ses, input.sql)
+			fmt.Printf("%p exec %s completed\n", ses, sql)
 		}()
 	}
 

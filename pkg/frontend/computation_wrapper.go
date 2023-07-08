@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/clusterservice"
@@ -242,7 +243,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		}
 		originSQL = tree.String(prepareStmt.PrepareStmt, dialect.MYSQL)
 		preparePlan := prepareStmt.PreparePlan.GetDcl().GetPrepare()
-
+		fmt.Printf("%p exec prepare %s\n", cwft.ses, originSQL)
 		// TODO check if schema change, obj.Obj is zero all the time in 0.6
 		// for _, obj := range preparePlan.GetSchemas() {
 		// 	newObj, _ := cwft.ses.txnCompileCtx.Resolve(obj.SchemaName, obj.ObjName)
