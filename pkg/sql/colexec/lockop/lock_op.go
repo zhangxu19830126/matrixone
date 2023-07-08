@@ -708,6 +708,9 @@ func hasNewVersionInRange(
 		}
 		return false, err
 	}
+	if strings.Contains(tableName, "bmsql") {
+		return true, nil
+	}
 	db, err := eng.Database(proc.Ctx, dbName, txnOp)
 	if err != nil {
 		return false, err
