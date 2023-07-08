@@ -25,6 +25,7 @@ import (
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
+	"github.com/matrixorigin/matrixone/pkg/util/op"
 	"go.uber.org/zap"
 )
 
@@ -260,7 +261,8 @@ OUTER:
 			return v
 		case <-time.After(time.Minute):
 			tooLong = true
-			fmt.Printf("%s waiter(%p) too long, wait-for %s\n", hex.EncodeToString(w.txnID), w, hex.EncodeToString(w.waiterFor))
+			fmt.Printf("%s waiter(%p) too long, wait-for %s(%s)\n",
+				hex.EncodeToString(w.txnID), w, hex.EncodeToString(w.waiterFor), op.GetActive(hex.EncodeToString(w.waiterFor)))
 		case <-ctx.Done():
 			select {
 			case v := <-w.c:
