@@ -3260,14 +3260,6 @@ func (mce *MysqlCmdExecutor) executeStmt(requestCtx context.Context,
 func (mce *MysqlCmdExecutor) doComQuery(requestCtx context.Context, input *UserInput) (retErr error) {
 	beginInstant := time.Now()
 	ses := mce.GetSession()
-	if input != nil {
-		sql := input.sql
-		fmt.Printf("%p exec %s\n", ses, sql)
-		defer func() {
-			fmt.Printf("%p exec %s completed\n", ses, sql)
-		}()
-	}
-
 	input.genSqlSourceType(ses)
 	ses.SetShowStmtType(NotShowStatement)
 	proto := ses.GetMysqlProtocol()
@@ -3282,6 +3274,15 @@ func (mce *MysqlCmdExecutor) doComQuery(requestCtx context.Context, input *UserI
 		pu.FileService,
 		pu.LockService,
 		ses.GetAutoIncrCacheManager())
+
+	if input != nil {
+		sql := input.sql
+		fmt.Printf("%p process %p exec %s\n", ses, proc, sql)
+		defer func() {
+			fmt.Printf("%p process %p exec %s completed\n", ses, proc, sql)
+		}()
+	}
+
 	proc.CopyVectorPool(ses.proc)
 	proc.CopyValueScanBatch(ses.proc)
 	proc.Id = mce.getNextProcessId()
