@@ -3275,14 +3275,6 @@ func (mce *MysqlCmdExecutor) doComQuery(requestCtx context.Context, input *UserI
 		pu.LockService,
 		ses.GetAutoIncrCacheManager())
 
-	if input != nil {
-		sql := input.sql
-		fmt.Printf("%p process %p exec %s\n", ses, proc, sql)
-		defer func() {
-			fmt.Printf("%p process %p exec %s completed\n", ses, proc, sql)
-		}()
-	}
-
 	proc.CopyVectorPool(ses.proc)
 	proc.CopyValueScanBatch(ses.proc)
 	proc.Id = mce.getNextProcessId()

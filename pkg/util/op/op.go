@@ -7,7 +7,28 @@ import (
 var (
 	mu              sync.Mutex
 	activeProcesses map[string]map[string]string
+	activeTxnSQL    map[string]string
 )
+
+func AddSQL(txnID, sql string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if activeTxnSQL == nil {
+		activeTxnSQL = make(map[string]string)
+	}
+
+	activeTxnSQL[txnID] = sql
+}
+
+func EndSQL(txnID string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if activeTxnSQL == nil {
+		activeTxnSQL = make(map[string]string)
+	}
+
+	delete(activeTxnSQL, txnID)
+}
 
 func UpdateActive(txnID, process, info string) {
 	if txnID == "" {
@@ -39,6 +60,6 @@ func GetActive(txnID string) string {
 			v += p + ":" + op + ","
 		}
 	}
-	v += "]"
+	v += "], last sql: " + activeTxnSQL[txnID]
 	return v
 }

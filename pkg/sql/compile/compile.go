@@ -60,6 +60,7 @@ import (
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
+	"github.com/matrixorigin/matrixone/pkg/util/op"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
@@ -357,6 +358,11 @@ func (c *Compile) Run(_ uint64) error {
 	c.proc.TxnOperator.GetWorkspace().AddSQL(sql)
 	if c.proc.TxnOperator != nil {
 		c.proc.TxnOperator.ResetRetry(false)
+
+		op.AddSQL(hex.EncodeToString(c.proc.TxnOperator.Txn().ID), sql)
+		defer func() {
+			op.EndSQL(hex.EncodeToString(c.proc.TxnOperator.Txn().ID))
+		}()
 	}
 	if err := c.runOnce(); err != nil {
 		//  if the error is ErrTxnNeedRetry and the transaction is RC isolation, we need to retry the statement
