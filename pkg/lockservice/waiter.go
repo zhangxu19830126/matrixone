@@ -239,6 +239,13 @@ func (w *waiter) wait(
 		panic(fmt.Sprintf("BUG: waiter's status cannot be %d", status))
 	}
 
+	tooLong := false
+	defer func() {
+		if tooLong {
+			fmt.Printf("%s waiter(%p) too long, wait-for %s, end\n", hex.EncodeToString(w.txnID), w, hex.EncodeToString(w.waiterFor))
+		}
+	}()
+
 	w.beforeSwapStatusAdjustFunc()
 
 	apply := func(v notifyValue) {
@@ -252,7 +259,8 @@ OUTER:
 			apply(v)
 			return v
 		case <-time.After(time.Minute):
-			fmt.Printf("%s waiter too long, wait-for %s\n", hex.EncodeToString(w.txnID), hex.EncodeToString(w.waiterFor))
+			tooLong = true
+			fmt.Printf("%s waiter(%p) too long, wait-for %s\n", hex.EncodeToString(w.txnID), w, hex.EncodeToString(w.waiterFor))
 		case <-ctx.Done():
 			select {
 			case v := <-w.c:
