@@ -17,6 +17,8 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -118,6 +120,7 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
+	fmt.Printf("%s, unlock on %s\n", hex.EncodeToString(txnID), s.cfg.ServiceID)
 	// FIXME(fagongzi): too many mem alloc in trace
 	_, span := trace.Debug(ctx, "lockservice.unlock")
 	defer span.End()

@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -102,6 +103,8 @@ type waiter struct {
 
 	// just used for testing
 	beforeSwapStatusAdjustFunc func()
+
+	waiterFor []byte
 }
 
 // String implement Stringer
@@ -242,16 +245,22 @@ func (w *waiter) wait(
 		logWaiterGetNotify(serviceID, w, v)
 		w.setStatus(serviceID, completed)
 	}
-	select {
-	case v := <-w.c:
-		apply(v)
-		return v
-	case <-ctx.Done():
+OUTER:
+	for {
 		select {
 		case v := <-w.c:
 			apply(v)
 			return v
-		default:
+		case <-time.After(time.Minute):
+			fmt.Printf("%s waiter too long, wait-for %s\n", hex.EncodeToString(w.txnID), hex.EncodeToString(w.waiterFor))
+		case <-ctx.Done():
+			select {
+			case v := <-w.c:
+				apply(v)
+				return v
+			default:
+				break OUTER
+			}
 		}
 	}
 
@@ -369,7 +378,16 @@ func (w *waiter) reset(serviceID string) {
 	w.belongTo = pb.WaitTxn{}
 	w.waiters.reset()
 	w.sameTxnWaiters = w.sameTxnWaiters[:0]
+	w.waiterFor = nil
 	waiterPool.Put(w)
+}
+
+func (w *waiter) waitersInfo() string {
+	v := "["
+	for _, n := range w.waiters.all() {
+		v += n.String() + ","
+	}
+	return v + "]"
 }
 
 type notifyValue struct {

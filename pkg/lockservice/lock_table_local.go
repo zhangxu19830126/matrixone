@@ -175,11 +175,20 @@ func (l *localLockTable) unlock(
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
+				waiters := lock.waiter.waitersInfo()
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
+				fmt.Printf("%s, unlock waiters %s, next %s \n", hex.EncodeToString(txn.txnID), waiters, next.String())
 			}
 			l.mu.store.Delete(key)
+		}
+		return true
+	})
+
+	l.mu.store.Iter(func(b []byte, l Lock) bool {
+		if bytes.Equal(l.waiter.txnID, txn.txnID) {
+			getLogger().Fatal("unlock missing", txnField(txn))
 		}
 		return true
 	})
@@ -346,6 +355,7 @@ func (l *localLockTable) handleLockConflictLocked(
 	conflictWith Lock) {
 	// find conflict, and wait prev txn completed, and a new
 	// waiter added, we need to active deadlock check.
+	w.waiterFor = conflictWith.txnID
 	txn.setBlocked(w.txnID, w)
 	conflictWith.waiter.add(l.bind.ServiceID, w)
 	if err := l.detector.check(
@@ -485,7 +495,7 @@ func (l *localLockTable) mergeRangeLocked(
 	}
 
 	if len(prevStartKey) == 0 {
-		prevStartKey = l.mustGetRangeStart(seekKey)
+		prevStartKey = l.mustGetRangeStart(seekKey, txn.txnID)
 	}
 
 	oldStart, oldEnd := prevStartKey, seekKey
@@ -516,14 +526,16 @@ func (l *localLockTable) mergeRangeLocked(
 
 	mc.mergeLocks([][]byte{oldStart, oldEnd})
 	mc.mergeWaiter(l.bind.ServiceID, seekLock.waiter, w)
-	fmt.Printf("%s merged range lock\n", hex.EncodeToString(txn.txnID))
 	return w, min, max
 }
 
-func (l *localLockTable) mustGetRangeStart(endKey []byte) []byte {
-	v, _, ok := l.mu.store.Prev(endKey)
-	if !ok {
+func (l *localLockTable) mustGetRangeStart(endKey []byte, txnID []byte) []byte {
+	v, lock, ok := l.mu.store.Prev(endKey)
+	if !ok || !lock.isLockRangeStart() {
 		panic("missing start key")
+	}
+	if !bytes.Equal(txnID, lock.waiter.txnID) {
+		panic("invalid start key")
 	}
 	return v
 }
