@@ -16,6 +16,8 @@ package vm
 
 import (
 	"bytes"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
@@ -58,7 +60,14 @@ func Run(ins Instructions, proc *process.Process) (end bool, err error) {
 		}
 	}()
 	for _, in := range ins {
-		if ok, err = execFunc[in.Op](in.Idx, proc, in.Arg, in.IsFirst, in.IsLast); err != nil {
+		if proc.TxnOperator != nil {
+			fmt.Printf("%s call %d with proc %p\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), in.Op, proc)
+		}
+		ok, err = execFunc[in.Op](in.Idx, proc, in.Arg, in.IsFirst, in.IsLast)
+		if proc.TxnOperator != nil {
+			fmt.Printf("%s call %d with proc %p return\n", hex.EncodeToString(proc.TxnOperator.Txn().ID), in.Op, proc)
+		}
+		if err != nil {
 			return ok || end, err
 		}
 		if ok { // ok is true shows that at least one operator has done its work

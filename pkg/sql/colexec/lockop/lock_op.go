@@ -17,7 +17,6 @@ package lockop
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -92,11 +91,6 @@ func Call(
 	if !txnOp.Txn().IsPessimistic() {
 		return false, nil
 	}
-
-	fmt.Printf("%s in lock op, process %p\n", hex.EncodeToString(txnOp.Txn().ID), proc)
-	defer func() {
-		fmt.Printf("%s out lock op, process %p\n", hex.EncodeToString(txnOp.Txn().ID), proc)
-	}()
 
 	if !arg.block {
 		return callNonBlocking(idx, proc, arg)
