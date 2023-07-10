@@ -366,7 +366,8 @@ func doLock(
 		opts.lockTable,
 		opts.filter,
 		opts.filterCols)
-	if g == lock.Granularity_Range {
+	if g == lock.Granularity_Range &&
+		!opts.lockTable {
 		return timestamp.Timestamp{}, moerr.NewInvalidInputNoCtx("range lock is not supported")
 	}
 
