@@ -17,6 +17,7 @@ package lockop
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -366,9 +367,8 @@ func doLock(
 		opts.lockTable,
 		opts.filter,
 		opts.filterCols)
-	if g == lock.Granularity_Range &&
-		!opts.lockTable {
-		return timestamp.Timestamp{}, moerr.NewInvalidInputNoCtx("range lock is not supported")
+	if g == lock.Granularity_Range {
+		fmt.Printf(">>>>>>>>> add range lock for %s\n", hex.EncodeToString(txnOp.Txn().ID))
 	}
 
 	txn := txnOp.Txn()
