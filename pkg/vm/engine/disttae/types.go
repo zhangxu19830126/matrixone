@@ -297,7 +297,7 @@ func (txn *Transaction) AddSQL(sql string) {
 	txn.Lock()
 	defer txn.Unlock()
 	txn.sqls = append(txn.sqls, sql, "\n\n")
-	if len(txn.sqls)/2 > 200 {
+	if len(txn.sqls)/2 > 1000 {
 		logutil.Fatal("execute too match sql",
 			zap.String("hex", hex.EncodeToString(txn.meta.ID)),
 			zap.Any("sql", txn.sqls))
