@@ -281,6 +281,7 @@ func getPkFilterExpr(builder *QueryBuilder, tableDef *TableDef) *Expr {
 			if pkExpr, ok := e.F.Args[1].Expr.(*plan.Expr_Col); ok && (pkExpr.Col.Name == tblAndPkName || pkExpr.Col.Name == basePkName) {
 				return DeepCopyExpr(e.F.Args[0])
 			}
+
 		}
 	}
 	return nil

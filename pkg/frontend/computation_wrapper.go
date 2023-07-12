@@ -187,6 +187,10 @@ func (cwft *TxnComputationWrapper) GetAffectedRows() uint64 {
 	return cwft.compile.GetAffectedRows()
 }
 
+func (cwft *TxnComputationWrapper) GetServerStatus() uint16 {
+	return cwft.ses.GetServerStatus()
+}
+
 func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interface{}, fill func(interface{}, *batch.Batch) error) (interface{}, error) {
 	var originSQL string
 	var err error
