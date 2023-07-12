@@ -402,6 +402,10 @@ func (c *Compile) Run(_ uint64) error {
 			}
 			err := cc.runOnce()
 			c.fatalLog(1, err)
+			if err != nil {
+				return err
+			}
+			c.setAffectedRows(cc.GetAffectedRows())
 			return err
 		}
 		return err
