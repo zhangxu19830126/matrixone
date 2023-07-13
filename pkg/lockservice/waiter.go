@@ -367,6 +367,9 @@ func (w *waiter) fetchNextWaiter(
 
 func (w *waiter) awakeNextWaiter(serviceID string) *waiter {
 	next, remains := w.waiters.pop()
+	for _, r := range remains {
+		r.unref(serviceID)
+	}
 	next.add(serviceID, false, remains...)
 	w.waiters.reset()
 	return next
