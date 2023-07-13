@@ -357,7 +357,7 @@ func (l *localLockTable) handleLockConflictLocked(
 	// waiter added, we need to active deadlock check.
 	w.waiterFor = conflictWith.txnID
 	txn.setBlocked(w.txnID, w)
-	conflictWith.waiter.add(l.bind.ServiceID, w)
+	conflictWith.waiter.add(l.bind.ServiceID, true, w)
 	if err := l.detector.check(
 		conflictWith.txnID,
 		txn.toWaitTxn(

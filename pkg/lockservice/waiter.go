@@ -142,12 +142,15 @@ func (w *waiter) unref(serviceID string) {
 
 func (w *waiter) add(
 	serviceID string,
+	incrRef bool,
 	waiters ...*waiter) {
 	if len(waiters) == 0 {
 		return
 	}
-	for i := range waiters {
-		waiters[i].ref()
+	if incrRef {
+		for i := range waiters {
+			waiters[i].ref()
+		}
 	}
 	w.waiters.put(waiters...)
 	logWaitersAdded(serviceID, w, waiters...)
@@ -155,7 +158,7 @@ func (w *waiter) add(
 
 func (w *waiter) moveTo(serviceID string, to *waiter) {
 	to.waiters.beginChange()
-	to.add(serviceID, w.waiters.all()...)
+	to.add(serviceID, false, w.waiters.all()...)
 }
 
 func (w *waiter) getStatus() waiterStatus {
@@ -364,7 +367,7 @@ func (w *waiter) fetchNextWaiter(
 
 func (w *waiter) awakeNextWaiter(serviceID string) *waiter {
 	next, remains := w.waiters.pop()
-	next.add(serviceID, remains...)
+	next.add(serviceID, false, remains...)
 	w.waiters.reset()
 	return next
 }
