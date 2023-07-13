@@ -16,11 +16,8 @@ package vm
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
-	"github.com/matrixorigin/matrixone/pkg/util/op"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -60,19 +57,9 @@ func Run(ins Instructions, proc *process.Process) (end bool, err error) {
 			err = moerr.ConvertPanicError(proc.Ctx, e)
 		}
 	}()
-	var txnID, processInfo string
-	if proc.TxnOperator != nil {
-		txnID = hex.EncodeToString(proc.TxnOperator.Txn().ID)
-		processInfo = fmt.Sprintf("%p", proc)
-	}
 
-	var buf bytes.Buffer
 	for _, in := range ins {
-		buf.Reset()
-		stringFunc[in.Op](in.Arg, &buf)
-		op.UpdateActive(txnID, processInfo, buf.String())
 		ok, err = execFunc[in.Op](in.Idx, proc, in.Arg, in.IsFirst, in.IsLast)
-		op.UpdateActive(txnID, processInfo, "")
 		if err != nil {
 			return ok || end, err
 		}
