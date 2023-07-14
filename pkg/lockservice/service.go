@@ -32,6 +32,30 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
 )
 
+var (
+	mu      sync.RWMutex
+	unlocks = make(map[string]struct{})
+)
+
+func Set(id []byte) {
+	mu.Lock()
+	defer mu.Unlock()
+	unlocks[string(id)] = struct{}{}
+}
+
+func Remove(id []byte) {
+	mu.Lock()
+	defer mu.Unlock()
+	delete(unlocks, string(id))
+}
+
+func has(id []byte) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	_, ok := unlocks[string(id)]
+	return ok
+}
+
 type service struct {
 	cfg              Config
 	tables           sync.Map // tableid -> locktable
@@ -120,6 +144,9 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
+	if !has(txnID) {
+		getLogger().Fatal("invalid unlock")
+	}
 	fmt.Printf("%s, unlock on %s\n", hex.EncodeToString(txnID), s.cfg.ServiceID)
 	// FIXME(fagongzi): too many mem alloc in trace
 	_, span := trace.Debug(ctx, "lockservice.unlock")

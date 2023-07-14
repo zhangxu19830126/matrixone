@@ -405,12 +405,14 @@ func (c *Compile) Run(_ uint64) error {
 				return err
 			}
 			if err := cc.runOnce(); err != nil {
+				c.fatalLog(1, err)
 				return err
 			}
 			// set affectedRows to old compile to return
 			c.setAffectedRows(cc.GetAffectedRows())
 			return nil
 		}
+		c.fatalLog(0, err)
 		return err
 	}
 	return nil

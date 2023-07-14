@@ -364,6 +364,9 @@ func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnReq
 }
 
 func (tc *txnOperator) Commit(ctx context.Context) error {
+	id := tc.getTxnMeta(false).ID
+	lockservice.Set(id)
+	defer lockservice.Remove(id)
 	fmt.Printf("%s commit\n", hex.EncodeToString(tc.getTxnMeta(false).ID))
 	util.LogTxnCommit(tc.getTxnMeta(false))
 
@@ -385,6 +388,9 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 }
 
 func (tc *txnOperator) Rollback(ctx context.Context) error {
+	id := tc.getTxnMeta(false).ID
+	lockservice.Set(id)
+	defer lockservice.Remove(id)
 	fmt.Printf("%s rollback\n", hex.EncodeToString(tc.getTxnMeta(false).ID))
 	util.LogTxnRollback(tc.getTxnMeta(false))
 	if tc.workspace != nil {
