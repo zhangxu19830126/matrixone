@@ -117,7 +117,9 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 			if node.GetTxn() != nil {
 				logutil.Fatalf("w-w with txn %v", node.GetTxn().Repr())
 			} else {
-				logutil.Fatalf("w-w with committed txn, maybe the rowid is wrong")
+				startts := node.GetStartTS()
+				committs := node.GetPrepareTS()
+				logutil.Fatalf("w-w with committed txn, maybe the rowid is wrong startts %v committs %v on %s", startts.ToString(), committs.ToString(), i)
 			}
 			yes = true
 			break

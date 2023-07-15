@@ -223,6 +223,7 @@ func (tbl *txnTable) recurTransferDelete(
 			id.BlockID,
 			row,
 			depth)
+		fmt.Println(msg)
 		logutil.Warnf("[ts=%s]TransferDeleteNode: %v",
 			tbl.store.txn.GetStartTS().ToString(),
 			msg)
@@ -253,6 +254,12 @@ func (tbl *txnTable) recurTransferDelete(
 	if err = tbl.RangeDelete(newID, offset, offset, handle.DT_Normal); err != nil {
 		return err
 	}
+	fmt.Printf("depth-%d transfer delete from blk-%s row-%d to blk-%s row-%d\n",
+		depth,
+		id.BlockID.String(),
+		row,
+		blockID.String(),
+		offset)
 	common.DoIfDebugEnabled(func() {
 		logutil.Debugf("depth-%d transfer delete from blk-%s row-%d to blk-%s row-%d",
 			depth,
@@ -734,6 +741,10 @@ func (tbl *txnTable) RangeDelete(id *common.ID, start, end uint32, dt handle.Del
 		mvcc.Lock()
 		if err = mvcc.CheckNotDeleted(start, end, tbl.store.txn.GetStartTS()); err == nil {
 			node.RangeDeleteLocked(start, end)
+		}
+		if err != nil {
+			fmt.Printf("Delete check error on table %s, blk-%v row-(%v-%v) startts %v\n",
+				tbl.GetLocalSchema().Name, id.BlockID.String(), start, end, tbl.store.txn.GetStartTS().ToString())
 		}
 		mvcc.Unlock()
 		if err != nil {
