@@ -47,4 +47,4 @@ type = "distributed-tae"
 port = 16001
 
 [cn.txn]
-# mode = "Pessimistic"
+mode = "Pessimistic"

@@ -35,17 +35,17 @@ backend = "DISK-ETL"
 uuid = "dd4dccb4-4d3c-41f8-b482-5251dc7a41bf"
 
 [dn.Txn]
-# mode = "Pessimistic"
+mode = "Pessimistic"
 
 [dn.Txn.Storage]
 backend = "TAE"
 log-backend = "logservice"
 
 [dn.Ckp]
-flush-interval = "60s"
-min-count = 100
+flush-interval = "6s"
+min-count = 20
 scan-interval = "5s"
-incremental-interval = "180s"
+incremental-interval = "18s"
 global-min-count = 60
 
 [dn.LogtailServer]
