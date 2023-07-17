@@ -57,6 +57,9 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	} else {
 		empty = false
 	}
+	if empty {
+		return empty
+	}
 	for iter.Next() {
 		empty = false
 		row := iter.Entry()

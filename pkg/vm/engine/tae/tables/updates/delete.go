@@ -15,6 +15,7 @@
 package updates
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -46,6 +47,7 @@ type DeleteNode struct {
 	*txnbase.TxnMVCCNode
 	chain atomic.Pointer[DeleteChain]
 	mask  *roaring.Bitmap
+	txnid string
 	nt    NodeType
 	id    *common.ID
 	dt    handle.DeleteType
@@ -73,6 +75,7 @@ func NewDeleteNode(txn txnif.AsyncTxn, dt handle.DeleteType) *DeleteNode {
 		TxnMVCCNode: txnbase.NewTxnMVCCNodeWithTxn(txn),
 		mask:        roaring.New(),
 		nt:          NT_Normal,
+		txnid:       hex.EncodeToString(txn.GetCtx()),
 		dt:          dt,
 	}
 	if n.dt == handle.DT_MergeCompact {
@@ -84,6 +87,7 @@ func NewDeleteNode(txn txnif.AsyncTxn, dt handle.DeleteType) *DeleteNode {
 	return n
 }
 
+func (node *DeleteNode) GetTxnid() string       { return node.txnid }
 func (node *DeleteNode) CloneAll() *DeleteNode  { panic("todo") }
 func (node *DeleteNode) CloneData() *DeleteNode { panic("todo") }
 func (node *DeleteNode) Update(*DeleteNode)     { panic("todo") }
