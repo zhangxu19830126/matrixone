@@ -16,6 +16,7 @@ package txnimpl
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"runtime/trace"
 	"time"
@@ -218,13 +219,12 @@ func (tbl *txnTable) recurTransferDelete(
 	rowID, ok := page.Transfer(row)
 	if !ok {
 		err := moerr.NewTxnWWConflictNoCtx()
-		msg := fmt.Sprintf("table-%d blk-%d delete row-%d depth-%d",
+		msg := fmt.Sprintf("table-%d blk-%s delete row-%d depth-%d",
 			id.TableID,
-			id.BlockID,
+			id.BlockID.String(),
 			row,
 			depth)
-		fmt.Println(msg)
-		logutil.Warnf("[ts=%s]TransferDeleteNode: %v",
+		fmt.Printf("yyyy [ts=%s]TransferDeleteNode: %v\n",
 			tbl.store.txn.GetStartTS().ToString(),
 			msg)
 		return err
@@ -251,15 +251,17 @@ func (tbl *txnTable) recurTransferDelete(
 			depth+1)
 	}
 
-	if err = tbl.RangeDelete(newID, offset, offset, handle.DT_Normal); err != nil {
-		return err
-	}
-	fmt.Printf("depth-%d transfer delete from blk-%s row-%d to blk-%s row-%d\n",
+	fmt.Printf("yyyy depth-%d transfer delete from blk-%s row-%d to blk-%s row-%d\n",
 		depth,
 		id.BlockID.String(),
 		row,
 		blockID.String(),
 		offset)
+
+	if err = tbl.RangeDelete(newID, offset, offset, handle.DT_Normal); err != nil {
+		return err
+	}
+
 	common.DoIfDebugEnabled(func() {
 		logutil.Debugf("depth-%d transfer delete from blk-%s row-%d to blk-%s row-%d",
 			depth,
@@ -720,13 +722,17 @@ func (tbl *txnTable) RangeDelete(id *common.ID, start, end uint32, dt handle.Del
 		// }
 		// This err also captured by txn's write conflict check.
 		if err != nil {
-			logutil.Debugf("[ts=%s]: table-%d blk-%s delete rows from %d to %d %v",
-				tbl.store.txn.GetStartTS().ToString(),
-				id.TableID,
-				id.BlockID.String(),
-				start,
-				end,
-				err)
+			startts := tbl.store.txn.GetStartTS().ToString()
+			txnid := hex.EncodeToString(tbl.store.txn.GetCtx())
+			fmt.Printf("yyyyy [txnTable] RangeDelete check error on table %s, blk-%v row-(%v-%v) startts %v txnid %q\n",
+				tbl.GetLocalSchema().Name, id.BlockID.String(), start, end, startts, txnid)
+			// logutil.Debugf("[ts=%s]: table-%d blk-%s delete rows from %d to %d %v",
+			// 	tbl.store.txn.GetStartTS().ToString(),
+			// 	id.TableID,
+			// 	id.BlockID.String(),
+			// 	start,
+			// 	end,
+			// 	err)
 		}
 	}()
 	if tbl.localSegment != nil && id.SegmentID().Eq(tbl.localSegment.entry.ID) {
