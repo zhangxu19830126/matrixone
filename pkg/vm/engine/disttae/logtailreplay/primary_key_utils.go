@@ -15,8 +15,6 @@
 package logtailreplay
 
 import (
-	"fmt"
-
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 )
@@ -60,16 +58,15 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	} else {
 		empty = false
 	}
-	shouldRetryAfterCheckFlush := empty
+	if empty {
+		return true
+	}
 	for iter.Next() {
 		empty = false
 		row := iter.Entry()
 		if row.Time.Greater(from) {
 			return true
 		}
-	}
-	if shouldRetryAfterCheckFlush && !empty {
-		fmt.Println("error: SHOULD RETRY.")
 	}
 	return empty
 }
