@@ -16,6 +16,7 @@ package disttae
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -1006,6 +1007,16 @@ func (tbl *txnTable) Write(ctx context.Context, bat *batch.Batch) error {
 	if err != nil {
 		return err
 	}
+
+	if tbl.tableName == "bmsql_oorder" {
+		fmt.Printf("%s insert into o_id %d, d_id %d, w_id %d\n",
+			hex.EncodeToString(tbl.proc.TxnOperator.Txn().ID),
+			vector.MustFixedCol[int32](bat.GetVector(2))[0],
+			vector.MustFixedCol[int32](bat.GetVector(1))[0],
+			vector.MustFixedCol[int32](bat.GetVector(0))[0],
+		)
+	}
+
 	if err := tbl.db.txn.WriteBatch(
 		INSERT,
 		tbl.db.databaseId,
