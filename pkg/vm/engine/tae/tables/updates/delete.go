@@ -71,11 +71,15 @@ func NewEmptyDeleteNode() *DeleteNode {
 	return n
 }
 func NewDeleteNode(txn txnif.AsyncTxn, dt handle.DeleteType) *DeleteNode {
+	txnid := ""
+	if txn != nil {
+		txnid = hex.EncodeToString(txn.GetCtx())
+	}
 	n := &DeleteNode{
 		TxnMVCCNode: txnbase.NewTxnMVCCNodeWithTxn(txn),
 		mask:        roaring.New(),
 		nt:          NT_Normal,
-		txnid:       hex.EncodeToString(txn.GetCtx()),
+		txnid:       txnid,
 		dt:          dt,
 	}
 	if n.dt == handle.DT_MergeCompact {
