@@ -15,6 +15,8 @@
 package logtailreplay
 
 import (
+	"bytes"
+
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 )
@@ -42,31 +44,44 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	to types.TS,
 	key []byte,
 ) bool {
-	iter := p.NewPrimaryKeyIter(to, Exact(key))
-	defer iter.Close()
 
 	// 如果这中间发生了 flush……
 	p.shared.Lock()
 	lastFlushTimestamp := p.shared.lastFlushTimestamp
 	p.shared.Unlock()
 
-	empty := true
+	changed := true
 	if !lastFlushTimestamp.IsEmpty() {
 		if from.Greater(lastFlushTimestamp) {
-			empty = false
+			changed = false
 		}
 	} else {
-		empty = false
+		changed = false
 	}
-	if empty {
+	if changed {
 		return true
 	}
+
+	iter := p.primaryIndex.Copy().Iter()
+	defer iter.Release()
+
+	if !iter.Seek(&PrimaryIndexEntry{
+		Bytes: key,
+	}) {
+		return false
+	}
+
 	for iter.Next() {
-		empty = false
-		row := iter.Entry()
-		if row.Time.Greater(from) {
+		entry := iter.Item()
+
+		if !bytes.Equal(entry.Bytes, key) {
+			break
+		}
+
+		if entry.Time.GreaterEq(from) {
 			return true
 		}
 	}
-	return empty
+
+	return false
 }
