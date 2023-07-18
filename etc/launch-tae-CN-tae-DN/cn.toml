@@ -45,3 +45,4 @@ uuid = "dd1dccb4-4d3c-41f8-b482-5251dc7a41bf"
 type = "distributed-tae"
 
 [cn.txn]
+mode = "Pessimistic"
