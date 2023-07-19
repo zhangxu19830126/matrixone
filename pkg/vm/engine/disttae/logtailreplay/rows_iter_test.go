@@ -112,8 +112,8 @@ func TestPartitionStateRowsIter(t *testing.T) {
 		}
 		require.Equal(t, 1, n)
 		require.Nil(t, iter.Close())
-		yes := state.PrimaryKeyMayBeModified(ts.Prev(), ts.Next(), bs)
-		require.True(t, yes)
+		modified := state.PrimaryKeyMayBeModified(ts.Prev(), ts.Next(), bs)
+		require.True(t, modified)
 	}
 
 	{
@@ -197,6 +197,17 @@ func TestPartitionStateRowsIter(t *testing.T) {
 			require.Equal(t, 1, len(rowIDs))
 			require.Nil(t, iter.Close())
 		}
+
+		{
+			key := EncodePrimaryKey(int64(i), packer)
+			modified := state.PrimaryKeyMayBeModified(
+				types.BuildTS(int64(deleteAt+i), 0).Prev(),
+				types.BuildTS(int64(deleteAt+i), 0).Next(),
+				key,
+			)
+			require.True(t, modified)
+		}
+
 	}
 
 	deleteAt = 2000
