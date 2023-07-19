@@ -46,7 +46,6 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	key []byte,
 ) bool {
 
-	// 如果这中间发生了 flush……
 	p.shared.Lock()
 	lastFlushTimestamp := p.shared.lastFlushTimestamp
 	p.shared.Unlock()
@@ -91,7 +90,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			return true
 		}
 
-		// deleted row entries are not indexed, check it all
+		// deleted entries are not indexed, check all rows for changes
 		pivot := RowEntry{
 			BlockID: entry.BlockID,
 			RowID:   entry.RowID,
