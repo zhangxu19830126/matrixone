@@ -131,6 +131,7 @@ type PrimaryIndexEntry struct {
 	// fields for validating
 	BlockID types.Blockid
 	RowID   types.Rowid
+	Time    types.TS
 }
 
 func (p *PrimaryIndexEntry) Less(than *PrimaryIndexEntry) bool {
@@ -293,6 +294,7 @@ func (p *PartitionState) HandleRowsInsert(
 					RowEntryID: entry.ID,
 					BlockID:    blockID,
 					RowID:      rowID,
+					Time:       entry.Time,
 				}
 				p.primaryIndex.Set(entry)
 			}
@@ -379,6 +381,7 @@ func (p *PartitionState) HandleRowsDelete(
 					RowEntryID: entry.ID,
 					BlockID:    blockID,
 					RowID:      rowID,
+					Time:       entry.Time,
 				}
 				p.primaryIndex.Set(entry)
 			}
