@@ -114,14 +114,22 @@ func (chain *DeleteChain) hasOverLap(start, end uint64) bool {
 	var yes bool
 	for i := start; i < end+1; i++ {
 		if chain.mask.Contains(i) {
-			node := chain.GetDeleteNodeByRow(uint32(i))
+			node := chain.GetDeleteNodeByRow(uint32(i)).(*DeleteNode)
 			if txn := node.GetTxn(); txn != nil {
 				startts := node.GetStartTS()
-				fmt.Printf("yyyy w-w with txn, startts %v on %d txnid %s\n", startts.ToString(), i, hex.EncodeToString(txn.GetCtx()))
+				fmt.Printf("yyyy w-w with txn, startts %v on %d txnid %s\n",
+					startts.ToString(),
+					i,
+					hex.EncodeToString(txn.GetCtx()))
 			} else {
 				startts := node.GetStartTS()
 				committs := node.GetPrepareTS()
-				fmt.Printf("yyyy w-w with committed txn, maybe the rowid is wrong startts %v committs %v on %d txnid %q\n", startts.ToString(), committs.ToString(), i, node.GetTxnid())
+				fmt.Printf("yyyy w-w with committed txn, "+
+					"maybe the rowid is wrong startts %v committs %v on %d txnid %q\n",
+					startts.ToString(),
+					committs.ToString(),
+					i,
+					node.GetTxnid())
 			}
 			yes = true
 			break
@@ -346,6 +354,10 @@ func (chain *DeleteChain) CollectDeletesLocked(
 	return merged, err
 }
 
-func (chain *DeleteChain) GetDeleteNodeByRow(row uint32) (n *DeleteNode) {
+//func (chain *DeleteChain) GetDeleteNodeByRow(row uint32) (n *DeleteNode) {
+//	return chain.links[row]
+//}
+
+func (chain *DeleteChain) GetDeleteNodeByRow(row uint32) txnif.DeleteNode {
 	return chain.links[row]
 }

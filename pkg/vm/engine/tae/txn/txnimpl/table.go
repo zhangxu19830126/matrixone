@@ -224,9 +224,20 @@ func (tbl *txnTable) recurTransferDelete(
 			id.BlockID.String(),
 			row,
 			depth)
-		fmt.Printf("yyyy [ts=%s]TransferDeleteNode: %v\n",
+		fmt.Printf("yyyy [current txn : startts=%s, txn=%s]TransferDeleteNode: %v\n",
 			tbl.store.txn.GetStartTS().ToString(),
+			hex.EncodeToString(tbl.store.txn.GetCtx()),
 			msg)
+
+		node := tbl.deleteNodes[*id].GetChain().GetDeleteNodeByRow(row)
+		if node != nil {
+			fmt.Printf("yyyy current txn w-w conflict with committed txn, "+
+				"maybe the rowid is wrong startts %v committs %v on %d txnid %q\n",
+				node.GetStartTS().ToString(),
+				node.GetPrepareTS().ToString(),
+				row,
+				node.GetTxnid())
+		}
 		return err
 	}
 	blockID, offset := rowID.Decode()

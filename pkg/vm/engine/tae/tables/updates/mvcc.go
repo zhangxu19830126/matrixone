@@ -220,7 +220,7 @@ func (n *MVCCHandle) ExistDeleteInRange(start, end types.TS) (exist bool) {
 }
 
 func (n *MVCCHandle) GetDeleteNodeByRow(row uint32) (an *DeleteNode) {
-	return n.deletes.Load().GetDeleteNodeByRow(row)
+	return n.deletes.Load().GetDeleteNodeByRow(row).(*DeleteNode)
 }
 
 // ==========================================================

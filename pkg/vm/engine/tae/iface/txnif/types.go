@@ -176,6 +176,7 @@ type DeleteChain interface {
 	PrepareRangeDelete(start, end uint32, ts types.TS) error
 	DepthLocked() int
 	CollectDeletesLocked(txn TxnReader, rwlocker *sync.RWMutex) (*nulls.Bitmap, error)
+	GetDeleteNodeByRow(row uint32) DeleteNode
 }
 type BaseNode[T any] interface {
 	Update(o T)
@@ -237,6 +238,9 @@ type DeleteNode interface {
 	IsDeletedLocked(row uint32) bool
 	GetRowMaskRefLocked() *roaring.Bitmap
 	OnApply() error
+	GetStartTS() types.TS
+	GetPrepareTS() types.TS
+	GetTxnid() string
 }
 
 type TxnStore interface {
