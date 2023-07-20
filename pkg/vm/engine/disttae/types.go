@@ -176,6 +176,7 @@ type Transaction struct {
 	statements    []int
 
 	hasS3Op atomic.Bool
+	removed bool
 	sqls    []string
 }
 
