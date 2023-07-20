@@ -74,9 +74,9 @@ type RowEntry struct {
 	BlockID types.Blockid // we need to iter by block id, so put it first to allow faster iteration
 	RowID   types.Rowid
 	Time    types.TS
-	Deleted bool
 
 	ID                int64 // a unique version id, for primary index building and validating
+	Deleted           bool
 	Batch             *batch.Batch
 	Offset            int64
 	PrimaryIndexBytes []byte
@@ -105,13 +105,6 @@ func (r RowEntry) Less(than RowEntry) bool {
 	if r.Time.Less(than.Time) {
 		return false
 	}
-	// delete first
-	if r.Deleted && !than.Deleted {
-		return true
-	}
-	if !r.Deleted && than.Deleted {
-		return false
-	}
 	return false
 }
 
@@ -135,6 +128,7 @@ type PrimaryIndexEntry struct {
 	Bytes      []byte
 	RowEntryID int64
 
+	// fields for validating
 	BlockID types.Blockid
 	RowID   types.Rowid
 	Time    types.TS
@@ -229,7 +223,7 @@ func (p *PartitionState) HandleLogtailEntry(
 		} else if IsSegTable(entry.TableName) {
 			// TODO p.HandleSegDelete(ctx, entry.Bat)
 		} else {
-			p.HandleRowsDelete(ctx, entry.Bat)
+			p.HandleRowsDelete(ctx, entry.Bat, packer)
 		}
 	default:
 		panic("unknown entry type")
@@ -276,7 +270,6 @@ func (p *PartitionState) HandleRowsInsert(
 				BlockID: blockID,
 				RowID:   rowID,
 				Time:    timeVector[i],
-				Deleted: false,
 			}
 			entry, ok := p.rows.Get(pivot)
 			if !ok {
@@ -319,7 +312,11 @@ func (p *PartitionState) HandleRowsInsert(
 	return
 }
 
-func (p *PartitionState) HandleRowsDelete(ctx context.Context, input *api.Batch) {
+func (p *PartitionState) HandleRowsDelete(
+	ctx context.Context,
+	input *api.Batch,
+	packer *types.Packer,
+) {
 	ctx, task := trace.NewTask(ctx, "PartitionState.HandleRowsDelete")
 	defer task.End()
 
@@ -335,6 +332,15 @@ func (p *PartitionState) HandleRowsDelete(ctx context.Context, input *api.Batch)
 		panic(err)
 	}
 
+	var primaryKeys [][]byte
+	if len(input.Vecs) > 2 {
+		// has primary key
+		primaryKeys = EncodePrimaryKeyVector(
+			batch.Vecs[2],
+			packer,
+		)
+	}
+
 	for i, rowID := range rowIDVector {
 		moprobe.WithRegion(ctx, moprobe.PartitionStateHandleDel, func() {
 
@@ -343,7 +349,6 @@ func (p *PartitionState) HandleRowsDelete(ctx context.Context, input *api.Batch)
 				BlockID: blockID,
 				RowID:   rowID,
 				Time:    timeVector[i],
-				Deleted: true,
 			}
 			entry, ok := p.rows.Get(pivot)
 			if !ok {
@@ -368,6 +373,19 @@ func (p *PartitionState) HandleRowsDelete(ctx context.Context, input *api.Batch)
 			if ok && !be.EntryState {
 				p.dirtyBlocks.Set(be)
 			}
+
+			// primary key
+			if i < len(primaryKeys) && len(primaryKeys[i]) > 0 {
+				entry := &PrimaryIndexEntry{
+					Bytes:      primaryKeys[i],
+					RowEntryID: entry.ID,
+					BlockID:    blockID,
+					RowID:      rowID,
+					Time:       entry.Time,
+				}
+				p.primaryIndex.Set(entry)
+			}
+
 		})
 	}
 

@@ -166,7 +166,7 @@ func TestPartitionStateRowsIter(t *testing.T) {
 				mustVectorToProto(rowIDVec),
 				mustVectorToProto(tsVec),
 			},
-		})
+		}, packer)
 	}
 
 	for i := 0; i < num; i++ {
@@ -241,7 +241,7 @@ func TestPartitionStateRowsIter(t *testing.T) {
 				mustVectorToProto(rowIDVec),
 				mustVectorToProto(tsVec),
 			},
-		})
+		}, packer)
 	}
 
 	for i := 0; i < num; i++ {
@@ -312,7 +312,7 @@ func TestInsertAndDeleteAtTheSameTimestamp(t *testing.T) {
 				mustVectorToProto(rowIDVec),
 				mustVectorToProto(tsVec),
 			},
-		})
+		}, packer)
 	}
 
 	{
@@ -376,7 +376,7 @@ func TestDeleteBeforeInsertAtTheSameTime(t *testing.T) {
 				mustVectorToProto(rowIDVec),
 				mustVectorToProto(tsVec),
 			},
-		})
+		}, packer)
 	}
 
 	{
@@ -427,6 +427,51 @@ func TestDeleteBeforeInsertAtTheSameTime(t *testing.T) {
 		}
 		require.Equal(t, num, n)
 		require.Nil(t, iter.Close())
+	}
+
+}
+
+func TestPrimaryKeyModifiedWithDeleteOnly(t *testing.T) {
+	state := NewPartitionState(false)
+	ctx := context.Background()
+	pool := mpool.MustNewZero()
+	packer := types.NewPacker(pool)
+	defer packer.FreeMem()
+
+	const num = 128
+
+	sid := objectio.NewSegmentid()
+	buildRowID := func(i int) types.Rowid {
+		blk := objectio.NewBlockid(sid, uint16(i), 0)
+		return *objectio.NewRowid(blk, uint32(0))
+	}
+
+	{
+		// delete number i at time i with (i+1) row id
+		rowIDVec := vector.NewVec(types.T_Rowid.ToType())
+		tsVec := vector.NewVec(types.T_TS.ToType())
+		primaryKeyVec := vector.NewVec(types.T_int64.ToType())
+		for i := 0; i < num; i++ {
+			vector.AppendFixed(rowIDVec, buildRowID(i+1), false, pool)
+			vector.AppendFixed(tsVec, types.BuildTS(int64(i), 1), false, pool)
+			vector.AppendFixed(primaryKeyVec, int64(i), false, pool)
+		}
+		state.HandleRowsDelete(ctx, &api.Batch{
+			Attrs: []string{"rowid", "time", "i"},
+			Vecs: []*api.Vector{
+				mustVectorToProto(rowIDVec),
+				mustVectorToProto(tsVec),
+				mustVectorToProto(primaryKeyVec), // with primary key
+			},
+		}, packer)
+	}
+
+	// should be detectable
+	for i := 0; i < num; i++ {
+		ts := types.BuildTS(int64(i), 0)
+		key := EncodePrimaryKey(int64(i), packer)
+		modified := state.PrimaryKeyMayBeModified(ts.Prev(), ts.Next(), key)
+		require.True(t, modified)
 	}
 
 }
