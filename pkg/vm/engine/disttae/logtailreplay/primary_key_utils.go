@@ -16,26 +16,7 @@ package logtailreplay
 
 import (
 	"github.com/matrixorigin/matrixone/pkg/container/types"
-	"github.com/matrixorigin/matrixone/pkg/container/vector"
 )
-
-func (p *PartitionState) PrimaryKeysMayBeModified(
-	from types.TS,
-	to types.TS,
-	keysVector *vector.Vector,
-	packer *types.Packer,
-) bool {
-	packer.Reset()
-
-	keys := EncodePrimaryKeyVector(keysVector, packer)
-	for _, key := range keys {
-		if p.PrimaryKeyMayBeModified(from, to, key) {
-			return true
-		}
-	}
-
-	return false
-}
 
 func (p *PartitionState) PrimaryKeyMayBeModified(
 	from types.TS,
