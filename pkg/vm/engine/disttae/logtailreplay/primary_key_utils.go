@@ -23,8 +23,6 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	to types.TS,
 	key []byte,
 ) bool {
-	iter := p.NewPrimaryKeyIter(to, Exact(key))
-	defer iter.Close()
 
 	p.shared.Lock()
 	lastFlushTimestamp := p.shared.lastFlushTimestamp
@@ -41,6 +39,9 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	if empty {
 		return true
 	}
+
+	iter := p.NewPrimaryKeyIter(to, Exact(key))
+	defer iter.Close()
 	for iter.Next() {
 		empty = false
 		row := iter.Entry()
@@ -48,5 +49,6 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			return true
 		}
 	}
+
 	return empty
 }
