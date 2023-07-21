@@ -264,6 +264,7 @@ OUTER:
 			return v
 		case <-time.After(time.Minute * 2):
 			tooLong = true
+			printTraces()
 			getLogger().Fatal(fmt.Sprintf("%s waiter(%p) too long, wait-for %s(%s)\n",
 				hex.EncodeToString(w.txnID), w, hex.EncodeToString(w.waiterFor), op.GetActive(hex.EncodeToString(w.waiterFor))))
 		case <-ctx.Done():

@@ -73,6 +73,7 @@ func (s *service) handleRemoteLock(
 	req *pb.Request,
 	resp *pb.Response,
 	cs morpc.ClientSession) {
+	defer addTrace(req.Lock.TxnID, "service.handleRemoteLock")()
 	l, err := s.getLocalLockTable(req, resp)
 	if err != nil ||
 		l == nil {

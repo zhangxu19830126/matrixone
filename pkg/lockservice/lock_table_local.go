@@ -87,6 +87,8 @@ func (l *localLockTable) lock(
 func (l *localLockTable) doLock(
 	c lockContext,
 	blocked bool) {
+	defer addTrace(c.txn.txnID, "localLockTable.doLock")()
+
 	// deadlock detected, return
 	if c.txn.deadlockFound {
 		c.done(ErrDeadLockDetected)
@@ -128,7 +130,9 @@ func (l *localLockTable) doLock(
 		// or other concurrent txn method.
 		oldTxnID := c.txn.txnID
 		c.txn.Unlock()
+		f := addTrace(oldTxnID, fmt.Sprintf("%s wait", c.w.String()))
 		v := c.w.wait(c.ctx, l.bind.ServiceID)
+		f()
 		c.txn.Lock()
 
 		logLocalLockWaitOnResult(l.bind.ServiceID, c.txn, table, c.rows[c.idx], c.opts, c.w, v)
