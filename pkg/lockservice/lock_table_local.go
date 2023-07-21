@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/util"
@@ -132,9 +133,10 @@ func (l *localLockTable) doLock(
 		c.txn.Unlock()
 		f := addTrace(oldTxnID, fmt.Sprintf("%s wait", c.w.String()))
 		v := c.w.wait(c.ctx, l.bind.ServiceID)
+		fmt.Printf("%s wait result %+v, async: %+v, txn: %+v\n", c.w.String(), v, c.opts.async, hex.EncodeToString(c.txn.txnID))
 		f()
 		c.txn.Lock()
-
+		fmt.Printf("%s wait result get lock, %+v\n", c.w.String(), time.Now())
 		logLocalLockWaitOnResult(l.bind.ServiceID, c.txn, table, c.rows[c.idx], c.opts, c.w, v)
 		if v.err != nil {
 			// TODO: c.w's ref is 2, after close is 1. leak.
@@ -181,11 +183,12 @@ func (l *localLockTable) unlock(
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
+				wInfo := lock.waiter.String()
 				waiters := lock.waiter.waitersInfo()
 				lock.waiter.clearAllNotify(l.bind.ServiceID, "unlock")
 				next := lock.waiter.close(l.bind.ServiceID, notifyValue{ts: commitTS})
 				logUnlockTableKeyOnLocal(l.bind.ServiceID, txn, l.bind, key, lock, next)
-				fmt.Printf("%s, unlock waiters %s, next %s \n", hex.EncodeToString(txn.txnID), waiters, next.String())
+				fmt.Printf("%s, unlock %s waiters %s, next %s \n", hex.EncodeToString(txn.txnID), wInfo, waiters, next.String())
 			}
 			l.mu.store.Delete(key)
 		}
@@ -273,6 +276,7 @@ func (l *localLockTable) acquireRowLockLocked(c lockContext) lockContext {
 			// current txn's lock
 			if bytes.Equal(c.txn.txnID, lock.txnID) {
 				if c.w != nil {
+					fmt.Printf("%s added to self %s\n", c.w.String(), lock.waiter.String())
 					// txn1 hold lock
 					// txn2/op1 added into txn1's waiting list
 					// txn2/op2 added into txn2/op1's same txn list
@@ -303,6 +307,9 @@ func (l *localLockTable) acquireRowLockLocked(c lockContext) lockContext {
 			}
 			l.handleLockConflictLocked(c.txn, c.w, key, lock)
 			return c
+		}
+		if c.w != nil {
+			fmt.Printf("%s added to lock\n", c.w.String())
 		}
 		l.addRowLockLocked(c.txn, row, getWaiter(l.bind.ServiceID, c.w, c.txn), c.opts.Mode)
 		// lock added, need create new waiter next time
@@ -371,6 +378,7 @@ func (l *localLockTable) handleLockConflictLocked(
 	childWaiters := w.waiters.all()
 	w.waiters.reset()
 
+	fmt.Printf("%s wait on %s, %+v\n", w.String(), conflictWith.waiter.String(), time.Now())
 	// find conflict, and wait prev txn completed, and a new
 	// waiter added, we need to active deadlock check.
 	w.waiterFor = conflictWith.txnID
