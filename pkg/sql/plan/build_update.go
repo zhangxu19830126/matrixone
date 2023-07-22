@@ -50,8 +50,12 @@ func buildTableUpdate(stmt *tree.Update, ctx CompilerContext, isPrepareStmt bool
 	builder.qry.Steps = append(builder.qry.Steps[:sourceStep], builder.qry.Steps[sourceStep+1:]...)
 
 	// append sink node
-	lastNodeId = appendSinkNode(builder, queryBindCtx, lastNodeId)
-	sourceStep = builder.appendStep(lastNodeId)
+	if tblInfo.isMulti {
+		lastNodeId = appendSinkNode(builder, queryBindCtx, lastNodeId)
+		sourceStep = builder.appendStep(lastNodeId)
+	} else {
+		sourceStep = -1
+	}
 
 	beginIdx := 0
 	for i, tableDef := range tblInfo.tableDefs {
@@ -61,7 +65,7 @@ func buildTableUpdate(stmt *tree.Update, ctx CompilerContext, isPrepareStmt bool
 
 		updateBindCtx := NewBindContext(builder, nil)
 		beginIdx = beginIdx + upPlanCtx.updateColLength + len(tableDef.Cols)
-		err = buildUpdatePlans(ctx, builder, updateBindCtx, upPlanCtx)
+		err = buildUpdatePlans(ctx, builder, updateBindCtx, upPlanCtx, lastNodeId)
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +75,6 @@ func buildTableUpdate(stmt *tree.Update, ctx CompilerContext, isPrepareStmt bool
 		return nil, err
 	}
 
-	reduceSinkSinkScanNodes(query)
 	query.StmtType = plan.Query_UPDATE
 	return &Plan{
 		Plan: &plan.Plan_Query{
