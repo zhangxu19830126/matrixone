@@ -17,6 +17,9 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
+	"fmt"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/log"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -62,7 +65,7 @@ func (l *remoteLockTable) lock(
 	rows [][]byte,
 	opts LockOptions,
 	cb func(pb.Result, error)) {
-	defer addTrace(txn.txnID, "remoteLockTable.lock")()
+	defer addTrace(txn.txnID, fmt.Sprintf("%s.remoteLockTable.lock", l.serviceID))()
 
 	// FIXME(fagongzi): too many mem alloc in trace
 	ctx, span := trace.Debug(ctx, "lockservice.lock.remote")
@@ -83,8 +86,10 @@ func (l *remoteLockTable) lock(
 	// rpc maybe wait too long, to avoid deadlock, we need unlock txn, and lock again
 	// after rpc completed
 	txn.Unlock()
+	defer addTrace(txn.txnID, "remoteLockTable.lock.Send")()
 	resp, err := l.client.Send(ctx, req)
 	txn.Lock()
+	defer addTrace(txn.txnID, "remoteLockTable.lock.Send.relocked")()
 
 	// txn closed
 	if !bytes.Equal(req.Lock.TxnID, txn.txnID) {
@@ -146,6 +151,7 @@ func (l *remoteLockTable) unlock(
 }
 
 func (l *remoteLockTable) getLock(txnID, key []byte, fn func(Lock)) {
+	defer addTrace(txnID, fmt.Sprintf("%s.getLock", l.serviceID))()
 	for {
 		lock, ok, err := l.doGetLock(txnID, key)
 		if err == nil {
@@ -162,7 +168,7 @@ func (l *remoteLockTable) getLock(txnID, key []byte, fn func(Lock)) {
 			}
 			return
 		}
-
+		fmt.Printf("%s get remote lock failed %+v\n", hex.EncodeToString(txnID), err)
 		// why use loop is similar to unlock
 		if err = l.handleError(txnID, err); err == nil {
 			return
@@ -193,7 +199,8 @@ func (l *remoteLockTable) doUnlock(
 }
 
 func (l *remoteLockTable) doGetLock(txnID, key []byte) (Lock, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer addTrace(txnID, fmt.Sprintf("%s.doGetLock", l.serviceID))()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	req := acquireRequest()
@@ -204,6 +211,7 @@ func (l *remoteLockTable) doGetLock(txnID, key []byte) (Lock, bool, error) {
 	req.GetTxnLock.Row = key
 	req.GetTxnLock.TxnID = txnID
 
+	defer addTrace(txnID, fmt.Sprintf("%s.doGetLock.Send", l.serviceID))()
 	resp, err := l.client.Send(ctx, req)
 	if err == nil {
 		defer releaseResponse(resp)

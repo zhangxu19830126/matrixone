@@ -39,7 +39,7 @@ var (
 		},
 	}
 
-	defaultRPCTimeout = time.Second * 10
+	defaultRPCTimeout = time.Second * 5
 )
 
 type client struct {
@@ -229,17 +229,22 @@ func (s *server) onMessage(
 
 	select {
 	case <-ctx.Done():
-		if getLogger().Enabled(zap.DebugLevel) {
-			getLogger().Debug("skip request by timeout",
-				zap.String("request", req.DebugString()))
-		}
+		//if getLogger().Enabled(zap.DebugLevel) {
+		getLogger().Fatal("skip request by timeout",
+			zap.String("request", req.DebugString()))
+		//}
 		releaseRequest(req)
 		return nil
 	default:
 	}
 
 	fn := func(req *pb.Request) error {
-		defer releaseRequest(req)
+		defer func() {
+			if msg.Cancel != nil {
+				msg.Cancel()
+			}
+			releaseRequest(req)
+		}()
 		resp := acquireResponse()
 		resp.RequestID = req.RequestID
 		resp.Method = req.Method

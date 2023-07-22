@@ -101,7 +101,7 @@ func (s *service) Lock(
 	rows [][]byte,
 	txnID []byte,
 	options pb.LockOptions) (pb.Result, error) {
-	defer addTrace(txnID, "service.Lock")()
+	defer addTrace(txnID, fmt.Sprintf("%s.service.Lock", s.cfg.ServiceID))()
 
 	// FIXME(fagongzi): too many mem alloc in trace
 	ctx, span := trace.Debug(ctx, "lockservice.lock")

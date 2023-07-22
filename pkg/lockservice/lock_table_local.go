@@ -180,6 +180,10 @@ func (l *localLockTable) unlock(
 		return
 	}
 
+	if len(txn.blockedWaiters) > 0 {
+		getLogger().Fatal("unlock with blocked waiters")
+	}
+
 	locks.iter(func(key []byte) bool {
 		if lock, ok := l.mu.store.Get(key); ok {
 			if lock.isLockRow() || lock.isLockRangeEnd() {
@@ -207,6 +211,7 @@ func (l *localLockTable) unlock(
 }
 
 func (l *localLockTable) getLock(txnID, key []byte, fn func(Lock)) {
+	defer addTrace(txnID, fmt.Sprintf("%s.getLock", l.bind.ServiceID))()
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	if l.mu.closed {

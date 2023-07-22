@@ -32,7 +32,7 @@ func printTraces() {
 	l.Lock()
 	defer l.Unlock()
 	for k, v := range traces {
-		fmt.Printf("%s: [%s]", k, v.String())
+		fmt.Printf("trace: %s: [%s]\n", k, v.String())
 	}
 }
 
@@ -44,6 +44,7 @@ func addTrace(txnID []byte, action string) func() {
 	v, ok := traces[key]
 	if !ok {
 		v = &tracings{}
+		traces[key] = v
 	}
 
 	v.calls = append(v.calls, call{id: id, action: action})

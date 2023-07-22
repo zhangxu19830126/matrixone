@@ -16,6 +16,7 @@ package lockservice
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -199,6 +200,7 @@ func (txn *activeTxn) fetchWhoWaitingMe(
 	holder activeTxnHolder,
 	waiters func(pb.WaitTxn) bool,
 	lockTableFunc func(uint64) (lockTable, error)) bool {
+	defer addTrace(txnID, fmt.Sprintf("%s.activeTxn.fetchWhoWaitingMe", serviceID))()
 	txn.RLock()
 	// txn already closed
 	if !bytes.Equal(txn.txnID, txnID) {
@@ -224,7 +226,7 @@ func (txn *activeTxn) fetchWhoWaitingMe(
 			cs.unref()
 		}
 	}()
-
+	defer addTrace(txnID, fmt.Sprintf("%s.activeTxn.fetchWhoWaitingMe.tables", serviceID))()
 	for idx, table := range tables {
 		l, err := lockTableFunc(table)
 		if err != nil {
@@ -238,6 +240,7 @@ func (txn *activeTxn) fetchWhoWaitingMe(
 		locks := lockKeys[idx]
 		hasDeadLock := false
 		locks.iter(func(lockKey []byte) bool {
+			f := addTrace(txnID, fmt.Sprintf("%s.activeTxn.fetchWhoWaitingMe.tables.%d.%T.%s", serviceID, table, l, hex.EncodeToString(lockKey)))
 			l.getLock(
 				txnID,
 				lockKey,
@@ -256,6 +259,7 @@ func (txn *activeTxn) fetchWhoWaitingMe(
 						return !hasDeadLock
 					})
 				})
+			f()
 			return !hasDeadLock
 		})
 

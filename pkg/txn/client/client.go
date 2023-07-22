@@ -210,7 +210,7 @@ func (client *txnClient) New(
 		client.updateLastCommitTS,
 		client.popTransaction)
 	client.addToLeakCheck(op)
-	fmt.Printf("%s created by %s\n", hex.EncodeToString(op.mu.txn.ID), op.option.createBy)
+	fmt.Printf("%s created by %s, %+v\n", hex.EncodeToString(op.mu.txn.ID), op.option.createBy, time.Now())
 	return op, nil
 }
 

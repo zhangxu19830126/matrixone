@@ -17,6 +17,7 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/morpc"
@@ -73,7 +74,7 @@ func (s *service) handleRemoteLock(
 	req *pb.Request,
 	resp *pb.Response,
 	cs morpc.ClientSession) {
-	defer addTrace(req.Lock.TxnID, "service.handleRemoteLock")()
+	defer addTrace(req.Lock.TxnID, fmt.Sprintf("%s.service.handleRemoteLock", s.cfg.ServiceID))()
 	l, err := s.getLocalLockTable(req, resp)
 	if err != nil ||
 		l == nil {
@@ -175,7 +176,7 @@ func (s *service) handleRemoteGetLock(
 		writeResponse(ctx, resp, err, cs)
 		return
 	}
-
+	defer addTrace(req.GetTxnLock.TxnID, fmt.Sprintf("%s.service.handleRemoteGetLock", s.cfg.ServiceID))()
 	l.getLock(
 		req.GetTxnLock.TxnID,
 		req.GetTxnLock.Row,
@@ -207,16 +208,21 @@ func (s *service) handleRemoteGetWaitingList(
 		writeResponse(ctx, resp, nil, cs)
 		return
 	}
-	txn.fetchWhoWaitingMe(
-		s.cfg.ServiceID,
-		req.GetWaitingList.Txn.TxnID,
-		s.activeTxnHolder,
-		func(w pb.WaitTxn) bool {
-			resp.GetWaitingList.WaitingList = append(resp.GetWaitingList.WaitingList, w)
-			return true
-		},
-		s.getLockTable)
-	writeResponse(ctx, resp, nil, cs)
+	defer addTrace(req.GetWaitingList.Txn.TxnID, fmt.Sprintf("%s.service.handleRemoteGetWaitingList", s.cfg.ServiceID))()
+	go func() {
+		txn.fetchWhoWaitingMe(
+			s.cfg.ServiceID,
+			req.GetWaitingList.Txn.TxnID,
+			s.activeTxnHolder,
+			func(w pb.WaitTxn) bool {
+				resp.GetWaitingList.WaitingList = append(resp.GetWaitingList.WaitingList, w)
+				return true
+			},
+			s.getLockTable)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		writeResponse(ctx, resp, nil, cs)
+	}()
 }
 
 func (s *service) handleKeepRemoteLock(
