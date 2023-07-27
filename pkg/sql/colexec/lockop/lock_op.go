@@ -702,6 +702,7 @@ func hasNewVersionInRange(
 	if vec == nil {
 		return false, nil
 	}
+	return true, nil
 	txnClient := proc.TxnClient
 	txnOp, err := txnClient.New(proc.Ctx, to.Prev())
 	if err != nil {
