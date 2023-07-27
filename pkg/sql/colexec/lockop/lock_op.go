@@ -702,7 +702,6 @@ func hasNewVersionInRange(
 	if vec == nil {
 		return false, nil
 	}
-	return true, nil
 	txnClient := proc.TxnClient
 	txnOp, err := txnClient.New(proc.Ctx, to.Prev())
 	if err != nil {
@@ -726,6 +725,10 @@ func hasNewVersionInRange(
 		}
 		return false, err
 	}
+	if strings.Contains(tableName, "bmsql") {
+		return true, nil
+	}
+
 	db, err := eng.Database(proc.Ctx, dbName, txnOp)
 	if err != nil {
 		return false, err
