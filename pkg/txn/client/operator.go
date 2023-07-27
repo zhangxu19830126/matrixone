@@ -24,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	moruntime "github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -159,7 +160,9 @@ type txnOperator struct {
 
 	mu struct {
 		sync.RWMutex
+		dupCheck     bool
 		closed       bool
+		info         string
 		txn          txn.TxnMeta
 		cachedWrites map[uint64][]txn.TxnRequest
 		lockTables   []lock.LockTable
@@ -376,6 +379,15 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 	}
 	if result != nil {
 		result.Release()
+	}
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if tc.mu.info != "" {
+		logutil.Infof(">>>> dup check %x commit %s, [%s, %s]\n",
+			tc.mu.txn.ID,
+			tc.mu.info,
+			tc.mu.txn.SnapshotTS.DebugString(),
+			tc.mu.txn.CommitTS.DebugString())
 	}
 	return nil
 }
@@ -875,4 +887,25 @@ func (tc *txnOperator) closeLocked() {
 		tc.mu.closed = true
 		tc.triggerEventLocked(ClosedEvent)
 	}
+}
+
+func (tc *txnOperator) SetDupCheck(value bool) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.mu.dupCheck = value
+}
+
+func (tc *txnOperator) GetDupCheck() bool {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+
+	return tc.mu.dupCheck
+}
+
+func (tc *txnOperator) SetInfo(info string) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.mu.info = info
 }

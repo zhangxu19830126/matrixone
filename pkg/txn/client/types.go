@@ -134,6 +134,10 @@ type TxnOperator interface {
 
 	ResetRetry(bool)
 	IsRetry() bool
+
+	SetDupCheck(bool)
+	GetDupCheck() bool
+	SetInfo(info string)
 }
 
 // DebugableTxnOperator debugable txn operator
@@ -205,4 +209,7 @@ type Workspace interface {
 
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
+
+	AddCheckNotChanged(pk string, from, to timestamp.Timestamp)
+	GetCheckNotChanged(pk string) [2]timestamp.Timestamp
 }

@@ -251,3 +251,15 @@ func (s *StorageTxnOperator) AddLockTable(lock.LockTable) error {
 func (s *StorageTxnOperator) UpdateSnapshot(ctx context.Context, ts timestamp.Timestamp) error {
 	panic("should not call")
 }
+
+func (s *StorageTxnOperator) SetDupCheck(bool) {
+	panic("should not call")
+}
+
+func (s *StorageTxnOperator) GetDupCheck() bool {
+	panic("should not call")
+}
+
+func (s *StorageTxnOperator) SetInfo(info string) {
+	panic("should not call")
+}

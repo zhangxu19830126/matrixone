@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/pipeline"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -742,5 +743,31 @@ func hasNewVersionInRange(
 	}
 	fromTS := types.BuildTS(from.PhysicalTime, from.LogicalTime)
 	toTS := types.BuildTS(to.PhysicalTime, to.LogicalTime)
-	return rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
+	changed, err := rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
+	if err != nil {
+		return false, err
+	}
+	if !changed && strings.Contains(tableName, "bmsql_district") {
+		//  pk:  [from,to] no changed
+		//  dup: pk dup
+		//  commit: commit ts: pk
+		tuples, _, _ := types.DecodeTuple(vec.GetBytesAt(0))
+		v1 := tuples[0].(int32)
+		v2 := tuples[1].(int32)
+		v := types.EncodeInt32(&v1)
+		v = append(v, types.EncodeInt32(&v2)...)
+		key := fmt.Sprintf("%x", v)
+		logutil.Infof(">>>> %x append check not found: %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s\n",
+			proc.TxnOperator.Txn().ID,
+			v,
+			v1,
+			v2,
+			key,
+			from.DebugString(),
+			to.DebugString(),
+			txnOp.Txn().SnapshotTS.DebugString())
+		proc.TxnOperator.GetWorkspace().AddCheckNotChanged(key, from, to)
+	}
+	return changed, nil
+
 }

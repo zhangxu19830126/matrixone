@@ -568,3 +568,15 @@ func (txn *Transaction) delTransaction() {
 	txn.hasS3Op.Store(false)
 	txn.removed = true
 }
+
+func (txn *Transaction) AddCheckNotChanged(pk string, from, to timestamp.Timestamp) {
+	txn.Lock()
+	defer txn.Unlock()
+	txn.dupCheckMap[pk] = [2]timestamp.Timestamp{from, to}
+}
+
+func (txn *Transaction) GetCheckNotChanged(pk string) [2]timestamp.Timestamp {
+	txn.Lock()
+	defer txn.Unlock()
+	return txn.dupCheckMap[pk]
+}

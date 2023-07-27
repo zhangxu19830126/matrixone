@@ -16,6 +16,7 @@ package disttae
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
@@ -178,6 +180,8 @@ type Transaction struct {
 	removed              bool
 	startStatementCalled bool
 	incrStatementCalled  bool
+
+	dupCheckMap map[string][2]timestamp.Timestamp
 }
 
 type Pos struct {
@@ -302,6 +306,22 @@ func (txn *Transaction) Adjust() error {
 func (txn *Transaction) adjustUpdateOrderLocked() error {
 	if txn.statementID > 0 {
 		start := txn.statements[txn.statementID-1]
+		for i := start; i < len(txn.writes); i++ {
+			if txn.writes[i].typ == INSERT && txn.writes[i].tableName == "bmsql_district" {
+				tuples, _, _ := types.DecodeTuple(txn.writes[i].bat.Vecs[12].GetBytesAt(0))
+				v1 := tuples[0].(int32)
+				v2 := tuples[1].(int32)
+				v := types.EncodeInt32(&v1)
+				v = append(v, types.EncodeInt32(&v2)...)
+				key := fmt.Sprintf("%x", v)
+
+				info := fmt.Sprintf("%s updated to %d",
+					key,
+					vector.GetFixedAt[int32](txn.writes[i].bat.Vecs[5], 0))
+				txn.op.SetInfo(info)
+			}
+		}
+
 		writes := make([]Entry, 0, len(txn.writes[start:]))
 		for i := start; i < len(txn.writes); i++ {
 			if txn.writes[i].typ == DELETE {

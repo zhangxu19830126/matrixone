@@ -15,9 +15,12 @@
 package function
 
 import (
+	"fmt"
+
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan/function/ctl"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
@@ -4840,6 +4843,14 @@ var supportedOthersBuiltIns = []FuncNew{
 									tuples, _, err := types.DecodeTuple(bytes)
 									if err == nil {
 										errMsg := tuples.ErrString()
+										v1 := tuples[0].(int32)
+										v2 := tuples[1].(int32)
+										v := types.EncodeInt32(&v1)
+										v = append(v, types.EncodeInt32(&v2)...)
+										ts := proc.TxnOperator.GetWorkspace().GetCheckNotChanged(fmt.Sprintf("%x", v))
+										if len(ts) > 0 {
+											logutil.Infof(">>>>> %x dup found for %x(%d,%d,%d), [%s, %s]", proc.TxnOperator.Txn().ID, v, v1, v2, tuples[2], ts[0].DebugString(), ts[1].DebugString())
+										}
 										return moerr.NewDuplicateEntry(proc.Ctx, errMsg, parameters[2].GetStringAt(int(i)))
 									}
 								}
