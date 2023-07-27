@@ -336,6 +336,22 @@ func (txn *Transaction) adjustUpdateOrderLocked() error {
 		txn.writes = append(txn.writes[:start], writes...)
 		// restore the scope of the statement
 		txn.statements[txn.statementID-1] = len(txn.writes)
+	} else {
+		for i := 0; i < len(txn.writes); i++ {
+			if txn.writes[i].typ == INSERT && txn.writes[i].tableName == "bmsql_district" {
+				tuples, _, _ := types.DecodeTuple(txn.writes[i].bat.Vecs[12].GetBytesAt(0))
+				v1 := tuples[0].(int32)
+				v2 := tuples[1].(int32)
+				v := types.EncodeInt32(&v1)
+				v = append(v, types.EncodeInt32(&v2)...)
+				key := fmt.Sprintf("%x", v)
+
+				info := fmt.Sprintf("%s else updated to %d",
+					key,
+					vector.GetFixedAt[int32](txn.writes[i].bat.Vecs[5], 0))
+				txn.op.SetInfo(info)
+			}
+		}
 	}
 	return nil
 }

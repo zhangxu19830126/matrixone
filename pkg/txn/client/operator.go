@@ -907,5 +907,9 @@ func (tc *txnOperator) SetInfo(info string) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
+	if tc.mu.txn.Mirror {
+		panic(info)
+	}
+
 	tc.mu.info = info
 }
