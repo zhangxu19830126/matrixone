@@ -307,7 +307,7 @@ func (txn *Transaction) adjustUpdateOrderLocked() error {
 	if txn.statementID > 0 {
 		start := txn.statements[txn.statementID-1]
 		for i := start; i < len(txn.writes); i++ {
-			if txn.writes[i].typ == INSERT && txn.writes[i].tableName == "bmsql_district" {
+			if txn.writes[i].typ == INSERT && len(txn.writes[i].bat.Vecs) == 13 {
 				tuples, _, _ := types.DecodeTuple(txn.writes[i].bat.Vecs[12].GetBytesAt(0))
 				v1 := tuples[0].(int32)
 				v2 := tuples[1].(int32)
@@ -338,7 +338,7 @@ func (txn *Transaction) adjustUpdateOrderLocked() error {
 		txn.statements[txn.statementID-1] = len(txn.writes)
 	} else {
 		for i := 0; i < len(txn.writes); i++ {
-			if txn.writes[i].typ == INSERT && txn.writes[i].tableName == "bmsql_district" {
+			if txn.writes[i].typ == INSERT && len(txn.writes[i].bat.Vecs) == 13 {
 				tuples, _, _ := types.DecodeTuple(txn.writes[i].bat.Vecs[12].GetBytesAt(0))
 				v1 := tuples[0].(int32)
 				v2 := tuples[1].(int32)
