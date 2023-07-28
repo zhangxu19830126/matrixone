@@ -90,6 +90,7 @@ type RowEntry struct {
 	Batch             *batch.Batch
 	Offset            int64
 	PrimaryIndexBytes []byte
+	originKey         []byte
 }
 
 func (r RowEntry) Less(than RowEntry) bool {
@@ -333,6 +334,9 @@ func (p *PartitionState) HandleRowsInsert(
 			}
 			if i < len(primaryKeys) {
 				entry.PrimaryIndexBytes = primaryKeys[i]
+				if entry2.TableId == 10000000 {
+					entry.originKey = batch.Vecs[2+primarySeqnum].GetBytesAt(i)
+				}
 				if len(entry.PrimaryIndexBytes) == 0 {
 					logutil.Fatal("missing pk")
 				}
@@ -424,6 +428,9 @@ func (p *PartitionState) HandleRowsDelete(
 
 			entry.Deleted = true
 			entry.PrimaryIndexBytes = primaryKeys[i]
+			if entry2.TableId == 10000000 {
+				entry.originKey = batch.Vecs[2].GetBytesAt(i)
+			}
 			if !p.noData {
 				entry.Batch = batch
 				entry.Offset = int64(i)
@@ -580,17 +587,15 @@ func (p *PartitionState) HandleMetadataInsert(ctx context.Context, entry2 *api.E
 
 					}
 					if entryStateVector[i] {
-
 						if len(entry.PrimaryIndexBytes) > 0 {
-							logutil.Infof("delete pk from pk index for %s\n", entry2.TableName)
 							if strings.Contains(entry2.TableName, "10000000") {
-								tuples, _, _ := types.DecodeTuple(entry.PrimaryIndexBytes)
+								tuples, _, _ := types.DecodeTuple(entry.originKey)
 								v1 := tuples[0].(int32)
 								v2 := tuples[1].(int32)
 								v := types.EncodeInt32(&v1)
 								v = append(v, types.EncodeInt32(&v2)...)
 								key := fmt.Sprintf("%x", v)
-								logutil.Infof("%x deleted by commit ts %s", key, commitTimeVector[i].ToTimestamp().DebugString())
+								logutil.Infof("%s deleted by commit ts %s", key, commitTimeVector[i].ToTimestamp().DebugString())
 							}
 							p.primaryIndex.Delete(&PrimaryIndexEntry{
 								Bytes:      entry.PrimaryIndexBytes,
