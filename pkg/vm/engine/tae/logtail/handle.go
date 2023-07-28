@@ -640,6 +640,9 @@ func (b *TableLogtailRespBuilder) BuildResp() (api.SyncLogTailResp, error) {
 			DatabaseName: b.dname,
 			Bat:          bat,
 		}
+		if b.tname == "bmsql_district" && b.tid != 10000000 {
+			logutil.Fatalf("BUG: error table id: %s:%d\n", b.tname, b.tid)
+		}
 		entries = append(entries, entry)
 		return nil
 	}

@@ -768,6 +768,8 @@ func (h *Handle) HandleCreateRelation(
 		return
 	}
 
+	logutil.Infof("tae create relation %s, %d\n", req.Name, req.RelationId)
+
 	if err = CreateRelation(ctx, dbH, req.Name, req.RelationId, req.Defs); err != nil {
 		return
 	}
