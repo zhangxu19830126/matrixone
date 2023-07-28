@@ -403,6 +403,7 @@ func (p *PartitionState) HandleRowsDelete(
 			}
 
 			entry.Deleted = true
+			entry.PrimaryIndexBytes = primaryKeys[i]
 			if !p.noData {
 				entry.Batch = batch
 				entry.Offset = int64(i)
@@ -549,19 +550,12 @@ func (p *PartitionState) HandleMetadataInsert(ctx context.Context, entry2 *api.E
 					}
 					if entryStateVector[i] {
 						if len(entry.PrimaryIndexBytes) > 0 {
-							if entry2.TableName == "bmsql_district" {
-								tuples, _, _ := types.DecodeTuple(entry.PrimaryIndexBytes)
-								v1 := tuples[0].(int32)
-								v2 := tuples[1].(int32)
-								v := types.EncodeInt32(&v1)
-								v = append(v, types.EncodeInt32(&v2)...)
-								key := fmt.Sprintf("%x", v)
-								logutil.Infof("%x deleted by commit ts %s", key, commitTimeVector[i].ToTimestamp().DebugString())
-							}
 							p.primaryIndex.Delete(&PrimaryIndexEntry{
 								Bytes:      entry.PrimaryIndexBytes,
 								RowEntryID: entry.ID,
 							})
+						} else {
+							logutil.Fatal("missing pk")
 						}
 					}
 				}
