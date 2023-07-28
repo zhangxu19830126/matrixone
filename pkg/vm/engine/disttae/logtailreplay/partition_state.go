@@ -31,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
@@ -258,7 +259,7 @@ func (p *PartitionState) HandleLogtailEntry(
 	switch entry.EntryType {
 	case api.Entry_Insert:
 		if IsBlkTable(entry.TableName) {
-			p.HandleMetadataInsert(ctx, entry.Bat)
+			p.HandleMetadataInsert(ctx, entry)
 		} else {
 			p.HandleRowsInsert(ctx, entry.Bat, primarySeqnum, packer)
 		}
@@ -440,7 +441,8 @@ func (p *PartitionState) HandleRowsDelete(
 	})
 }
 
-func (p *PartitionState) HandleMetadataInsert(ctx context.Context, input *api.Batch) {
+func (p *PartitionState) HandleMetadataInsert(ctx context.Context, entry2 *api.Entry) {
+	input := entry2.Bat
 	ctx, task := trace.NewTask(ctx, "PartitionState.HandleMetadataInsert")
 	defer task.End()
 
@@ -547,6 +549,15 @@ func (p *PartitionState) HandleMetadataInsert(ctx context.Context, input *api.Ba
 					}
 					if entryStateVector[i] {
 						if len(entry.PrimaryIndexBytes) > 0 {
+							if entry2.TableName == "bmsql_district" {
+								tuples, _, _ := types.DecodeTuple(entry.PrimaryIndexBytes)
+								v1 := tuples[0].(int32)
+								v2 := tuples[1].(int32)
+								v := types.EncodeInt32(&v1)
+								v = append(v, types.EncodeInt32(&v2)...)
+								key := fmt.Sprintf("%x", v)
+								logutil.Infof("%x deleted by commit ts %s", key, commitTimeVector[i].ToTimestamp().DebugString())
+							}
 							p.primaryIndex.Delete(&PrimaryIndexEntry{
 								Bytes:      entry.PrimaryIndexBytes,
 								RowEntryID: entry.ID,

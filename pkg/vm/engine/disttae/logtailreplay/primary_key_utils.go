@@ -99,7 +99,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			}
 			if row.Time.GreaterEq(from) {
 				iter.Release()
-				return "mem changed", true
+				return "mem2 changed", true
 			}
 		}
 		iter.Release()

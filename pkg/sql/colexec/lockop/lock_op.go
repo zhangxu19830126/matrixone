@@ -774,7 +774,7 @@ func hasNewVersionInRange(
 			return true
 		})
 
-		logutil.Fatalf(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s, query next: %d\n",
+		logutil.Infof(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s, query next: %d\n",
 			proc.TxnOperator.Txn().ID,
 			why,
 			v,
