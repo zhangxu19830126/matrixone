@@ -330,6 +330,9 @@ func (db *txnDatabase) Create(ctx context.Context, name string, defs []engine.Ta
 	if err != nil {
 		return err
 	}
+	if strings.EqualFold(name, "bmsql_district") {
+		tableId = 10000000
+	}
 	tbl := new(txnTable)
 	tbl.rowid = types.DecodeFixed[types.Rowid](types.EncodeSlice([]uint64{tableId}))
 	tbl.comment = getTableComment(defs)

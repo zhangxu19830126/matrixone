@@ -47,6 +47,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	defer iter.Release()
 
 	seek := false
+	hasData := false
 	for {
 		if !seek {
 			seek = true
@@ -67,6 +68,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			break
 		}
 
+		hasData = true
 		if entry.Time.GreaterEq(from) {
 			return "mem changed", true
 		}
@@ -106,5 +108,8 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 
 	}
 
-	return "mem not changed", false
+	if hasData {
+		return "mem not changed", false
+	}
+	return "no data in mem", false
 }
