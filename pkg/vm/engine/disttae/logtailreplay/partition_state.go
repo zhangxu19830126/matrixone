@@ -350,7 +350,7 @@ func (p *PartitionState) HandleRowsInsert(
 					v = append(v, types.EncodeInt32(&v2)...)
 					key := fmt.Sprintf(">>>>> %x", v)
 					nextOId := vector.GetFixedAt[int32](batch.Vecs[6], i)
-					logutil.Fatalf("%s add insert %d by commit ts %s", key, nextOId, entry.Time.ToTimestamp().DebugString())
+					logutil.Infof("%s add insert %d by commit ts %s", key, nextOId, entry.Time.ToTimestamp().DebugString())
 				}
 				entry := &PrimaryIndexEntry{
 					Bytes:      primaryKeys[i],
@@ -450,7 +450,7 @@ func (p *PartitionState) HandleRowsDelete(
 					v := types.EncodeInt32(&v1)
 					v = append(v, types.EncodeInt32(&v2)...)
 					key := fmt.Sprintf(">>>>> %x", v)
-					logutil.Fatalf("%s add delete by commit ts %s", key, entry.Time.ToTimestamp().DebugString())
+					logutil.Infof("%s add delete by commit ts %s", key, entry.Time.ToTimestamp().DebugString())
 				}
 				entry := &PrimaryIndexEntry{
 					Bytes:      primaryKeys[i],

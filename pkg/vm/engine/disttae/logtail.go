@@ -20,6 +20,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
 )
@@ -31,6 +32,9 @@ func consumeEntry(
 	state *logtailreplay.PartitionState,
 	e *api.Entry,
 ) error {
+	if e.TableId == 10000000 {
+		logutil.Infof(">>>>> apply 10000000 entry %s", e.EntryType.String())
+	}
 
 	var packer *types.Packer
 	put := engine.packerPool.Get(&packer)
