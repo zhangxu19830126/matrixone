@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
+	moruntime "github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
@@ -31,6 +32,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
+	"github.com/matrixorigin/matrixone/pkg/util/executor"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 	"go.uber.org/zap"
@@ -757,7 +759,22 @@ func hasNewVersionInRange(
 		v := types.EncodeInt32(&v1)
 		v = append(v, types.EncodeInt32(&v2)...)
 		key := fmt.Sprintf("%x", v)
-		logutil.Infof(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s\n",
+
+		vv, _ := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.InternalSQLExecutor)
+		exec := vv.(executor.SQLExecutor)
+		sql := fmt.Sprintf("select d_next_o_id from bmsql_district where d_w_id = %d and d_id = %d", v1, v2)
+		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithTxn(txnOp).WithDatabase("tpcc_1").WithDisableIncrStatement())
+		if err != nil {
+			return false, err
+		}
+		defer res.Close()
+		var nextOID int32
+		res.ReadRows(func(cols []*vector.Vector) bool {
+			nextOID = executor.GetFixedRows[int32](cols[0])[0]
+			return true
+		})
+
+		logutil.Fatalf(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s, query next: %d\n",
 			proc.TxnOperator.Txn().ID,
 			why,
 			v,
@@ -766,7 +783,8 @@ func hasNewVersionInRange(
 			key,
 			from.DebugString(),
 			to.DebugString(),
-			txnOp.Txn().SnapshotTS.DebugString())
+			txnOp.Txn().SnapshotTS.DebugString(),
+			nextOID)
 		proc.TxnOperator.GetWorkspace().AddCheckNotChanged(key, from, to)
 	}
 	return changed, nil
