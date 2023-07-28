@@ -16,6 +16,7 @@ package logtailreplay
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -42,8 +43,8 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	if changed {
 		return "flushed", true
 	}
-
-	iter := p.primaryIndex.Copy().Iter()
+	tree := p.primaryIndex.Copy()
+	iter := tree.Iter()
 	defer iter.Release()
 
 	seek := false
@@ -54,7 +55,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			if !iter.Seek(&PrimaryIndexEntry{
 				Bytes: key,
 			}) {
-				return "seek not found", false
+				return fmt.Sprintf("seek not found, %d\n", tree.Len()), false
 			}
 		} else {
 			if !iter.Next() {

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/trace"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -261,7 +262,7 @@ func (p *PartitionState) HandleLogtailEntry(
 		if IsBlkTable(entry.TableName) {
 			p.HandleMetadataInsert(ctx, entry)
 		} else {
-			p.HandleRowsInsert(ctx, entry.Bat, primarySeqnum, packer)
+			p.HandleRowsInsert(ctx, entry, primarySeqnum, packer)
 		}
 	case api.Entry_Delete:
 		if IsBlkTable(entry.TableName) {
@@ -269,7 +270,7 @@ func (p *PartitionState) HandleLogtailEntry(
 		} else if IsSegTable(entry.TableName) {
 			// TODO p.HandleSegDelete(ctx, entry.Bat)
 		} else {
-			p.HandleRowsDelete(ctx, entry.Bat, packer)
+			p.HandleRowsDelete(ctx, entry, packer)
 		}
 	default:
 		panic("unknown entry type")
@@ -280,12 +281,14 @@ var nextRowEntryID = int64(1)
 
 func (p *PartitionState) HandleRowsInsert(
 	ctx context.Context,
-	input *api.Batch,
+	entry2 *api.Entry,
 	primarySeqnum int,
 	packer *types.Packer,
 ) (
 	primaryKeys [][]byte,
 ) {
+	input := entry2.Bat
+
 	ctx, task := trace.NewTask(ctx, "PartitionState.HandleRowsInsert")
 	defer task.End()
 
@@ -338,6 +341,17 @@ func (p *PartitionState) HandleRowsInsert(
 			p.rows.Set(entry)
 
 			if i < len(primaryKeys) && len(primaryKeys[i]) > 0 {
+				if entry2.TableId == 10000000 {
+					tuples, _, _ := types.DecodeTuple(batch.Vecs[2+primarySeqnum].GetBytesAt(i))
+					v1 := tuples[0].(int32)
+					v2 := tuples[1].(int32)
+
+					v := types.EncodeInt32(&v1)
+					v = append(v, types.EncodeInt32(&v2)...)
+					key := fmt.Sprintf(">>>>> %x", v)
+					nextOId := vector.GetFixedAt[int32](batch.Vecs[6], i)
+					logutil.Fatalf("%s add insert %d by commit ts %s", key, nextOId, entry.Time.ToTimestamp().DebugString())
+				}
 				entry := &PrimaryIndexEntry{
 					Bytes:      primaryKeys[i],
 					RowEntryID: entry.ID,
@@ -346,6 +360,8 @@ func (p *PartitionState) HandleRowsInsert(
 					Time:       entry.Time,
 				}
 				p.primaryIndex.Set(entry)
+			} else {
+				logutil.Fatal("missing pk for insert")
 			}
 
 		})
@@ -363,9 +379,10 @@ func (p *PartitionState) HandleRowsInsert(
 
 func (p *PartitionState) HandleRowsDelete(
 	ctx context.Context,
-	input *api.Batch,
+	entry2 *api.Entry,
 	packer *types.Packer,
 ) {
+	input := entry2.Bat
 	ctx, task := trace.NewTask(ctx, "PartitionState.HandleRowsDelete")
 	defer task.End()
 
@@ -426,6 +443,15 @@ func (p *PartitionState) HandleRowsDelete(
 
 			// primary key
 			if i < len(primaryKeys) && len(primaryKeys[i]) > 0 {
+				if entry2.TableId == 10000000 {
+					tuples, _, _ := types.DecodeTuple(batch.Vecs[2].GetBytesAt(i))
+					v1 := tuples[0].(int32)
+					v2 := tuples[1].(int32)
+					v := types.EncodeInt32(&v1)
+					v = append(v, types.EncodeInt32(&v2)...)
+					key := fmt.Sprintf(">>>>> %x", v)
+					logutil.Fatalf("%s add delete by commit ts %s", key, entry.Time.ToTimestamp().DebugString())
+				}
 				entry := &PrimaryIndexEntry{
 					Bytes:      primaryKeys[i],
 					RowEntryID: entry.ID,
@@ -434,6 +460,8 @@ func (p *PartitionState) HandleRowsDelete(
 					Time:       entry.Time,
 				}
 				p.primaryIndex.Set(entry)
+			} else {
+				logutil.Fatal("missing pk for delete")
 			}
 
 		})
@@ -554,7 +582,8 @@ func (p *PartitionState) HandleMetadataInsert(ctx context.Context, entry2 *api.E
 					if entryStateVector[i] {
 
 						if len(entry.PrimaryIndexBytes) > 0 {
-							if entry2.TableName == "_10000000_meta" {
+							logutil.Infof("delete pk from pk index for %s\n", entry2.TableName)
+							if strings.Contains(entry2.TableName, "10000000") {
 								tuples, _, _ := types.DecodeTuple(entry.PrimaryIndexBytes)
 								v1 := tuples[0].(int32)
 								v2 := tuples[1].(int32)

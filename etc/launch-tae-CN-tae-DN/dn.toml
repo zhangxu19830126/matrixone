@@ -37,6 +37,7 @@ backend = "TAE"
 log-backend = "logservice"
 
 [dn.Txn]
+mode = "Pessimistic"
 
 [dn.Ckp]
 flush-interval = "60s"
