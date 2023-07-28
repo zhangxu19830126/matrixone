@@ -743,7 +743,7 @@ func hasNewVersionInRange(
 	}
 	fromTS := types.BuildTS(from.PhysicalTime, from.LogicalTime)
 	toTS := types.BuildTS(to.PhysicalTime, to.LogicalTime)
-	changed, err := rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
+	why, changed, err := rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
 	if err != nil {
 		return false, err
 	}
@@ -757,8 +757,9 @@ func hasNewVersionInRange(
 		v := types.EncodeInt32(&v1)
 		v = append(v, types.EncodeInt32(&v2)...)
 		key := fmt.Sprintf("%x", v)
-		logutil.Infof(">>>> %x append check not found: %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s\n",
+		logutil.Infof(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s\n",
 			proc.TxnOperator.Txn().ID,
+			why,
 			v,
 			v1,
 			v2,

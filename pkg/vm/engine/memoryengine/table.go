@@ -387,6 +387,6 @@ func (t *Table) GetColumMetadataScanInfo(ctx context.Context, name string) ([]*p
 	return nil, nil
 }
 
-func (t *Table) PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keyVector *vector.Vector) (bool, error) {
-	return true, nil
+func (t *Table) PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keyVector *vector.Vector) (string, bool, error) {
+	return "", true, nil
 }

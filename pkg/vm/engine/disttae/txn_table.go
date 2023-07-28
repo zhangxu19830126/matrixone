@@ -1656,16 +1656,16 @@ func (tbl *txnTable) updateLogtail(ctx context.Context) (err error) {
 	return nil
 }
 
-func (tbl *txnTable) PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keysVector *vector.Vector) (bool, error) {
+func (tbl *txnTable) PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keysVector *vector.Vector) (string, bool, error) {
 
 	switch tbl.tableId {
 	case catalog.MO_DATABASE_ID, catalog.MO_TABLES_ID, catalog.MO_COLUMNS_ID:
-		return true, nil
+		return "", true, nil
 	}
 
 	part, err := tbl.getPartitionState(ctx)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 
 	var packer *types.Packer
@@ -1674,13 +1674,16 @@ func (tbl *txnTable) PrimaryKeysMayBeModified(ctx context.Context, from types.TS
 	packer.Reset()
 	keys := logtailreplay.EncodePrimaryKeyVector(keysVector, packer)
 
+	why := ""
+	changed := false
 	for _, key := range keys {
-		if part.PrimaryKeyMayBeModified(from, to, key) {
-			return true, nil
+		why, changed = part.PrimaryKeyMayBeModified(from, to, key)
+		if changed {
+			return why, true, nil
 		}
 	}
 
-	return false, nil
+	return why, false, nil
 }
 
 func (tbl *txnTable) updateDeleteInfo(deleteBlks, createBlks []types.Blockid,

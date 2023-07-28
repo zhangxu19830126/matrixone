@@ -25,7 +25,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 	from types.TS,
 	to types.TS,
 	key []byte,
-) bool {
+) (string, bool) {
 
 	p.shared.Lock()
 	lastFlushTimestamp := p.shared.lastFlushTimestamp
@@ -40,7 +40,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 		changed = false
 	}
 	if changed {
-		return true
+		return "flushed", true
 	}
 
 	iter := p.primaryIndex.Copy().Iter()
@@ -53,7 +53,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			if !iter.Seek(&PrimaryIndexEntry{
 				Bytes: key,
 			}) {
-				return false
+				return "seek not found", false
 			}
 		} else {
 			if !iter.Next() {
@@ -68,7 +68,7 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 		}
 
 		if entry.Time.GreaterEq(from) {
-			return true
+			return "mem changed", true
 		}
 
 		// some legacy deletion entries may not indexed, check all rows for changes
@@ -99,12 +99,12 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 			}
 			if row.Time.GreaterEq(from) {
 				iter.Release()
-				return true
+				return "mem changed", true
 			}
 		}
 		iter.Release()
 
 	}
 
-	return false
+	return "mem not changed", false
 }

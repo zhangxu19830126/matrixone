@@ -560,7 +560,7 @@ type Relation interface {
 	// PrimaryKeysMayBeModified reports whether any rows with any primary keys in keyVector was modified during `from` to `to`
 	// If not sure, returns true
 	// Initially added for implementing locking rows by primary keys
-	PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keyVector *vector.Vector) (bool, error)
+	PrimaryKeysMayBeModified(ctx context.Context, from types.TS, to types.TS, keyVector *vector.Vector) (string, bool, error)
 }
 
 type Reader interface {
