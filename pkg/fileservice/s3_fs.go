@@ -896,7 +896,7 @@ func newS3FS(arguments []string) (*S3FS, error) {
 			return nil, err
 		}
 		if endpointURL.Scheme == "" {
-			endpointURL.Scheme = "https"
+			endpointURL.Scheme = "http"
 		}
 		endpoint = endpointURL.String()
 	}
@@ -915,6 +915,11 @@ func newS3FS(arguments []string) (*S3FS, error) {
 			}
 		}
 	}
+
+	http.DefaultDialKeepAliveTimeout = time.Minute
+	http.DefaultHTTPTransportMaxIdleConnsPerHost = 10000
+	http.DefaultHTTPTransportMaxIdleConns = 100
+	http.DefaultHTTPTransportIdleConnTimeout = time.Minute * 2
 
 	// options for loading configs
 	loadConfigOptions := []func(*config.LoadOptions) error{
