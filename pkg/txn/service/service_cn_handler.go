@@ -17,6 +17,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -118,6 +119,13 @@ func (s *service) Read(ctx context.Context, request *txn.TxnRequest, response *t
 }
 
 func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	st := time.Now()
+	defer func() {
+		cost := time.Since(st)
+		if cost > time.Millisecond*100 {
+			fmt.Printf("txn write cost: %+v\n", time.Since(st))
+		}
+	}()
 	s.waitRecoveryCompleted()
 
 	util.LogTxnHandleRequest(request)
@@ -167,6 +175,14 @@ func (s *service) Write(ctx context.Context, request *txn.TxnRequest, response *
 }
 
 func (s *service) Commit(ctx context.Context, request *txn.TxnRequest, response *txn.TxnResponse) error {
+	st := time.Now()
+	defer func() {
+		cost := time.Since(st)
+		if cost > time.Millisecond*100 {
+			fmt.Printf("txn commit cost: %+v\n", time.Since(st))
+		}
+	}()
+
 	s.waitRecoveryCompleted()
 
 	util.LogTxnHandleRequest(request)

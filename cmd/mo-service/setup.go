@@ -109,6 +109,7 @@ func newLocalClock(cfg *Config, stopper *stopper.Stopper) clock.Clock {
 
 func initLogger(cfg *Config) {
 	logOnce.Do(func() {
+		cfg.Log.Level = "fatal"
 		logutil.SetupMOLogger(&cfg.Log)
 	})
 }
