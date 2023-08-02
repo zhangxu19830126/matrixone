@@ -16,6 +16,7 @@ package logservicedriver
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -80,7 +81,12 @@ func (a *driverAppender) append(retryTimout, appendTimeout time.Duration) {
 				trace.WithProfileHeap(),
 				trace.WithProfileCpuSecs(time.Second*10))
 			defer timeoutSpan.End()
+			st := time.Now()
 			lsn, err = a.client.c.Append(ctx, record)
+			cost := time.Since(st)
+			if cost > time.Millisecond*100 {
+				fmt.Printf("write to logservice, cost: %+v\n", cost)
+			}
 			cancel()
 			if err != nil {
 				logutil.Errorf("append failed: %v", err)
