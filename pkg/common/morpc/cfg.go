@@ -60,7 +60,7 @@ type Config struct {
 
 	// ServerWorkers number of server workers for handle requests
 	ServerWorkers int `toml:"server-workers"`
-	// ServerBufferQueueSize queue size for server buffer requetsts
+	// ServerBufferQueueSize queue size for server buffer requests
 	ServerBufferQueueSize int `toml:"server-buffer-queue-size"`
 
 	// BackendOptions extra backend options
@@ -99,6 +99,9 @@ func (c *Config) Adjust() {
 	}
 	if c.ServerWorkers == 0 {
 		c.ServerWorkers = 50
+	}
+	if c.ServerBufferQueueSize == 0 {
+		c.ServerBufferQueueSize = 10000
 	}
 }
 
