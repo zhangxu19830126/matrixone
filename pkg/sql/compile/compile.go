@@ -324,7 +324,13 @@ func (c *Compile) run(s *Scope) error {
 
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) error {
+	st := time.Now()
 	defer func() {
+		cost := time.Since(st)
+		if cost > time.Millisecond*100 {
+			fmt.Printf("exec sql, cost: %+v\n", cost)
+		}
+
 		if c.anal != nil {
 			for i := range c.anal.analInfos {
 				analPool.Put(c.anal.analInfos[i])
