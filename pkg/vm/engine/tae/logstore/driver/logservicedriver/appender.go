@@ -81,12 +81,7 @@ func (a *driverAppender) append(retryTimout, appendTimeout time.Duration) {
 				trace.WithProfileHeap(),
 				trace.WithProfileCpuSecs(time.Second*10))
 			defer timeoutSpan.End()
-			st := time.Now()
 			lsn, err = a.client.c.Append(ctx, record)
-			cost := time.Since(st)
-			if cost > time.Millisecond*100 {
-				fmt.Printf("write to logservice, cost: %+v\n", cost)
-			}
 			cancel()
 			if err != nil {
 				logutil.Errorf("append failed: %v", err)
@@ -119,7 +114,8 @@ func logSlowAppend() func() {
 	return func() {
 		elapsed := time.Since(start)
 		if elapsed >= slowAppend {
-			logutil.Warnf("append to logservice took %s", elapsed)
+			//logutil.Warnf("append to logservice took %s", elapsed)
+			fmt.Printf("append to logservice took %s.\n", elapsed)
 		}
 	}
 }
