@@ -149,12 +149,13 @@ func (h *Handle) HandleCommit(
 		}
 		common.DoIfInfoEnabled(func() {
 			if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
-				logutil.Info("Commit with long latency", zap.Duration("duration", time.Since(start)), zap.String("debug", meta.DebugString()))
+				logutil.Info("Commit with long latency",
+					zap.Duration("duration", time.Since(start)),
+					zap.String("debug", meta.DebugString()))
 			}
 		})
-
 		if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
-			fmt.Printf("Commit with logng latency, duration:%f, debug:%s.\n",
+			fmt.Printf("Handle commit request with long latency, duration:%f, debug:%s.\n",
 				time.Since(start).Seconds(),
 				meta.DebugString())
 
@@ -174,9 +175,10 @@ func (h *Handle) HandleCommit(
 			return
 		}
 		if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
-			fmt.Printf("Handle request with logng latency, duration:%f.\n",
+			fmt.Printf("Handle write request with long latency, duration:%f.\n",
 				time.Since(start).Seconds())
 		}
+
 	}
 	txn, err = h.db.GetTxnByID(meta.GetID())
 	if err != nil {
@@ -186,6 +188,7 @@ func (h *Handle) HandleCommit(
 	if txn.Is2PC() {
 		txn.SetCommitTS(types.TimestampToTS(meta.GetCommitTS()))
 	}
+	startCommit := time.Now()
 	err = txn.Commit(ctx)
 	cts = txn.GetCommitTS().ToTimestamp()
 
@@ -209,7 +212,7 @@ func (h *Handle) HandleCommit(
 			cts = txn.GetCommitTS().ToTimestamp()
 			if !moerr.IsMoErrCode(err, moerr.ErrTAENeedRetry) {
 				if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
-					fmt.Printf("Retry commit with logng latency, duration:%f, debug:%s.\n",
+					fmt.Printf("Retry commit with long latency, duration:%f, debug:%s.\n",
 						time.Since(start).Seconds(),
 						meta.DebugString())
 				}
@@ -217,6 +220,12 @@ func (h *Handle) HandleCommit(
 			}
 		}
 	}
+	if time.Since(startCommit) > MAX_ALLOWED_TXN_LATENCY {
+		fmt.Printf("Commit with long latency, duration:%f, debug:%s.\n",
+			time.Since(startCommit).Seconds(),
+			meta.DebugString())
+	}
+
 	return
 }
 
