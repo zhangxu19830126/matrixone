@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"sync"
 	"syscall"
@@ -151,6 +152,13 @@ func (h *Handle) HandleCommit(
 				logutil.Info("Commit with long latency", zap.Duration("duration", time.Since(start)), zap.String("debug", meta.DebugString()))
 			}
 		})
+
+		if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
+			fmt.Printf("Commit with logng latency, duration:%f, debug:%s.\n",
+				time.Since(start).Seconds(),
+				meta.DebugString())
+
+		}
 	}()
 	var txn txnif.AsyncTxn
 	if ok {
@@ -160,9 +168,14 @@ func (h *Handle) HandleCommit(
 		if err != nil {
 			return
 		}
+		start := time.Now()
 		err = h.handleRequests(ctx, txn, txnCtx)
 		if err != nil {
 			return
+		}
+		if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
+			fmt.Printf("Handle request with logng latency, duration:%f.\n",
+				time.Since(start).Seconds())
 		}
 	}
 	txn, err = h.db.GetTxnByID(meta.GetID())
@@ -178,12 +191,14 @@ func (h *Handle) HandleCommit(
 
 	if moerr.IsMoErrCode(err, moerr.ErrTAENeedRetry) {
 		for {
+			start := time.Now()
 			txn, err = h.db.StartTxnWithStartTSAndSnapshotTS(nil,
 				types.TimestampToTS(meta.GetSnapshotTS()))
 			if err != nil {
 				return
 			}
 			logutil.Infof("retry txn %X with new txn %X", string(meta.GetID()), txn.GetID())
+			fmt.Printf("retry txn %X with new txn %X.\n", string(meta.GetID()), txn.GetID())
 			//Handle precommit-write command for 1PC
 			h.handleRequests(ctx, txn, txnCtx)
 			//if txn is 2PC ,need to set commit timestamp passed by coordinator.
@@ -193,6 +208,11 @@ func (h *Handle) HandleCommit(
 			err = txn.Commit(ctx)
 			cts = txn.GetCommitTS().ToTimestamp()
 			if !moerr.IsMoErrCode(err, moerr.ErrTAENeedRetry) {
+				if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
+					fmt.Printf("Retry commit with logng latency, duration:%f, debug:%s.\n",
+						time.Since(start).Seconds(),
+						meta.DebugString())
+				}
 				break
 			}
 		}
@@ -498,6 +518,14 @@ func (h *Handle) EvaluateTxnRequest(
 	ctx context.Context,
 	meta txn.TxnMeta,
 ) (err error) {
+	start := time.Now()
+	defer func() {
+		if time.Since(start) > MAX_ALLOWED_TXN_LATENCY {
+			fmt.Printf("Evaluate request with long latency, duration:%f, debug:%s.\n",
+				time.Since(start).Seconds(),
+				meta.DebugString())
+		}
+	}()
 	h.mu.RLock()
 	txnCtx := h.mu.txnCtxs[string(meta.GetID())]
 	h.mu.RUnlock()
