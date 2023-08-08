@@ -245,6 +245,8 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	c.Txn.Mode = txn.TxnMode_Optimistic.String()
+
 	if c.Txn.IncrementalDedup == "" {
 		if txn.GetTxnMode(c.Txn.Mode) == txn.TxnMode_Pessimistic {
 			c.Txn.IncrementalDedup = "true"
@@ -257,6 +259,7 @@ func (c *Config) Validate() error {
 			return moerr.NewBadDBNoCtx("not support txn incremental-dedup: " + c.Txn.IncrementalDedup)
 		}
 	}
+	c.Txn.IncrementalDedup = "true"
 
 	c.RPC.Adjust()
 	c.Ctl.Adjust(foundMachineHost, defaultCtlListenAddress)

@@ -304,6 +304,8 @@ func (c *Config) Validate() error {
 		return moerr.NewBadDBNoCtx("not support txn mode: " + c.Txn.Mode)
 	}
 
+	c.Txn.Mode = txn.TxnMode_Optimistic.String()
+
 	if c.Txn.Isolation == "" {
 		if txn.GetTxnMode(c.Txn.Mode) == txn.TxnMode_Pessimistic {
 			c.Txn.Isolation = txn.TxnIsolation_RC.String()
@@ -355,7 +357,7 @@ func (c *Config) Validate() error {
 	} else {
 		plan.CNPrimaryCheck = false
 	}
-
+	plan.CNPrimaryCheck = true
 	if c.MaxPreparedStmtCount > 0 {
 		if c.MaxPreparedStmtCount > maxForMaxPreparedStmtCount {
 			frontend.MaxPrepareNumberInOneSession = maxForMaxPreparedStmtCount
