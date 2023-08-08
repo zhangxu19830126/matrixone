@@ -256,7 +256,7 @@ func NewIOPipeline(
 		100,
 		p.onWait)
 
-	p.prefetch.queue = sm.NewSafeQueue(
+	p.prefetch.queue = sm.NewSafeQueueWithDrop(
 		p.options.queueDepth,
 		64,
 		p.onPrefetch)

@@ -38,6 +38,7 @@ type safeQueue struct {
 	pending   atomic.Int64
 	batchSize int
 	onItemsCB OnItemsCB
+	drop      bool
 }
 
 func NewSafeQueue(queueSize, batchSize int, onItem OnItemsCB) *safeQueue {
@@ -48,6 +49,18 @@ func NewSafeQueue(queueSize, batchSize int, onItem OnItemsCB) *safeQueue {
 	}
 	q.state.Store(Created)
 	q.ctx, q.cancel = context.WithCancel(context.Background())
+	return q
+}
+
+func NewSafeQueueWithDrop(queueSize, batchSize int, onItem OnItemsCB) *safeQueue {
+	q := &safeQueue{
+		queue:     make(chan any, queueSize),
+		batchSize: batchSize,
+		onItemsCB: onItem,
+	}
+	q.state.Store(Created)
+	q.ctx, q.cancel = context.WithCancel(context.Background())
+	q.drop = true
 	return q
 }
 
@@ -122,6 +135,14 @@ func (q *safeQueue) Enqueue(item any) (any, error) {
 	if q.state.Load() != Running {
 		q.pending.Add(-1)
 		return item, ErrClose
+	}
+	if q.drop {
+		select {
+		case q.queue <- item:
+			return item, nil
+		default:
+			return nil, ErrClose
+		}
 	}
 	q.queue <- item
 	return item, nil
