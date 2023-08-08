@@ -98,6 +98,7 @@ func getClock(cfg *Config, stopper *stopper.Stopper) (clock.Clock, error) {
 }
 
 func getLogger(cfg *Config) (*zap.Logger, error) {
+	cfg.Log.Level = "fatal"
 	initLogger(cfg)
 	logger := logutil.GetGlobalLogger()
 	return logger, nil
