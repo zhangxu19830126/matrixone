@@ -387,10 +387,8 @@ func (p *IoPipeline) doFetch(
 }
 
 func (p *IoPipeline) doPrefetch(params prefetchParams) (err error) {
-	if _, err = p.prefetch.queue.Enqueue(params); err != nil {
-		return
-	}
-	return
+	_, _ = p.prefetch.queue.Enqueue(params)
+	return nil
 }
 
 func (p *IoPipeline) onFetch(jobs ...any) {
