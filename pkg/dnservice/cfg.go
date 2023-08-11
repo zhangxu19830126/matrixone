@@ -237,6 +237,7 @@ func (c *Config) Validate() error {
 		c.Cluster.RefreshInterval.Duration = time.Second * 10
 	}
 
+	c.Txn.Mode = txn.TxnMode_Optimistic.String()
 	if c.Txn.Mode == "" {
 		c.Txn.Mode = txn.TxnMode_Optimistic.String()
 	} else {
