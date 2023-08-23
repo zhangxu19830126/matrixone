@@ -18,9 +18,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -252,6 +254,9 @@ func (w *waiter) wait(
 	case v := <-w.c:
 		apply(v)
 		return v
+	case <-time.After(time.Second * 10):
+		fmt.Printf("%x wait too long\n", w.txnID)
+		os.Exit(1)
 	case <-ctx.Done():
 		select {
 		case v := <-w.c:

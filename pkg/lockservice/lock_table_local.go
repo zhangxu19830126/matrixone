@@ -403,6 +403,14 @@ func (l *localLockTable) handleLockConflictLocked(
 	w.waiters.reset()
 	conflictWith.waiter.waiters.commitChange()
 	logLocalLockWaitOn(l.bind.ServiceID, txn, l.bind.Table, w, key, conflictWith)
+
+	var waiters []string
+	conflictWith.waiter.waiters.iter(func(w *waiter) bool {
+		waiters = append(waiters, fmt.Sprintf("%x", w.txnID))
+		return true
+	})
+
+	fmt.Printf("%x added to %x waiter list: %s\n", txn.txnID, conflictWith.txnID, waiters)
 }
 
 func getWaiter(
