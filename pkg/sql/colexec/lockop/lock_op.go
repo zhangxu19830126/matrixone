@@ -778,7 +778,7 @@ func hasNewVersionInRange(
 	}
 
 	txnOp := proc.TxnOperator
-	_, _, rel, err := eng.GetRelationById(proc.Ctx, txnOp, tableID)
+	_, tableName, rel, err := eng.GetRelationById(proc.Ctx, txnOp, tableID)
 	if err != nil {
 		if strings.Contains(err.Error(), "can not find table by id") {
 			return false, nil
@@ -805,55 +805,7 @@ func hasNewVersionInRange(
 		vv, _ := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.InternalSQLExecutor)
 		exec := vv.(executor.SQLExecutor)
 		sql := fmt.Sprintf("select d_next_o_id from bmsql_district where d_w_id = %d and d_id = %d", v1, v2)
-		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithTxn(txnOp).WithDatabase("tpcc_100").WithDisableIncrStatement())
-		if err != nil {
-			return false, err
-		}
-		defer res.Close()
-		var nextOID int32
-		res.ReadRows(func(cols []*vector.Vector) bool {
-			nextOID = executor.GetFixedRows[int32](cols[0])[0]
-			return true
-		})
-
-		logutil.Infof(">>>> %x append check not found(%s): %x(%d, %d), added key %s [%s, %s], check txn snapshot ts %s, query next: %d\n",
-			proc.TxnOperator.Txn().ID,
-			why,
-			v,
-			v1,
-			v2,
-			key,
-			from.DebugString(),
-			to.DebugString(),
-			txnOp.Txn().SnapshotTS.DebugString(),
-			nextOID)
-		proc.TxnOperator.GetWorkspace().AddCheckNotChanged(key, from, to)
-	}
-	_, err = rel.Ranges(proc.Ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	fromTS := types.BuildTS(from.PhysicalTime, from.LogicalTime)
-	toTS := types.BuildTS(to.PhysicalTime, to.LogicalTime)
-	why, changed, err := rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
-	if err != nil {
-		return false, err
-	}
-	if !changed && strings.Contains(tableName, "bmsql_district") {
-		//  pk:  [from,to] no changed
-		//  dup: pk dup
-		//  commit: commit ts: pk
-		tuples, _, _ := types.DecodeTuple(vec.GetBytesAt(0))
-		v1 := tuples[0].(int32)
-		v2 := tuples[1].(int32)
-		v := types.EncodeInt32(&v1)
-		v = append(v, types.EncodeInt32(&v2)...)
-		key := fmt.Sprintf("%x", v)
-
-		vv, _ := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.InternalSQLExecutor)
-		exec := vv.(executor.SQLExecutor)
-		sql := fmt.Sprintf("select d_next_o_id from bmsql_district where d_w_id = %d and d_id = %d", v1, v2)
-		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithTxn(txnOp).WithDatabase("tpcc_100").WithDisableIncrStatement())
+		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithMinCommittedTS(to).WithDatabase("tpcc").WithDisableIncrStatement())
 		if err != nil {
 			return false, err
 		}

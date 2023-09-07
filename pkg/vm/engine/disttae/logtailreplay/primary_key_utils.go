@@ -33,29 +33,25 @@ func (p *PartitionState) PrimaryKeyMayBeModified(
 
 	if !lastFlushTimestamp.IsEmpty() {
 		if from.LessEq(lastFlushTimestamp) {
-			return true
+			return "flushed", true
 		}
-	} else {
-		changed = false
 	}
-	if changed {
-		return "flushed", true
-	}
+
 	tree := p.primaryIndex.Copy()
 	iter := tree.Iter()
 	defer iter.Release()
 
+	hasData := false
 	for ok := iter.Seek(&PrimaryIndexEntry{
 		Bytes: key,
 	}); ok; ok = iter.Next() {
-
+		hasData = true
 		entry := iter.Item()
 
 		if !bytes.Equal(entry.Bytes, key) {
 			break
 		}
 
-		hasData = true
 		if entry.Time.GreaterEq(from) {
 			return "mem changed", true
 		}
