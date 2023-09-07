@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	stdhttp "net/http"
 	"net/url"
-	"os"
 	pathpkg "path"
+	gotrace "runtime/trace"
 	"sort"
 	"strings"
 	"time"
@@ -56,6 +57,8 @@ type S3FS struct {
 
 	perfCounterSets []*perfcounter.CounterSet
 	listMaxKeys     int32
+
+	ioLocks IOLocks
 }
 
 // key mapping scheme:
@@ -140,8 +143,8 @@ func (s *S3FS) initCaches(ctx context.Context, config CacheConfig) error {
 	// memory cache
 	if *config.MemoryCapacity > DisableCacheCapacity {
 		s.memCache = NewMemCache(
-			WithLRU(int64(*config.MemoryCapacity)),
-			WithPerfCounterSets(s.perfCounterSets),
+			NewLRUCache(int64(*config.MemoryCapacity), true, &config.CacheCallbacks),
+			s.perfCounterSets,
 		)
 		logutil.Info("fileservice: memory cache initialized",
 			zap.Any("fs-name", s.name),
@@ -288,8 +291,13 @@ func (s *S3FS) Write(ctx context.Context, vector IOVector) error {
 	default:
 	}
 
-	ctx, span := trace.Start(ctx, "S3FS.Write")
-	defer span.End()
+	var err error
+	size := vector.EntriesSize()
+	ctx, span := trace.Start(ctx, "S3FS.Write", trace.WithKind(trace.SpanKindS3FSVis))
+	defer func() {
+		// cover another func to catch the err when process Write
+		span.End(trace.WithFSReadWriteExtra(vector.FilePath, err, size))
+	}()
 
 	// check existence
 	path, err := ParsePathAtService(vector.FilePath, s.name)
@@ -318,15 +326,18 @@ func (s *S3FS) Write(ctx context.Context, vector IOVector) error {
 	}
 	if output != nil {
 		// key existed
-		return moerr.NewFileAlreadyExistsNoCtx(path.File)
+		err = moerr.NewFileAlreadyExistsNoCtx(path.File)
+		return err
 	}
 
-	return s.write(ctx, vector)
+	err = s.write(ctx, vector)
+	return err
 }
 
 func (s *S3FS) write(ctx context.Context, vector IOVector) (err error) {
 	ctx, span := trace.Start(ctx, "S3FS.write")
 	defer span.End()
+
 	path, err := ParsePathAtService(vector.FilePath, s.name)
 	if err != nil {
 		return err
@@ -426,6 +437,15 @@ func (s *S3FS) Read(ctx context.Context, vector *IOVector) (err error) {
 		return moerr.NewEmptyVectorNoCtx()
 	}
 
+	unlock, wait := s.ioLocks.Lock(IOLockKey{
+		File: vector.FilePath,
+	})
+	if unlock != nil {
+		defer unlock()
+	} else {
+		wait()
+	}
+
 	if s.memCache != nil {
 		if err := s.memCache.Read(ctx, vector); err != nil {
 			return err
@@ -450,20 +470,52 @@ func (s *S3FS) Read(ctx context.Context, vector *IOVector) (err error) {
 		}()
 	}
 
-	if err := s.read(ctx, vector); err != nil {
-		return err
+	err = s.read(ctx, vector)
+	return err
+}
+
+func (s *S3FS) ReadCache(ctx context.Context, vector *IOVector) (err error) {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if len(vector.Entries) == 0 {
+		return moerr.NewEmptyVectorNoCtx()
+	}
+
+	unlock, wait := s.ioLocks.Lock(IOLockKey{
+		File: vector.FilePath,
+	})
+	if unlock != nil {
+		defer unlock()
+	} else {
+		wait()
+	}
+
+	if s.memCache != nil {
+		if err := s.memCache.Read(ctx, vector); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
+func (s *S3FS) read(ctx context.Context, vector *IOVector) (err error) {
 	if vector.allDone() {
+		// all cache hit
 		return nil
 	}
 
-	ctx, span := trace.Start(ctx, "S3FS.read")
-	defer span.End()
+	// collect read info only when cache missing
+	size := vector.EntriesSize()
+	ctx, span := trace.Start(ctx, "S3FS.read", trace.WithKind(trace.SpanKindS3FSVis))
+	defer func() {
+		span.End(trace.WithFSReadWriteExtra(vector.FilePath, err, size))
+	}()
+
 	path, err := ParsePathAtService(vector.FilePath, s.name)
 	if err != nil {
 		return err
@@ -494,29 +546,6 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 	getReader := func(ctx context.Context, readToEnd bool, min int64, max int64) (io.ReadCloser, error) {
 		ctx, spanR := trace.Start(ctx, "S3FS.read.getReader")
 		defer spanR.End()
-
-		// try to load from disk cache
-		if s.diskCache != nil {
-			r, err := s.diskCache.GetFileContent(ctx, vector.FilePath, min)
-			if moerr.IsMoErrCode(err, moerr.ErrFileNotFound) ||
-				os.IsNotExist(err) {
-				err = nil
-			}
-			if err != nil {
-				return nil, err
-			}
-			if r != nil {
-				// cache hit
-				if readToEnd {
-					return r, nil
-				} else {
-					return &readCloser{
-						r:         io.LimitReader(r, max-min),
-						closeFunc: r.Close,
-					}, nil
-				}
-			}
-		}
 
 		if readToEnd {
 			r, err := s.s3GetObject(
@@ -625,12 +654,14 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 		}
 
 		setData := true
+		var data []byte
+		var reader io.ReadCloser
 
 		if w := vector.Entries[i].WriterForRead; w != nil {
 			setData = false
 			if getContentDone {
 				// data is ready
-				data, err := getData(ctx)
+				data, err = getData(ctx)
 				if err != nil {
 					return err
 				}
@@ -641,7 +672,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 
 			} else {
 				// get a reader and copy
-				reader, err := getReader(ctx, entry.Size < 0, entry.Offset, entry.Offset+entry.Size)
+				reader, err = getReader(ctx, entry.Size < 0, entry.Offset, entry.Offset+entry.Size)
 				if err != nil {
 					return err
 				}
@@ -661,7 +692,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 			setData = false
 			if getContentDone {
 				// data is ready
-				data, err := getData(ctx)
+				data, err = getData(ctx)
 				if err != nil {
 					return err
 				}
@@ -669,7 +700,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 
 			} else {
 				// get a new reader
-				reader, err := getReader(ctx, entry.Size < 0, entry.Offset, entry.Offset+entry.Size)
+				reader, err = getReader(ctx, entry.Size < 0, entry.Offset, entry.Offset+entry.Size)
 				if err != nil {
 					return err
 				}
@@ -682,7 +713,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 
 		// set Data field
 		if setData {
-			data, err := getData(ctx)
+			data, err = getData(ctx)
 			if err != nil {
 				return err
 			}
@@ -696,24 +727,13 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector) error {
 			}
 		}
 
-		// set ObjectBytes field
-		if err := entry.setObjectBytesFromData(); err != nil {
+		if err = entry.setCachedData(); err != nil {
 			return err
 		}
 
 		vector.Entries[i] = entry
 	}
 
-	return nil
-}
-
-func (s *S3FS) Preload(ctx context.Context, filePath string) error {
-	if s.diskCache != nil {
-		err := s.diskCache.SetFileContent(ctx, filePath, s.read)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -851,7 +871,7 @@ func newS3FS(arguments []string) (*S3FS, error) {
 	}
 
 	// arguments
-	var endpoint, region, bucket, apiKey, apiSecret, prefix, roleARN, externalID, name, sharedConfigProfile, isMinio string
+	var endpoint, region, bucket, apiKey, apiSecret, sessionToken, prefix, roleARN, externalID, name, sharedConfigProfile, isMinio string
 	for _, pair := range arguments {
 		key, value, ok := strings.Cut(pair, "=")
 		if !ok {
@@ -868,6 +888,8 @@ func newS3FS(arguments []string) (*S3FS, error) {
 			apiKey = value
 		case "secret":
 			apiSecret = value
+		case "token":
+			sessionToken = value
 		case "prefix":
 			prefix = value
 		case "role-arn":
@@ -914,6 +936,24 @@ func newS3FS(arguments []string) (*S3FS, error) {
 		}
 	}
 
+	// http client
+	dialer := &net.Dialer{
+		KeepAlive: 5 * time.Second,
+	}
+	httpClient := &stdhttp.Client{
+		Transport: &stdhttp.Transport{
+			Proxy:                 stdhttp.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       180 * time.Second,
+			MaxIdleConnsPerHost:   100,
+			MaxConnsPerHost:       100,
+			TLSHandshakeTimeout:   3 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			ForceAttemptHTTP2:     true,
+		},
+	}
+
 	// options for loading configs
 	loadConfigOptions := []func(*config.LoadOptions) error{
 		config.WithLogger(logutil.GetS3Logger()),
@@ -926,6 +966,7 @@ func newS3FS(arguments []string) (*S3FS, error) {
 				aws.LogRequestEventMessage |
 				aws.LogResponseEventMessage,
 		),
+		config.WithHTTPClient(httpClient),
 	}
 
 	// shared config profile
@@ -941,6 +982,7 @@ func newS3FS(arguments []string) (*S3FS, error) {
 		region,
 		apiKey,
 		apiSecret,
+		sessionToken,
 		roleARN,
 		externalID,
 	)
@@ -969,10 +1011,12 @@ func newS3FS(arguments []string) (*S3FS, error) {
 	// options for s3 client
 	s3Options := []func(*s3.Options){
 		func(opts *s3.Options) {
+
 			opts.Retryer = retry.NewStandard(func(o *retry.StandardOptions) {
 				o.MaxAttempts = maxRetryAttemps
 				o.RateLimiter = noOpRateLimit{}
 			})
+
 		},
 	}
 
@@ -1054,6 +1098,8 @@ func newS3FS(arguments []string) (*S3FS, error) {
 const maxRetryAttemps = 128
 
 func (s *S3FS) s3ListObjects(ctx context.Context, params *s3.ListObjectsInput, optFns ...func(*s3.Options)) (*s3.ListObjectsOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3ListObjects")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))
@@ -1072,6 +1118,8 @@ func (s *S3FS) s3ListObjects(ctx context.Context, params *s3.ListObjectsInput, o
 }
 
 func (s *S3FS) s3HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3HeadBucket")
+	defer task.End()
 	return doWithRetry(
 		"s3 head bucket",
 		func() (*s3.HeadBucketOutput, error) {
@@ -1083,6 +1131,8 @@ func (s *S3FS) s3HeadBucket(ctx context.Context, params *s3.HeadBucketInput, opt
 }
 
 func (s *S3FS) s3HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3HeadObject")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))
@@ -1101,6 +1151,8 @@ func (s *S3FS) s3HeadObject(ctx context.Context, params *s3.HeadObjectInput, opt
 }
 
 func (s *S3FS) s3PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3PutObject")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))
@@ -1113,6 +1165,8 @@ func (s *S3FS) s3PutObject(ctx context.Context, params *s3.PutObjectInput, optFn
 }
 
 func (s *S3FS) s3GetObject(ctx context.Context, min int64, max int64, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (io.ReadCloser, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3GetObject")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))
@@ -1152,6 +1206,8 @@ func (s *S3FS) s3GetObject(ctx context.Context, min int64, max int64, params *s3
 }
 
 func (s *S3FS) s3DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3DeleteObjects")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))
@@ -1170,6 +1226,8 @@ func (s *S3FS) s3DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInpu
 }
 
 func (s *S3FS) s3DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	ctx, task := gotrace.NewTask(ctx, "S3FS.s3DeleteObject")
+	defer task.End()
 	t0 := time.Now()
 	defer func() {
 		FSProfileHandler.AddSample(time.Since(t0))

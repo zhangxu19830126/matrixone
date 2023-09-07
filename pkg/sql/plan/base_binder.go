@@ -309,6 +309,41 @@ func (b *baseBinder) baseBindColRef(astExpr *tree.UnresolvedName, depth int32, i
 		}
 	}
 
+	if typ != nil && typ.Id == int32(types.T_enum) && len(typ.GetEnumvalues()) != 0 {
+		if err != nil {
+			errutil.ReportError(b.GetContext(), err)
+			return
+		}
+		astArgs := []tree.Expr{
+			tree.NewNumValWithType(constant.MakeString(typ.Enumvalues), typ.Enumvalues, false, tree.P_char),
+		}
+
+		// bind ast function's args
+		args := make([]*Expr, len(astArgs)+1)
+		for idx, arg := range astArgs {
+			if idx == len(args)-1 {
+				continue
+			}
+			expr, err := b.impl.BindExpr(arg, depth, false)
+			if err != nil {
+				return nil, err
+			}
+			args[idx] = expr
+		}
+		args[len(args)-1] = &Expr{
+			Typ: typ,
+			Expr: &plan.Expr_Col{
+				Col: &plan.ColRef{
+					RelPos: relPos,
+					ColPos: colPos,
+					Name:   col,
+				},
+			},
+		}
+
+		return bindFuncExprImplByPlanExpr(b.GetContext(), moEnumCastIndexToValueFun, args)
+	}
+
 	if colPos != NotFound {
 		b.boundCols = append(b.boundCols, table+"."+col)
 
@@ -937,6 +972,24 @@ func (b *baseBinder) bindFuncExprImplByAstExpr(name string, astArgs []tree.Expr,
 				}
 			}
 		}
+	case "approx_count":
+		if b.ctx == nil {
+			return nil, moerr.NewInvalidInput(b.GetContext(), "invalid field reference to COUNT")
+		}
+		switch nval := astArgs[0].(type) {
+		case *tree.NumVal:
+			if nval.String() == "*" {
+				if len(b.ctx.bindings) == 0 || len(b.ctx.bindings[0].cols) == 0 {
+					name = "count"
+				} else {
+					astArgs = []tree.Expr{tree.NewNumValWithType(constant.MakeInt64(1), "1", false, tree.P_int64)}
+				}
+			} else {
+				name = "count"
+			}
+		default:
+			name = "count"
+		}
 	case "trim":
 		astArgs = astArgs[1:]
 	}
@@ -1344,46 +1397,69 @@ func bindFuncExprImplByPlanExpr(ctx context.Context, name string, args []*Expr) 
 
 	case "in", "not_in":
 		//if all the expr in the in list can safely cast to left type, we call it safe
-		safe := true
 		if rightList, ok := args[1].Expr.(*plan.Expr_List); ok {
 			typLeft := makeTypeByPlan2Expr(args[0])
-			lenList := len(rightList.List.List)
+			var inExprList, orExprList []*plan.Expr
 
-			for i := 0; i < lenList && safe; i++ {
-				if constExpr, ok := rightList.List.List[i].Expr.(*plan.Expr_C); ok {
-					safe = checkNoNeedCast(makeTypeByPlan2Expr(rightList.List.List[i]), typLeft, constExpr)
-				} else {
-					safe = false
+			for _, rightVal := range rightList.List.List {
+				if constExpr, ok := rightVal.Expr.(*plan.Expr_C); ok {
+					if checkNoNeedCast(makeTypeByPlan2Expr(rightVal), typLeft, constExpr) {
+						inExpr, err := appendCastBeforeExpr(ctx, rightVal, args[0].Typ)
+						if err != nil {
+							return nil, err
+						}
+						inExpr, err = appendCastBeforeExpr(ctx, inExpr, args[0].Typ)
+						if err != nil {
+							return nil, err
+						}
+						inExprList = append(inExprList, inExpr)
+						continue
+					}
 				}
+				orExprList = append(orExprList, rightVal)
 			}
 
-			if safe {
-				//if safe, try to cast the in list to left type
-				for i := 0; i < lenList; i++ {
-					rightList.List.List[i], err = appendCastBeforeExpr(ctx, rightList.List.List[i], args[0].Typ)
-					if err != nil {
-						return nil, err
+			var newExpr *plan.Expr
+
+			if len(inExprList) > 4 {
+				rightList.List.List = inExprList
+				typ := makePlan2Type(&returnType)
+				typ.NotNullable = function.DeduceNotNullable(funcID, args)
+				newExpr = &Expr{
+					Expr: &plan.Expr_F{
+						F: &plan.Function{
+							Func: getFunctionObjRef(funcID, name),
+							Args: args,
+						},
+					},
+					Typ: typ,
+				}
+			} else if len(inExprList) > 0 {
+				orExprList = append(inExprList, orExprList...)
+			}
+
+			//expand the in list to col=a or col=b or ......
+			if name == "in" {
+				for _, expr := range orExprList {
+					tmpExpr, _ := bindFuncExprImplByPlanExpr(ctx, "=", []*Expr{DeepCopyExpr(args[0]), expr})
+					if newExpr == nil {
+						newExpr = tmpExpr
+					} else {
+						newExpr, _ = bindFuncExprImplByPlanExpr(ctx, "or", []*Expr{newExpr, tmpExpr})
 					}
 				}
 			} else {
-				//expand the in list to col=a or col=b or ......
-				if name == "in" {
-					newExpr, _ := bindFuncExprImplByPlanExpr(ctx, "=", []*Expr{DeepCopyExpr(args[0]), DeepCopyExpr(rightList.List.List[0])})
-					for i := 1; i < lenList; i++ {
-						tmpExpr, _ := bindFuncExprImplByPlanExpr(ctx, "=", []*Expr{DeepCopyExpr(args[0]), DeepCopyExpr(rightList.List.List[i])})
-						newExpr, _ = bindFuncExprImplByPlanExpr(ctx, "or", []*Expr{newExpr, tmpExpr})
-					}
-					return newExpr, nil
-				} else {
-					//expand the not in list to col!=a and col!=b and ......
-					newExpr, _ := bindFuncExprImplByPlanExpr(ctx, "!=", []*Expr{DeepCopyExpr(args[0]), DeepCopyExpr(rightList.List.List[0])})
-					for i := 1; i < lenList; i++ {
-						tmpExpr, _ := bindFuncExprImplByPlanExpr(ctx, "!=", []*Expr{DeepCopyExpr(args[0]), DeepCopyExpr(rightList.List.List[i])})
+				for _, expr := range orExprList {
+					tmpExpr, _ := bindFuncExprImplByPlanExpr(ctx, "!=", []*Expr{DeepCopyExpr(args[0]), expr})
+					if newExpr == nil {
+						newExpr = tmpExpr
+					} else {
 						newExpr, _ = bindFuncExprImplByPlanExpr(ctx, "and", []*Expr{newExpr, tmpExpr})
 					}
-					return newExpr, nil
 				}
 			}
+
+			return newExpr, nil
 		}
 
 	case "timediff":
@@ -1412,6 +1488,16 @@ func bindFuncExprImplByPlanExpr(ctx context.Context, name string, args []*Expr) 
 				}
 			}
 		}
+	}
+
+	if name == NameGroupConcat {
+		expressionList := args[:len(args)-1]
+		separator := args[len(args)-1]
+		compactCol, e := bindFuncExprImplByPlanExpr(ctx, "serial", expressionList)
+		if e != nil {
+			return nil, e
+		}
+		args = []*plan.Expr{compactCol, separator}
 	}
 
 	// return new expr

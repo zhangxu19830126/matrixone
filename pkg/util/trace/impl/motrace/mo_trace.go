@@ -67,20 +67,16 @@ type MOTracer struct {
 // but also trigger profile dump specify by `WithProfileGoroutine()`, `WithProfileHeap()`, `WithProfileThreadCreate()`,
 // `WithProfileAllocs()`, `WithProfileBlock()`, `WithProfileMutex()`, `WithProfileCpuSecs()`, `WithProfileTraceSecs()` SpanOption.
 func (t *MOTracer) Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	if !t.IsEnable() {
+	if !t.IsEnable(opts...) {
 		return ctx, trace.NoopSpan{}
 	}
 
 	span := newMOSpan()
 
 	// per statement profiler
-	v := ctx.Value(fileservice.CtxKeyStatementProfiler)
-	if v != nil {
-		profiler := v.(*fileservice.SpanProfiler)
-		newProfiler, end := profiler.Begin(2)
-		if newProfiler != profiler {
-			ctx = context.WithValue(ctx, fileservice.CtxKeyStatementProfiler, newProfiler)
-		}
+	ctx, end := fileservice.StatementProfileNewSpan(ctx)
+	if end != nil {
+		// Tips: check the BenchmarkMOSpan_if_vs_for result
 		span.onEnd = append(span.onEnd, end)
 	}
 
@@ -115,8 +111,23 @@ func (t *MOTracer) Debug(ctx context.Context, name string, opts ...trace.SpanSta
 	return t.Start(ctx, name, opts...)
 }
 
-func (t *MOTracer) IsEnable() bool {
-	return t.provider.IsEnable()
+func (t *MOTracer) IsEnable(opts ...trace.SpanStartOption) bool {
+	var cfg trace.SpanConfig
+	for idx := range opts {
+		opts[idx].ApplySpanStart(&cfg)
+	}
+
+	enable := t.provider.IsEnable()
+	// The enable state of kind, which falls within [SpanKindS3FSVis, SpanKindLocalFSVis],
+	// is managed by 'mo_ctl'
+	switch cfg.Kind {
+	case trace.SpanKindS3FSVis:
+		return enable && trace.MOCtledSpanEnableConfig.EnableS3FSSpan.Load()
+	case trace.SpanKindLocalFSVis:
+		return enable && trace.MOCtledSpanEnableConfig.EnableLocalFSSpan.Load()
+	default:
+		return enable
+	}
 }
 
 var _ trace.Span = (*MOHungSpan)(nil)
@@ -193,7 +204,9 @@ type MOSpan struct {
 }
 
 var spanPool = &sync.Pool{New: func() any {
-	return &MOSpan{}
+	return &MOSpan{
+		onEnd: make([]func(), 0, 2), // speedup first append op
+	}
 }}
 
 func newMOSpan() *MOSpan {
@@ -224,6 +237,7 @@ func (s *MOSpan) Free() {
 	s.StartTime = table.ZeroTime
 	s.EndTime = table.ZeroTime
 	s.doneProfile = false
+	s.onEnd = s.onEnd[:0]
 	spanPool.Put(s)
 }
 
@@ -269,13 +283,13 @@ func (s *MOSpan) FillRow(ctx context.Context, row *table.Row) {
 
 // End completes the Span. Span will be recorded if meets the following condition:
 // 1. If set Deadline in ctx, which specified at the MOTracer.Start, just check if encounters the Deadline.
-// 2. If NOT set Deadline, then check condition: Span.Duration > span.GetLongTimeThreshold().
+// 2. If NOT set Deadline, then check condition: MOSpan.Duration >= MOSpan.GetLongTimeThreshold().
 func (s *MOSpan) End(options ...trace.SpanEndOption) {
+	var err error
+	s.EndTime = time.Now()
 	for _, fn := range s.onEnd {
 		fn()
 	}
-	var err error
-	s.EndTime = time.Now()
 	deadline, hasDeadline := s.ctx.Deadline()
 	s.Duration = s.EndTime.Sub(s.StartTime)
 	// check need record
@@ -285,7 +299,7 @@ func (s *MOSpan) End(options ...trace.SpanEndOption) {
 			err = s.ctx.Err()
 		}
 	} else {
-		if s.Duration >= s.GetLongTimeThreshold() {
+		if s.NeedRecord(s.Duration) {
 			s.needRecord = true
 		}
 	}
@@ -297,6 +311,9 @@ func (s *MOSpan) End(options ...trace.SpanEndOption) {
 	for _, opt := range options {
 		opt.ApplySpanEnd(&s.SpanConfig)
 	}
+
+	s.AddExtraFields(s.SpanConfig.Extra...)
+
 	// do profile
 	if s.NeedProfile() {
 		s.doProfile()

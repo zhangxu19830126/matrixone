@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	gotrace "runtime/trace"
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -33,11 +34,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/txn/rpc"
 	"github.com/matrixorigin/matrixone/pkg/txn/util"
 	"go.uber.org/zap"
-)
-
-var (
-	_ EventableTxnOperator = (*txnOperator)(nil)
-	_ DebugableTxnOperator = (*txnOperator)(nil)
 )
 
 var (
@@ -69,6 +65,14 @@ var (
 		moerr.ErrTxnNotActive: {},
 	}
 )
+
+// WithUserTxn setup user transaction flag. Only user transactions need to be controlled for the maximum
+// number of active transactions.
+func WithUserTxn() TxnOption {
+	return func(tc *txnOperator) {
+		tc.option.user = true
+	}
+}
 
 // WithTxnReadyOnly setup readonly flag
 func WithTxnReadyOnly() TxnOption {
@@ -109,13 +113,13 @@ func WithTxnCreateBy(createBy string) TxnOption {
 }
 
 // WithTxnCacheWrite Set cache write requests, after each Write call, the request will not be sent
-// to the DN node immediately, but stored in the Coordinator's memory, and the Coordinator will
+// to the TN node immediately, but stored in the Coordinator's memory, and the Coordinator will
 // choose the right time to send the cached requests. The following scenarios trigger the sending
 // of requests to DN:
 //  1. Before read, because the Coordinator is not aware of the format and content of the written data,
-//     it is necessary to send the cached write requests to the corresponding DN node each time Read is
+//     it is necessary to send the cached write requests to the corresponding TN node each time Read is
 //     called, used to implement "read your write".
-//  2. Before commit, obviously, the cached write requests needs to be sent to the corresponding DN node
+//  2. Before commit, obviously, the cached write requests needs to be sent to the corresponding TN node
 //     before commit.
 func WithTxnCacheWrite() TxnOption {
 	return func(tc *txnOperator) {
@@ -147,9 +151,11 @@ func WithTxnIsolation(value txn.TxnIsolation) TxnOption {
 
 type txnOperator struct {
 	sender rpc.TxnSender
+	waiter *waiter
 	txnID  []byte
 
 	option struct {
+		user             bool
 		readyOnly        bool
 		enableCacheWrite bool
 		disable1PCOpt    bool
@@ -213,6 +219,26 @@ func newTxnOperatorWithSnapshot(
 	return tc, nil
 }
 
+func (tc *txnOperator) isUserTxn() bool {
+	return tc.option.user
+}
+
+func (tc *txnOperator) waitActive(ctx context.Context) error {
+	if tc.waiter == nil {
+		return nil
+	}
+	defer tc.waiter.close()
+	return tc.waiter.wait(ctx)
+}
+
+func (tc *txnOperator) notifyActive() {
+	if tc.waiter == nil {
+		panic("BUG: notify active on non-waiter txn operator")
+	}
+	defer tc.waiter.close()
+	tc.waiter.notify()
+}
+
 func (tc *txnOperator) AddWorkspace(workspace Workspace) {
 	tc.workspace = workspace
 }
@@ -267,6 +293,8 @@ func (tc *txnOperator) Snapshot() ([]byte, error) {
 func (tc *txnOperator) UpdateSnapshot(
 	ctx context.Context,
 	ts timestamp.Timestamp) error {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.UpdateSnapshot")
+	defer task.End()
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	if err := tc.checkStatus(true); err != nil {
@@ -291,6 +319,8 @@ func (tc *txnOperator) UpdateSnapshot(
 }
 
 func (tc *txnOperator) ApplySnapshot(data []byte) error {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.ApplySnapshot")
+	defer task.End()
 	if !tc.option.coordinator {
 		util.GetLogger().Fatal("apply snapshot on non-coordinator txn operator")
 	}
@@ -318,17 +348,17 @@ func (tc *txnOperator) ApplySnapshot(data []byte) error {
 		}
 	}
 
-	for _, dn := range snapshot.Txn.DNShards {
+	for _, tn := range snapshot.Txn.TNShards {
 		has := false
-		for _, v := range tc.mu.txn.DNShards {
-			if v.ShardID == dn.ShardID {
+		for _, v := range tc.mu.txn.TNShards {
+			if v.ShardID == tn.ShardID {
 				has = true
 				break
 			}
 		}
 
 		if !has {
-			tc.mu.txn.DNShards = append(tc.mu.txn.DNShards, dn)
+			tc.mu.txn.TNShards = append(tc.mu.txn.TNShards, tn)
 		}
 	}
 	if tc.mu.txn.SnapshotTS.Less(snapshot.Txn.SnapshotTS) {
@@ -339,6 +369,8 @@ func (tc *txnOperator) ApplySnapshot(data []byte) error {
 }
 
 func (tc *txnOperator) Read(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.Read")
+	defer task.End()
 	util.LogTxnRead(tc.getTxnMeta(false))
 
 	for idx := range requests {
@@ -354,16 +386,22 @@ func (tc *txnOperator) Read(ctx context.Context, requests []txn.TxnRequest) (*rp
 }
 
 func (tc *txnOperator) Write(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.Write")
+	defer task.End()
 	util.LogTxnWrite(tc.getTxnMeta(false))
 
 	return tc.doWrite(ctx, requests, false)
 }
 
 func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnRequest) (*rpc.SendResult, error) {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.WriteAndCommit")
+	defer task.End()
 	return tc.doWrite(ctx, requests, true)
 }
 
 func (tc *txnOperator) Commit(ctx context.Context) error {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.Commit")
+	defer task.End()
 	util.LogTxnCommit(tc.getTxnMeta(false))
 
 	if tc.option.readyOnly {
@@ -393,6 +431,8 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 }
 
 func (tc *txnOperator) Rollback(ctx context.Context) error {
+	_, task := gotrace.NewTask(context.TODO(), "transaction.Rollback")
+	defer task.End()
 	txnMeta := tc.getTxnMeta(false)
 	util.LogTxnRollback(txnMeta)
 	if tc.workspace != nil {
@@ -418,7 +458,7 @@ func (tc *txnOperator) Rollback(ctx context.Context) error {
 		defer tc.unlock(ctx)
 	}
 
-	if len(tc.mu.txn.DNShards) == 0 {
+	if len(tc.mu.txn.TNShards) == 0 {
 		return nil
 	}
 
@@ -501,12 +541,14 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	if tc.option.readyOnly {
 		util.GetLogger().Fatal("can not write on ready only transaction")
 	}
-
+	var payload []txn.TxnRequest
 	if commit {
 		if tc.workspace != nil {
-			if err := tc.workspace.Commit(ctx); err != nil {
+			reqs, err := tc.workspace.Commit(ctx)
+			if err != nil {
 				return nil, errors.Join(err, tc.Rollback(ctx))
 			}
+			payload = reqs
 		}
 		tc.mu.Lock()
 		defer func() {
@@ -527,6 +569,15 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 		return nil, err
 	}
 
+	var txnReqs []*txn.TxnRequest
+	if payload != nil {
+		for i := range payload {
+			payload[i].Txn = tc.getTxnMeta(true)
+			txnReqs = append(txnReqs, &payload[i])
+		}
+		tc.updateWritePartitions(payload, commit)
+	}
+
 	tc.updateWritePartitions(requests, commit)
 
 	// delayWrites enabled, no responses
@@ -535,15 +586,17 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	}
 
 	if commit {
-		if len(tc.mu.txn.DNShards) == 0 { // commit no write handled txn
+		if len(tc.mu.txn.TNShards) == 0 { // commit no write handled txn
 			tc.mu.txn.Status = txn.TxnStatus_Committed
 			return nil, nil
 		}
+
 		requests = tc.maybeInsertCachedWrites(ctx, requests, true)
 		requests = append(requests, txn.TxnRequest{
 			Method: txn.TxnMethod_Commit,
 			Flag:   txn.SkipResponseFlag,
 			CommitRequest: &txn.TxnCommitRequest{
+				Payload:       txnReqs,
 				Disable1PCOpt: tc.option.disable1PCOpt,
 			}})
 	}
@@ -565,13 +618,13 @@ func (tc *txnOperator) updateWritePartitions(requests []txn.TxnRequest, locked b
 	}
 }
 
-func (tc *txnOperator) addPartitionLocked(dn metadata.DNShard) {
-	for idx := range tc.mu.txn.DNShards {
-		if tc.mu.txn.DNShards[idx].ShardID == dn.ShardID {
+func (tc *txnOperator) addPartitionLocked(tn metadata.TNShard) {
+	for idx := range tc.mu.txn.TNShards {
+		if tc.mu.txn.TNShards[idx].ShardID == tn.ShardID {
 			return
 		}
 	}
-	tc.mu.txn.DNShards = append(tc.mu.txn.DNShards, dn)
+	tc.mu.txn.TNShards = append(tc.mu.txn.TNShards, tn)
 	util.LogTxnUpdated(tc.mu.txn)
 }
 
@@ -601,8 +654,8 @@ func (tc *txnOperator) maybeCacheWrites(requests []txn.TxnRequest, locked bool) 
 		defer tc.mu.Unlock()
 		for idx := range requests {
 			requests[idx].Flag |= txn.SkipResponseFlag
-			dn := requests[idx].CNRequest.Target.ShardID
-			tc.mu.cachedWrites[dn] = append(tc.mu.cachedWrites[dn], requests[idx])
+			tn := requests[idx].CNRequest.Target.ShardID
+			tc.mu.cachedWrites[tn] = append(tc.mu.cachedWrites[tn], requests[idx])
 		}
 		return true
 	}
@@ -627,14 +680,14 @@ func (tc *txnOperator) maybeInsertCachedWrites(ctx context.Context, requests []t
 	hasCachedWrites := false
 	insertCount := 0
 	for idx := range requests {
-		dn := requests[idx].CNRequest.Target.ShardID
-		if writes, ok := tc.getCachedWritesLocked(dn); ok {
+		tn := requests[idx].CNRequest.Target.ShardID
+		if writes, ok := tc.getCachedWritesLocked(tn); ok {
 			if !hasCachedWrites {
 				// copy all requests into newRequests if cached writes encountered
 				newRequests = append([]txn.TxnRequest(nil), requests[:idx]...)
 			}
 			newRequests = append(newRequests, writes...)
-			tc.clearCachedWritesLocked(dn)
+			tc.clearCachedWritesLocked(tn)
 			hasCachedWrites = true
 			insertCount += len(writes)
 		}
@@ -645,16 +698,16 @@ func (tc *txnOperator) maybeInsertCachedWrites(ctx context.Context, requests []t
 	return newRequests
 }
 
-func (tc *txnOperator) getCachedWritesLocked(dn uint64) ([]txn.TxnRequest, bool) {
-	writes, ok := tc.mu.cachedWrites[dn]
+func (tc *txnOperator) getCachedWritesLocked(tn uint64) ([]txn.TxnRequest, bool) {
+	writes, ok := tc.mu.cachedWrites[tn]
 	if !ok || len(writes) == 0 {
 		return nil, false
 	}
 	return writes, true
 }
 
-func (tc *txnOperator) clearCachedWritesLocked(dn uint64) {
-	delete(tc.mu.cachedWrites, dn)
+func (tc *txnOperator) clearCachedWritesLocked(tn uint64) {
+	delete(tc.mu.cachedWrites, tn)
 }
 
 func (tc *txnOperator) getTxnMeta(locked bool) txn.TxnMeta {
@@ -789,9 +842,9 @@ func (tc *txnOperator) checkTxnError(txnError *txn.TxnError, possibleErrorMap ma
 
 	// use txn internal error code to check error
 	txnCode := uint16(txnError.TxnErrCode)
-	if txnCode == moerr.ErrDNShardNotFound {
+	if txnCode == moerr.ErrTNShardNotFound {
 		// do we still have the uuid and shard id?
-		return moerr.NewDNShardNotFoundNoCtx("", 0xDEADBEAF)
+		return moerr.NewTNShardNotFoundNoCtx("", 0xDEADBEAF)
 	}
 
 	if _, ok := possibleErrorMap[txnCode]; ok {

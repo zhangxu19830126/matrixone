@@ -407,6 +407,7 @@ func (tcc *TxnCompilerContext) getTableDef(ctx context.Context, table engine.Rel
 					AutoIncr:    attr.Attr.AutoIncrement,
 					Table:       tableName,
 					NotNullable: attr.Attr.Default != nil && !attr.Attr.Default.NullAbility,
+					Enumvalues:  attr.Attr.EnumVlaues,
 				},
 				Primary:   attr.Attr.Primary,
 				Default:   attr.Attr.Default,
@@ -458,6 +459,8 @@ func (tcc *TxnCompilerContext) getTableDef(ctx context.Context, table engine.Rel
 					refChildTbls = k.Tables
 				case *engine.PrimaryKeyDef:
 					primarykey = k.Pkey
+				case *engine.StreamConfigsDef:
+					properties = append(properties, k.Configs...)
 				}
 			}
 		} else if commnetDef, ok := def.(*engine.CommentDef); ok {

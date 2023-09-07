@@ -56,6 +56,8 @@ func (ndesc *NodeDescribeImpl) GetNodeBasicInfo(ctx context.Context, options *Ex
 		pname = TableScan
 	case plan.Node_EXTERNAL_SCAN:
 		pname = ExternalScan
+	case plan.Node_STREAM_SCAN:
+		pname = "Stream Scan"
 	case plan.Node_MATERIAL_SCAN:
 		pname = "Material Scan"
 	case plan.Node_PROJECT:
@@ -134,7 +136,7 @@ func (ndesc *NodeDescribeImpl) GetNodeBasicInfo(ctx context.Context, options *Ex
 		switch ndesc.Node.NodeType {
 		case plan.Node_VALUE_SCAN:
 			buf.WriteString(" \"*VALUES*\" ")
-		case plan.Node_TABLE_SCAN, plan.Node_EXTERNAL_SCAN, plan.Node_MATERIAL_SCAN, plan.Node_INSERT:
+		case plan.Node_TABLE_SCAN, plan.Node_EXTERNAL_SCAN, plan.Node_MATERIAL_SCAN, plan.Node_INSERT, plan.Node_STREAM_SCAN:
 			buf.WriteString(" on ")
 			if ndesc.Node.ObjRef != nil {
 				buf.WriteString(ndesc.Node.ObjRef.GetSchemaName() + "." + ndesc.Node.ObjRef.GetObjName())
@@ -360,6 +362,14 @@ func (ndesc *NodeDescribeImpl) GetProjectListInfo(ctx context.Context, options *
 
 func (ndesc *NodeDescribeImpl) GetJoinTypeInfo(ctx context.Context, options *ExplainOptions) (string, error) {
 	result := "Join Type: " + ndesc.Node.JoinType.String()
+	if ndesc.Node.BuildOnLeft {
+		if ndesc.Node.JoinType == plan.Node_SEMI || ndesc.Node.JoinType == plan.Node_ANTI {
+			result = "Join Type: RIGHT " + ndesc.Node.JoinType.String()
+		}
+	}
+	if ndesc.Node.Stats.HashmapStats != nil && ndesc.Node.Stats.HashmapStats.HashOnPK {
+		result += "   hashOnPK"
+	}
 	return result, nil
 }
 
@@ -372,9 +382,9 @@ func (ndesc *NodeDescribeImpl) GetJoinConditionInfo(ctx context.Context, options
 		return "", err
 	}
 
-	if ndesc.Node.Stats.Shuffle {
-		idx := ndesc.Node.Stats.ShuffleColIdx
-		shuffleType := ndesc.Node.Stats.ShuffleType
+	if ndesc.Node.Stats.HashmapStats.Shuffle {
+		idx := ndesc.Node.Stats.HashmapStats.ShuffleColIdx
+		shuffleType := ndesc.Node.Stats.HashmapStats.ShuffleType
 		var hashCol *plan.Expr
 		switch exprImpl := ndesc.Node.OnList[idx].Expr.(type) {
 		case *plan.Expr_F:
@@ -395,6 +405,10 @@ func (ndesc *NodeDescribeImpl) GetJoinConditionInfo(ctx context.Context, options
 				return "", err
 			}
 			buf.WriteString(")")
+		}
+
+		if ndesc.Node.Stats.HashmapStats.ShuffleTypeForMultiCN == plan.ShuffleTypeForMultiCN_Complex {
+			buf.WriteString(" COMPLEX ")
 		}
 	}
 
@@ -514,9 +528,9 @@ func (ndesc *NodeDescribeImpl) GetGroupByInfo(ctx context.Context, options *Expl
 		return "", moerr.NewNYI(ctx, "explain format dot")
 	}
 
-	if ndesc.Node.Stats.Shuffle {
-		idx := ndesc.Node.Stats.ShuffleColIdx
-		shuffleType := ndesc.Node.Stats.ShuffleType
+	if ndesc.Node.Stats.HashmapStats != nil && ndesc.Node.Stats.HashmapStats.Shuffle {
+		idx := ndesc.Node.Stats.HashmapStats.ShuffleColIdx
+		shuffleType := ndesc.Node.Stats.HashmapStats.ShuffleType
 		if shuffleType == plan.ShuffleType_Hash {
 			buf.WriteString(" shuffle: hash(")
 			err := describeExpr(ctx, ndesc.Node.GroupBy[idx], options, buf)
@@ -531,6 +545,12 @@ func (ndesc *NodeDescribeImpl) GetGroupByInfo(ctx context.Context, options *Expl
 				return "", err
 			}
 			buf.WriteString(")")
+		}
+
+		if ndesc.Node.Stats.HashmapStats.ShuffleMethod == plan.ShuffleMethod_Reuse {
+			buf.WriteString(" REUSE ")
+		} else if ndesc.Node.Stats.HashmapStats.ShuffleMethod == plan.ShuffleMethod_Reshuffle {
+			buf.WriteString(" RESHUFFLE ")
 		}
 	}
 	return buf.String(), nil
@@ -661,8 +681,8 @@ func (c *CostDescribeImpl) GetDescription(ctx context.Context, options *ExplainO
 		if c.Stats.BlockNum > 0 {
 			blockNumStr = " blockNum=" + strconv.FormatInt(int64(c.Stats.BlockNum), 10)
 		}
-		if c.Stats.HashmapSize > 0 {
-			hashmapSizeStr = " hashmapSize=" + strconv.FormatFloat(c.Stats.HashmapSize, 'f', 2, 64)
+		if c.Stats.HashmapStats != nil && c.Stats.HashmapStats.HashmapSize > 0 {
+			hashmapSizeStr = " hashmapSize=" + strconv.FormatFloat(c.Stats.HashmapStats.HashmapSize, 'f', 2, 64)
 		}
 		buf.WriteString(" (cost=" + strconv.FormatFloat(c.Stats.Cost, 'f', 2, 64) +
 			" outcnt=" + strconv.FormatFloat(c.Stats.Outcnt, 'f', 2, 64) +

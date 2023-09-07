@@ -107,6 +107,8 @@ func getTypeFromAst(ctx context.Context, typ tree.ResolvableTypeReference) (*pla
 				// create table t1(a char) -> DisplayWith = -1；but get width=1 in MySQL and PgSQL
 				if fstr == "char" || fstr == "binary" {
 					width = 1
+				} else if fstr == "vecf32" || fstr == "vecf64" {
+					width = types.MaxArrayDimension
 				} else {
 					width = types.MaxVarcharLen
 				}
@@ -120,6 +122,13 @@ func getTypeFromAst(ctx context.Context, typ tree.ResolvableTypeReference) (*pla
 				return nil, moerr.NewOutOfRange(ctx, fstr, " typeLen is over the MaxCharLen: %v", types.MaxCharLen)
 			} else if (fstr == "varchar" || fstr == "varbinary") && width > types.MaxVarcharLen {
 				return nil, moerr.NewOutOfRange(ctx, fstr, " typeLen is over the MaxVarcharLen: %v", types.MaxVarcharLen)
+			} else if fstr == "vecf32" || fstr == "vecf64" {
+				if width > types.MaxArrayDimension {
+					return nil, moerr.NewOutOfRange(ctx, fstr, " typeLen is over the MaxVectorLen : %v", types.MaxArrayDimension)
+				}
+				if width < 1 {
+					return nil, moerr.NewOutOfRange(ctx, fstr, " typeLen cannot be less than 1")
+				}
 			}
 			switch fstr {
 			case "char":
@@ -128,6 +137,10 @@ func getTypeFromAst(ctx context.Context, typ tree.ResolvableTypeReference) (*pla
 				return &plan.Type{Id: int32(types.T_binary), Width: width}, nil
 			case "varchar":
 				return &plan.Type{Id: int32(types.T_varchar), Width: width}, nil
+			case "vecf32":
+				return &plan.Type{Id: int32(types.T_array_float32), Width: width}, nil
+			case "vecf64":
+				return &plan.Type{Id: int32(types.T_array_float64), Width: width}, nil
 			}
 			// varbinary
 			return &plan.Type{Id: int32(types.T_varbinary), Width: width}, nil
@@ -161,6 +174,15 @@ func getTypeFromAst(ctx context.Context, typ tree.ResolvableTypeReference) (*pla
 			return &plan.Type{Id: int32(types.T_blob)}, nil
 		case defines.MYSQL_TYPE_LONG_BLOB:
 			return &plan.Type{Id: int32(types.T_blob)}, nil
+		case defines.MYSQL_TYPE_ENUM:
+			if len(n.InternalType.EnumValues) > types.MaxEnumLen {
+				return nil, moerr.NewNYI(ctx, "enum type out of max length")
+			}
+			if len(n.InternalType.EnumValues) == 0 {
+				return nil, moerr.NewNYI(ctx, "enum type length err")
+			}
+
+			return &plan.Type{Id: int32(types.T_enum), Enumvalues: strings.Join(n.InternalType.EnumValues, ",")}, nil
 		default:
 			return nil, moerr.NewNYI(ctx, "data type: '%s'", tree.String(&n.InternalType, dialect.MYSQL))
 		}

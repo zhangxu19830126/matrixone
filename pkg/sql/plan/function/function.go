@@ -17,6 +17,7 @@ package function
 import (
 	"context"
 	"fmt"
+
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
@@ -38,6 +39,9 @@ func initAllSupportedFunctions() {
 		allSupportedFunctions[fn.functionId] = fn
 	}
 	for _, fn := range supportedMathBuiltIns {
+		allSupportedFunctions[fn.functionId] = fn
+	}
+	for _, fn := range supportedArrayOperations {
 		allSupportedFunctions[fn.functionId] = fn
 	}
 	for _, fn := range supportedControlBuiltIns {

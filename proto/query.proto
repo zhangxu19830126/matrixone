@@ -25,6 +25,13 @@ enum CmdMethod {
   Query = 0;
   // ShowProcessList represents the show process list query.
   ShowProcessList = 1;
+  // AlterAccount represent set account status as restricted 
+  AlterAccount = 2;
+  // KillConn represents the kill connection request.
+  KillConn = 3;
+  // ProcessTraceSpan process the trace span cmd transferred from
+  // other cn
+  TraceSpan = 4;
 }
 
 // QueryRequest is the common query request. It contains the query
@@ -52,6 +59,12 @@ message Request {
   QueryRequest QueryRequest = 3;
   // ShowProcessListRequest is the request for show process list.
   ShowProcessListRequest ShowProcessListRequest = 4;
+  // AlterAccountRequest is the request for alter account restricted
+  AlterAccountRequest AlterAccountRequest = 5;
+  // KillConnRequest is the request which kills the connections.
+  KillConnRequest KillConnRequest = 6;
+  // TraceSpanRequest is the request for transferred span cmd
+  TraceSpanRequest TraceSpanRequest = 7;
 }
 
 // ShowProcessListResponse is the response of command ShowProcessList.
@@ -69,5 +82,44 @@ message Response {
   bytes Error = 3;
   // ShowProcessListResponse is the response of ShowProcessListRequest.
   ShowProcessListResponse ShowProcessListResponse = 4;
+  // AlterAccountResponse is the response of AlterAccount.
+  AlterAccountResponse AlterAccountResponse = 5;
+  // KillConnResponse is the response of KillConnRequest.
+  KillConnResponse KillConnResponse = 6;
+  // TraceSpanResponse is the response of TraceSpanRequest
+  TraceSpanResponse TraceSpanResponse = 7;
 }
 
+// AlterAccountRequest is the "alter account restricted" query request.
+message AlterAccountRequest {
+  // Tenant is the tenant which to alter.
+  int64 TenantId = 1;
+  // Status is the tenant which will be alter to.
+  string Status = 3;
+}
+
+// AlterAccountResponse is the response of command AlterAccount.
+message AlterAccountResponse {
+  bool alterSuccess = 1;
+}
+
+// KillConnRequest is the request that kill the connections belongs
+// to the account.
+message KillConnRequest {
+  int64 AccountID = 1;
+  uint64 Version = 2;
+}
+
+// KillConnResponse is the response to the kill connection request.
+message KillConnResponse {
+  bool Success = 1;
+}
+
+message TraceSpanRequest {
+  string Cmd = 1;
+  string Spans = 2;
+}
+
+message TraceSpanResponse {
+  string Resp = 1;
+}

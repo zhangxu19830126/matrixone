@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/cnservice"
@@ -33,7 +34,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	"github.com/matrixorigin/matrixone/pkg/defines"
-	"github.com/matrixorigin/matrixone/pkg/dnservice"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/logservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
@@ -41,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 	"github.com/matrixorigin/matrixone/pkg/proxy"
 	"github.com/matrixorigin/matrixone/pkg/sql/compile"
+	"github.com/matrixorigin/matrixone/pkg/tnservice"
 	"github.com/matrixorigin/matrixone/pkg/util"
 	"github.com/matrixorigin/matrixone/pkg/util/export"
 	"github.com/matrixorigin/matrixone/pkg/util/export/table"
@@ -83,10 +84,11 @@ func main() {
 	}
 
 	ctx := context.Background()
+	shutdownC := make(chan struct{})
 
 	stopper := stopper.NewStopper("main", stopper.WithLogger(logutil.GetGlobalLogger()))
 	if *launchFile != "" {
-		if err := startCluster(ctx, stopper, globalCounterSet); err != nil {
+		if err := startCluster(ctx, stopper, globalCounterSet, shutdownC); err != nil {
 			panic(err)
 		}
 	} else if *configFile != "" {
@@ -94,22 +96,33 @@ func main() {
 		if err := parseConfigFromFile(*configFile, cfg); err != nil {
 			panic(fmt.Sprintf("failed to parse config from %s, error: %s", *configFile, err.Error()))
 		}
-		if err := startService(ctx, cfg, stopper, globalCounterSet); err != nil {
+		if err := startService(ctx, cfg, stopper, globalCounterSet, shutdownC); err != nil {
 			panic(err)
 		}
 	} else {
 		panic(errors.New("no configuration specified"))
 	}
 
-	waitSignalToStop(stopper)
+	waitSignalToStop(stopper, shutdownC)
 	logutil.GetGlobalLogger().Info("Shutdown complete")
 }
 
-func waitSignalToStop(stopper *stopper.Stopper) {
+func waitSignalToStop(stopper *stopper.Stopper, shutdownC chan struct{}) {
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGTERM, syscall.SIGINT)
-	sig := <-sigchan
-	logutil.GetGlobalLogger().Info("Starting shutdown...", zap.String("signal", sig.String()))
+
+	detail := "Starting shutdown..."
+	select {
+	case sig := <-sigchan:
+		detail += "signal: " + sig.String()
+	case <-shutdownC:
+		// waiting, give a chance let all log stores and tn stores to get
+		// shutdown cmd from ha keeper
+		time.Sleep(time.Second * 5)
+		detail += "ha keeper issues shutdown command"
+	}
+
+	logutil.GetGlobalLogger().Info(detail)
 	stopper.Stop()
 	if cnProxy != nil {
 		if err := cnProxy.Stop(); err != nil {
@@ -118,7 +131,13 @@ func waitSignalToStop(stopper *stopper.Stopper) {
 	}
 }
 
-func startService(ctx context.Context, cfg *Config, stopper *stopper.Stopper, globalCounterSet *perfcounter.CounterSet) error {
+func startService(
+	ctx context.Context,
+	cfg *Config,
+	stopper *stopper.Stopper,
+	globalCounterSet *perfcounter.CounterSet,
+	shutdownC chan struct{},
+) error {
 	if err := cfg.validate(); err != nil {
 		return err
 	}
@@ -153,10 +172,10 @@ func startService(ctx context.Context, cfg *Config, stopper *stopper.Stopper, gl
 	switch st {
 	case metadata.ServiceType_CN:
 		return startCNService(cfg, stopper, fs, globalCounterSet)
-	case metadata.ServiceType_DN:
-		return startDNService(cfg, stopper, fs, globalCounterSet)
+	case metadata.ServiceType_TN:
+		return startTNService(cfg, stopper, fs, globalCounterSet, shutdownC)
 	case metadata.ServiceType_LOG:
-		return startLogService(cfg, stopper, fs, globalCounterSet)
+		return startLogService(cfg, stopper, fs, globalCounterSet, shutdownC)
 	case metadata.ServiceType_PROXY:
 		return startProxyService(cfg, stopper)
 	default:
@@ -195,13 +214,6 @@ func startCNService(
 		if err := s.Start(); err != nil {
 			panic(err)
 		}
-		// TODO: global client need to refactor
-		err = cnclient.NewCNClient(
-			c.ServiceAddress,
-			&cnclient.ClientConfig{RPC: cfg.getCNServiceConfig().RPC})
-		if err != nil {
-			panic(err)
-		}
 
 		<-ctx.Done()
 		if err := s.Close(); err != nil {
@@ -213,31 +225,33 @@ func startCNService(
 	})
 }
 
-func startDNService(
+func startTNService(
 	cfg *Config,
 	stopper *stopper.Stopper,
 	fileService fileservice.FileService,
 	perfCounterSet *perfcounter.CounterSet,
+	shutdownC chan struct{},
 ) error {
 	if err := waitClusterCondition(cfg.HAKeeperClient, waitHAKeeperRunning); err != nil {
 		return err
 	}
-	r, err := getRuntime(metadata.ServiceType_DN, cfg, stopper)
+	r, err := getRuntime(metadata.ServiceType_TN, cfg, stopper)
 	if err != nil {
 		return err
 	}
 	serviceWG.Add(1)
-	return stopper.RunNamedTask("dn-service", func(ctx context.Context) {
+	return stopper.RunNamedTask("tn-service", func(ctx context.Context) {
 		defer serviceWG.Done()
 		ctx = perfcounter.WithCounterSet(ctx, perfCounterSet)
 		cfg.initMetaCache()
-		c := cfg.getDNServiceConfig()
+		c := cfg.getTNServiceConfig()
 
-		s, err := dnservice.NewService(
+		s, err := tnservice.NewService(
 			perfCounterSet,
 			&c,
 			r,
-			fileService)
+			fileService,
+			shutdownC)
 		if err != nil {
 			panic(err)
 		}
@@ -257,9 +271,11 @@ func startLogService(
 	stopper *stopper.Stopper,
 	fileService fileservice.FileService,
 	perfCounterSet *perfcounter.CounterSet,
+	shutdownC chan struct{},
 ) error {
 	lscfg := cfg.getLogServiceConfig()
 	s, err := logservice.NewService(lscfg, fileService,
+		shutdownC,
 		logservice.WithRuntime(runtime.ProcessLevelRuntime()))
 	if err != nil {
 		panic(err)
@@ -324,8 +340,8 @@ func getNodeUUID(ctx context.Context, st metadata.ServiceType, cfg *Config) (UUI
 			return "", moerr.ConvertPanicError(ctx, err)
 		}
 		UUID = nodeUUID.String()
-	case metadata.ServiceType_DN:
-		UUID = cfg.DN.UUID
+	case metadata.ServiceType_TN:
+		UUID = cfg.getTNServiceConfig().UUID
 	case metadata.ServiceType_LOG:
 		UUID = cfg.LogService.UUID
 	}
@@ -341,7 +357,7 @@ func initTraceMetric(ctx context.Context, st metadata.ServiceType, cfg *Config, 
 
 	nodeRole := st.String()
 	if *launchFile != "" {
-		nodeRole = "ALL"
+		nodeRole = mometric.LaunchMode
 	}
 
 	if !SV.DisableTrace || !SV.DisableMetric {

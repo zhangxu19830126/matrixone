@@ -96,7 +96,8 @@ func (d *DiskCache) Read(
 ) (
 	err error,
 ) {
-	if vector.NoCache {
+
+	if vector.CachePolicy.Any(SkipDiskReads) {
 		return nil
 	}
 
@@ -117,19 +118,6 @@ func (d *DiskCache) Read(
 		return err
 	}
 
-	contentOK := false
-	contentPath := d.fullDataFilePath(path.File)
-	d.waitUpdateComplete(contentPath)
-
-	contentFile, err := os.Open(contentPath)
-	if err == nil {
-		numOpen++
-		contentOK = true
-		defer contentFile.Close()
-	} else {
-		err = nil // ignore
-	}
-
 	for i, entry := range vector.Entries {
 		if entry.done {
 			continue
@@ -143,22 +131,14 @@ func (d *DiskCache) Read(
 		numRead++
 
 		var file *os.File
-		if contentOK {
-			// use content file
-			_, err = contentFile.Seek(entry.Offset, io.SeekStart)
-			if err == nil {
-				file = contentFile
-			}
-		} else {
-			// open entry file
-			entryPath := d.entryDataFilePath(path.File, entry)
-			d.waitUpdateComplete(entryPath)
-			entryFile, err := os.Open(entryPath)
-			if err == nil {
-				file = entryFile
-				defer entryFile.Close()
-				numOpen++
-			}
+		// open entry file
+		entryPath := d.entryDataFilePath(path.File, entry)
+		d.waitUpdateComplete(entryPath)
+		entryFile, err := os.Open(entryPath)
+		if err == nil {
+			file = entryFile
+			defer entryFile.Close()
+			numOpen++
 		}
 		if file == nil {
 			// no file available
@@ -171,6 +151,8 @@ func (d *DiskCache) Read(
 			continue
 		}
 
+		entry.done = true
+		entry.fromCache = d
 		vector.Entries[i] = entry
 		numHit++
 		d.cacheHit(time.Since(t0))
@@ -190,7 +172,8 @@ func (d *DiskCache) Update(
 ) (
 	err error,
 ) {
-	if vector.NoCache {
+
+	if vector.CachePolicy.Any(SkipDiskWrites) {
 		return nil
 	}
 
@@ -209,20 +192,10 @@ func (d *DiskCache) Update(
 		return err
 	}
 
-	contentPath := d.fullDataFilePath(path.File)
-	d.waitUpdateComplete(contentPath)
-
-	if _, ok := d.fileExists.Load(contentPath); ok {
-		// full data ok, return
-		return nil
-	} else {
-		// full data file exists, return
-		_, err := os.Stat(contentPath)
-		if err == nil {
-			numStat++
-			d.fileExists.Store(contentPath, true)
-			return nil
-		}
+	// callback
+	var onWritten []OnDiskCacheWrittenFunc
+	if v := ctx.Value(CtxKeyDiskCacheCallbacks); v != nil {
+		onWritten = v.(*DiskCacheCallbacks).OnWritten
 	}
 
 	for _, entry := range vector.Entries {
@@ -232,6 +205,10 @@ func (d *DiskCache) Update(
 		}
 		if entry.Size < 0 {
 			// ignore size unknown entry
+			continue
+		}
+		if entry.fromCache == d {
+			// no need to update
 			continue
 		}
 
@@ -285,6 +262,11 @@ func (d *DiskCache) Update(
 			numWrite++
 			d.triggerEvict(ctx, int64(n))
 			d.fileExists.Store(entryFilePath, true)
+
+			for _, fn := range onWritten {
+				fn(vector.FilePath, entry)
+			}
+
 		}()
 
 	}
@@ -395,6 +377,12 @@ func (d *DiskCache) evict(ctx context.Context) {
 		}
 	}()
 	target := int64(float64(d.capacity) * d.evictTarget)
+
+	var onEvict []OnDiskCacheEvictFunc
+	if v := ctx.Value(CtxKeyDiskCacheCallbacks); v != nil {
+		onEvict = v.(*DiskCacheCallbacks).OnEvict
+	}
+
 	for path, size := range paths {
 		if sumSize <= target {
 			break
@@ -406,80 +394,12 @@ func (d *DiskCache) evict(ctx context.Context) {
 		sumSize -= size
 		numDeleted++
 		bytesDeleted += size
-	}
-}
 
-var _ FileContentCache = new(DiskCache)
-
-func (d *DiskCache) GetFileContent(ctx context.Context, filePath string, offset int64) (r io.ReadCloser, err error) {
-
-	contentPath := d.fullDataFilePath(filePath)
-	d.waitUpdateComplete(contentPath)
-
-	f, err := os.Open(contentPath)
-	if err != nil {
-		return nil, err
-	}
-	perfcounter.Update(ctx, func(set *perfcounter.CounterSet) {
-		set.FileService.Cache.Disk.OpenFile.Add(1)
-	})
-	if offset > 0 {
-		if _, err := f.Seek(offset, io.SeekStart); err != nil {
-			return nil, err
+		for _, fn := range onEvict {
+			fn(path)
 		}
-	}
-	perfcounter.Update(ctx, func(set *perfcounter.CounterSet) {
-		set.FileService.Cache.Disk.GetFileContent.Add(1)
-	})
-	return f, nil
-}
 
-func (d *DiskCache) SetFileContent(
-	ctx context.Context,
-	filePath string,
-	readFunc func(context.Context, *IOVector) error,
-) (err error) {
-
-	contentPath := d.fullDataFilePath(filePath)
-	doneUpdate := d.startUpdate(contentPath)
-	defer doneUpdate()
-
-	_, err = os.Stat(contentPath)
-	if err == nil {
-		// file exists
-		perfcounter.Update(ctx, func(set *perfcounter.CounterSet) {
-			set.FileService.Cache.Disk.StatFile.Add(1)
-		})
-		return nil
 	}
-
-	w, done, closeW, err := d.newFileContentWriter(contentPath)
-	if err != nil {
-		return err
-	}
-	defer closeW()
-	vec := IOVector{
-		FilePath: filePath,
-		Entries: []IOEntry{
-			{
-				Offset:        0,
-				Size:          -1,
-				WriterForRead: w,
-			},
-		},
-	}
-	if err := readFunc(ctx, &vec); err != nil {
-		return err
-	}
-	if err := done(ctx); err != nil {
-		return err
-	}
-
-	perfcounter.Update(ctx, func(set *perfcounter.CounterSet) {
-		set.FileService.Cache.Disk.SetFileContent.Add(1)
-	})
-
-	return nil
 }
 
 func (d *DiskCache) newFileContentWriter(contentPath string) (w io.Writer, done func(context.Context) error, closeFunc func() error, err error) {
@@ -523,14 +443,6 @@ func (d *DiskCache) entryDataFilePath(path string, entry IOEntry) string {
 		d.path,
 		toOSPath(path),
 		fmt.Sprintf("%d-%d%s", entry.Offset, entry.Size, cacheFileSuffix),
-	)
-}
-
-func (d *DiskCache) fullDataFilePath(path string) string {
-	return filepath.Join(
-		d.path,
-		toOSPath(path),
-		"full-data"+cacheFileSuffix,
 	)
 }
 

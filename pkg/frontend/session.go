@@ -85,7 +85,7 @@ type Session struct {
 	isInternal bool
 
 	data         [][]interface{}
-	ep           *ExportParam
+	ep           *ExportConfig
 	showStmtType ShowStatementType
 
 	txnHandler    *TxnHandler
@@ -162,7 +162,11 @@ type Session struct {
 
 	curResultSize float64 // MB
 
+	// sentRows used to record rows it sent to client for motrace.StatementInfo.
+	// If there is NO exec_plan, sentRows will be 0.
 	sentRows atomic.Int64
+	// writeCsvBytes is used to record bytes sent by `select ... into 'file.csv'` for motrace.StatementInfo
+	writeCsvBytes atomic.Int64
 
 	createdTime time.Time
 
@@ -203,7 +207,7 @@ type Session struct {
 	rt *Routine
 
 	// when starting a transaction in session, the snapshot ts of the transaction
-	// is to get a DN push to CN to get the maximum commitTS. but there is a problem,
+	// is to get a TN push to CN to get the maximum commitTS. but there is a problem,
 	// when the last transaction ends and the next one starts, it is possible that the
 	// log of the last transaction has not been pushed to CN, we need to wait until at
 	// least the commit of the last transaction log of the previous transaction arrives.
@@ -388,16 +392,9 @@ func NewSession(proto Protocol, mp *mpool.MPool, pu *config.ParameterUnit,
 	txnHandler := InitTxnHandler(pu.StorageEngine, pu.TxnClient, txnCtx, txnOp)
 
 	ses := &Session{
-		protocol: proto,
-		mp:       mp,
-		pu:       pu,
-		ep: &ExportParam{
-			ExportParam: &tree.ExportParam{
-				Outfile: false,
-				Fields:  &tree.Fields{},
-				Lines:   &tree.Lines{},
-			},
-		},
+		protocol:   proto,
+		mp:         mp,
+		pu:         pu,
 		txnHandler: txnHandler,
 		//TODO:fix database name after the catalog is ready
 		txnCompileCtx: InitTxnCompilerContext(txnHandler, proto.GetDatabaseName()),
@@ -681,22 +678,22 @@ func (ses *Session) GetTempTableStorage() *memorystorage.Storage {
 	return ses.tempTablestorage
 }
 
-func (ses *Session) SetTempTableStorage(ck clock.Clock) (*metadata.DNService, error) {
+func (ses *Session) SetTempTableStorage(ck clock.Clock) (*metadata.TNService, error) {
 	// Without concurrency, there is no potential for data competition
 
 	// Arbitrary value is OK since it's single sharded. Let's use 0xbeef
 	// suggested by @reusee
-	shards := []metadata.DNShard{
+	shards := []metadata.TNShard{
 		{
 			ReplicaID:     0xbeef,
-			DNShardRecord: metadata.DNShardRecord{ShardID: 0xbeef},
+			TNShardRecord: metadata.TNShardRecord{ShardID: 0xbeef},
 		},
 	}
 	// Arbitrary value is OK, for more information about TEMPORARY_TABLE_DN_ADDR, please refer to the comment in defines/const.go
-	dnAddr := defines.TEMPORARY_TABLE_DN_ADDR
-	dnStore := metadata.DNService{
+	tnAddr := defines.TEMPORARY_TABLE_TN_ADDR
+	tnStore := metadata.TNService{
 		ServiceID:         uuid.NewString(),
-		TxnServiceAddress: dnAddr,
+		TxnServiceAddress: tnAddr,
 		Shards:            shards,
 	}
 
@@ -709,7 +706,7 @@ func (ses *Session) SetTempTableStorage(ck clock.Clock) (*metadata.DNService, er
 		return nil, err
 	}
 	ses.tempTablestorage = ms
-	return &dnStore, nil
+	return &tnStore, nil
 }
 
 func (ses *Session) GetPrivilegeCache() *privilegeCache {
@@ -799,16 +796,22 @@ func (ses *Session) AppendData(row []interface{}) {
 	ses.data = append(ses.data, row)
 }
 
-func (ses *Session) SetExportParam(ep *tree.ExportParam) {
+func (ses *Session) InitExportConfig(ep *tree.ExportParam) {
 	ses.mu.Lock()
 	defer ses.mu.Unlock()
-	ses.ep.ExportParam = ep
+	ses.ep = &ExportConfig{userConfig: ep}
 }
 
-func (ses *Session) GetExportParam() *ExportParam {
+func (ses *Session) GetExportConfig() *ExportConfig {
 	ses.mu.Lock()
 	defer ses.mu.Unlock()
 	return ses.ep
+}
+
+func (ses *Session) ClearExportParam() {
+	ses.mu.Lock()
+	defer ses.mu.Unlock()
+	ses.ep = nil
 }
 
 func (ses *Session) SetShowStmtType(sst ShowStatementType) {
@@ -1145,8 +1148,7 @@ func (ses *Session) InitSetSessionVar(name string, value interface{}) error {
 	if def, _, ok := gSysVars.GetGlobalSysVar(name); ok {
 		cv, err := def.GetType().Convert(value)
 		if err != nil {
-			errutil.ReportError(ses.GetRequestContext(), err)
-			return err
+			errutil.ReportError(ses.GetRequestContext(), moerr.NewInternalError(context.Background(), "init variable fail: variable %s convert to the system variable type %s failed, bad value %v", name, def.GetType().String(), value))
 		}
 
 		if def.UpdateSessVar == nil {
@@ -1289,8 +1291,8 @@ func (ses *Session) skipAuthForSpecialUser() bool {
 	return false
 }
 
-// AuthenticateUser verifies the password of the user.
-func (ses *Session) AuthenticateUser(userInput string) ([]byte, error) {
+// AuthenticateUser Verify the user's password, and if the login information contains the database name, verify if the database exists
+func (ses *Session) AuthenticateUser(userInput string, dbName string, authResponse []byte, salt []byte, checkPassword func(pwd, salt, auth []byte) bool) ([]byte, error) {
 	var defaultRoleID int64
 	var defaultRole string
 	var tenant *TenantInfo
@@ -1501,6 +1503,29 @@ func (ses *Session) AuthenticateUser(userInput string) ([]byte, error) {
 		}
 		tenant.SetDefaultRole(defaultRole)
 	}
+	//------------------------------------------------------------------------------------------------------------------
+	psw, err := GetPassWord(pwd)
+	if err != nil {
+		return nil, err
+	}
+
+	// TO Check password
+	if checkPassword(psw, salt, authResponse) {
+		logDebugf(sessionInfo, "check password succeeded")
+		ses.InitGlobalSystemVariables()
+	} else {
+		return nil, moerr.NewInternalError(tenantCtx, "check password failed")
+	}
+
+	// If the login information contains the database name, verify if the database exists
+	if dbName != "" {
+		_, err = executeSQLInBackgroundSession(tenantCtx, ses, mp, pu, "use "+dbName)
+		if err != nil {
+			return nil, err
+		}
+		logDebugf(sessionInfo, "check database name succeeded")
+	}
+	//------------------------------------------------------------------------------------------------------------------
 	// record the id :routine pair in RoutineManager
 	ses.getRoutineManager().accountRoutine.recordRountine(tenantID, ses.getRoutine(), accountVersion)
 	logInfo(ses, sessionInfo, tenant.String())
@@ -1544,18 +1569,22 @@ func (ses *Session) InitGlobalSystemVariables() error {
 				}
 
 				if sv, ok := gSysVarsDefs[variable_name]; ok {
+					if !sv.GetDynamic() || (sv.Scope != ScopeGlobal && sv.Scope != ScopeBoth) {
+						continue
+					}
 					val, err := sv.GetType().ConvertFromString(variable_value)
 					if err != nil {
+						errutil.ReportError(ses.GetRequestContext(), moerr.NewInternalError(context.Background(), "init variable fail: variable %s convert from string value to the system variable type %s failed, bad value %s", variable_name, sv.Type.String(), variable_value))
 						return err
 					}
 					err = ses.InitSetSessionVar(variable_name, val)
 					if err != nil {
-						return err
+						errutil.ReportError(ses.GetRequestContext(), moerr.NewInternalError(context.Background(), "init variable fail: variable %s convert from string value to the system variable type %s failed, bad value %s", variable_name, sv.Type.String(), variable_value))
 					}
 				}
 			}
 		} else {
-			return moerr.NewInternalError(sysTenantCtx, "there is no data in  mo_mysql_compatibility_mode table for account %s", sysAccountName)
+			return moerr.NewInternalError(sysTenantCtx, "there is no data in mo_mysql_compatibility_mode table for account %s", sysAccountName)
 		}
 	} else {
 		tenantCtx := context.WithValue(ses.GetRequestContext(), defines.TenantIDKey{}, tenantInfo.GetTenantID())
@@ -2012,6 +2041,7 @@ func (ses *Session) StatusSession() *status.Session {
 		statementID   string
 		statementType string
 		queryType     string
+		sqlSourceType string
 		queryStart    time.Time
 	)
 	if ses.txnHandler != nil && ses.txnHandler.txnOperator != nil {
@@ -2024,6 +2054,9 @@ func (ses *Session) StatusSession() *status.Session {
 		statementType = stmtInfo.StatementType
 		queryType = stmtInfo.QueryType
 		queryStart = stmtInfo.RequestAt
+	}
+	if v := ses.sqlType.Load(); v != nil {
+		sqlSourceType = v.(string)
 	}
 	return &status.Session{
 		NodeID:        ses.getRoutineManager().baseService.ID(),
@@ -2040,9 +2073,23 @@ func (ses *Session) StatusSession() *status.Session {
 		StatementID:   statementID,
 		StatementType: statementType,
 		QueryType:     queryType,
-		SQLSourceType: ses.sqlType.Load().(string),
+		SQLSourceType: sqlSourceType,
 		QueryStart:    queryStart,
 	}
+}
+
+func (ses *Session) SetSessionRoutineStatus(status string) error {
+	var err error
+	if status == tree.AccountStatusRestricted.String() {
+		ses.getRoutine().setResricted(true)
+	} else if status == tree.AccountStatusSuspend.String() {
+		ses.getRoutine().setResricted(false)
+	} else if status == tree.AccountStatusOpen.String() {
+		ses.getRoutine().setResricted(false)
+	} else {
+		err = moerr.NewInternalErrorNoCtx("SetSessionRoutineStatus have invalid status : %s", status)
+	}
+	return err
 }
 
 func checkPlanIsInsertValues(proc *process.Process,

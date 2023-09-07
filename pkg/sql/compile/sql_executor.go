@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/dialect"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
+	"github.com/matrixorigin/matrixone/pkg/util"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
@@ -116,7 +117,7 @@ func (s *sqlExecutor) maybeWaitCommittedLogApplied(opts executor.Options) {
 	}
 	ts := opts.Txn().Txn().CommitTS
 	if !ts.IsEmpty() {
-		s.txnClient.(client.TxnClientWithCtl).SetLatestCommitTS(ts)
+		s.txnClient.SyncLatestCommitTS(ts)
 	}
 }
 
@@ -205,6 +206,7 @@ func (exec *txnExecutor) Exec(sql string) (executor.Result, error) {
 		exec.s.qs,
 		exec.s.aicm,
 	)
+	proc.SessionInfo.TimeZone = exec.opts.GetTimeZone()
 
 	pn, err := plan.BuildPlan(
 		exec.s.getCompileContext(exec.ctx, proc, exec.opts),
@@ -248,12 +250,14 @@ func (exec *txnExecutor) Exec(sql string) (executor.Result, error) {
 	if err != nil {
 		return executor.Result{}, err
 	}
-	if err := c.Run(0); err != nil {
+	var runResult *util.RunResult
+	runResult, err = c.Run(0)
+	if err != nil {
 		return executor.Result{}, err
 	}
 
 	result.Batches = batches
-	result.AffectedRows = c.GetAffectedRows()
+	result.AffectedRows = runResult.AffectRows
 	return result, nil
 }
 

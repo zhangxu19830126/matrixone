@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	mokafka "github.com/matrixorigin/matrixone/pkg/stream/adapter/kafka"
 	"strconv"
 	"strings"
 
@@ -35,9 +36,19 @@ func genViewTableDef(ctx CompilerContext, stmt *tree.Select) (*plan.TableDef, er
 	var tableDef plan.TableDef
 
 	// check view statement
-	stmtPlan, err := runBuildSelectByBinder(plan.Query_SELECT, ctx, stmt, false)
-	if err != nil {
-		return nil, err
+	var stmtPlan *Plan
+	var err error
+	switch s := stmt.Select.(type) {
+	case *tree.ParenSelect:
+		stmtPlan, err = runBuildSelectByBinder(plan.Query_SELECT, ctx, s.Select, false)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		stmtPlan, err = runBuildSelectByBinder(plan.Query_SELECT, ctx, stmt, false)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	query := stmtPlan.GetQuery()
@@ -96,6 +107,129 @@ func genViewTableDef(ctx CompilerContext, stmt *tree.Select) (*plan.TableDef, er
 	})
 
 	return &tableDef, nil
+}
+
+func buildCreateStream(stmt *tree.CreateStream, ctx CompilerContext) (*Plan, error) {
+	streamName := string(stmt.StreamName.ObjectName)
+	createStream := &plan.CreateTable{
+		IfNotExists: stmt.IfNotExists,
+		TableDef: &TableDef{
+			TableType: catalog.SystemStreamRel,
+			Name:      streamName,
+		},
+	}
+	if len(stmt.StreamName.SchemaName) == 0 {
+		createStream.Database = ctx.DefaultDatabase()
+	} else {
+		createStream.Database = string(stmt.StreamName.SchemaName)
+	}
+
+	if sub, err := ctx.GetSubscriptionMeta(createStream.Database); err != nil {
+		if moerr.IsMoErrCode(err, moerr.OkExpectedEOB) {
+			return nil, moerr.NewNoDB(ctx.GetContext())
+		}
+		return nil, err
+	} else if sub != nil {
+		return nil, moerr.NewInternalError(ctx.GetContext(), "cannot create stream in subscription database")
+	}
+
+	if stmt.AsSource != nil {
+		return nil, moerr.NewNYI(ctx.GetContext(), "create stream as : '%v'", stmt.AsSource)
+		//tableDef, err := genViewTableDef(ctx, stmt.AsSource)
+		//if err != nil {
+		//	return nil, err
+		//}
+		//
+		//createStream.TableDef.Cols = tableDef.Cols
+		//createStream.TableDef.ViewSql = tableDef.ViewSql
+		//createStream.TableDef.Defs = tableDef.Defs
+	} else {
+		if err := buildStreamDefs(stmt, ctx, createStream); err != nil {
+			return nil, err
+		}
+	}
+	var properties []*plan.Property
+	properties = append(properties, &plan.Property{
+		Key:   catalog.SystemRelAttr_Kind,
+		Value: catalog.SystemStreamRel,
+	})
+	configs := make(map[string]interface{})
+	for _, option := range stmt.Options {
+		switch opt := option.(type) {
+		case *tree.CreateStreamWithOption:
+			key := strings.ToLower(string(opt.Key))
+			val := opt.Val.(*tree.NumVal).OrigString()
+			properties = append(properties, &plan.Property{
+				Key:   key,
+				Value: val,
+			})
+			configs[key] = val
+		}
+	}
+	if err := mokafka.ValidateConfig(context.Background(), configs, mokafka.NewKafkaAdapter); err != nil {
+		return nil, err
+	}
+	createStream.TableDef.Defs = append(createStream.TableDef.Defs, &plan.TableDef_DefType{
+		Def: &plan.TableDef_DefType_Properties{
+			Properties: &plan.PropertiesDef{
+				Properties: properties,
+			},
+		},
+	})
+	return &Plan{
+		Plan: &plan.Plan_Ddl{
+			Ddl: &plan.DataDefinition{
+				DdlType: plan.DataDefinition_CREATE_TABLE,
+				Definition: &plan.DataDefinition_CreateTable{
+					CreateTable: createStream,
+				},
+			},
+		},
+	}, nil
+}
+
+func buildStreamDefs(stmt *tree.CreateStream, ctx CompilerContext, createStream *plan.CreateTable) error {
+	colMap := make(map[string]*ColDef)
+	for _, item := range stmt.Defs {
+		switch def := item.(type) {
+		case *tree.ColumnTableDef:
+			colName := def.Name.Parts[0]
+			if _, ok := colMap[colName]; ok {
+				return moerr.NewInvalidInput(ctx.GetContext(), "duplicate column name: %s", colName)
+			}
+			colType, err := getTypeFromAst(ctx.GetContext(), def.Type)
+			if err != nil {
+				return err
+			}
+			if colType.Id == int32(types.T_char) || colType.Id == int32(types.T_varchar) ||
+				colType.Id == int32(types.T_binary) || colType.Id == int32(types.T_varbinary) {
+				if colType.GetWidth() > types.MaxStringSize {
+					return moerr.NewInvalidInput(ctx.GetContext(), "string width (%d) is too long", colType.GetWidth())
+				}
+			}
+			col := &ColDef{
+				Name: colName,
+				Alg:  plan.CompressType_Lz4,
+				Typ:  colType,
+			}
+			colMap[colName] = col
+			for _, attr := range def.Attributes {
+				switch a := attr.(type) {
+				case *tree.AttributeKey:
+					col.Primary = true
+				case *tree.AttributeHeader:
+					col.Header = a.Key
+				case *tree.AttributeHeaders:
+					col.Headers = true
+				}
+			}
+			createStream.TableDef.Cols = append(createStream.TableDef.Cols, col)
+		case *tree.CreateStreamWithOption:
+		default:
+			return moerr.NewNYI(ctx.GetContext(), "stream def: '%v'", def)
+		}
+	}
+	return nil
 }
 
 func buildCreateView(stmt *tree.CreateView, ctx CompilerContext) (*Plan, error) {
@@ -606,6 +740,11 @@ func buildTableDefs(stmt *tree.CreateTable, ctx CompilerContext, createTable *pl
 					return moerr.NewInvalidInput(ctx.GetContext(), "string width (%d) is too long", colType.GetWidth())
 				}
 			}
+			if colType.Id == int32(types.T_array_float32) || colType.Id == int32(types.T_array_float64) {
+				if colType.GetWidth() > types.MaxArrayDimension {
+					return moerr.NewInvalidInput(ctx.GetContext(), "vector width (%d) is too long", colType.GetWidth())
+				}
+			}
 			var pks []string
 			var comment string
 			var auto_incr bool
@@ -620,6 +759,9 @@ func buildTableDefs(stmt *tree.CreateTable, ctx CompilerContext, createTable *pl
 					}
 					if colType.GetId() == int32(types.T_json) {
 						return moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("JSON column '%s' cannot be in primary key", def.Name.Parts[0]))
+					}
+					if colType.GetId() == int32(types.T_array_float32) || colType.GetId() == int32(types.T_array_float64) {
+						return moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("VECTOR column '%s' cannot be in primary key", def.Name.Parts[0]))
 					}
 					pks = append(pks, def.Name.Parts[0])
 				case *tree.AttributeComment:
@@ -981,6 +1123,10 @@ func buildUniqueIndexTable(createTable *plan.CreateTable, indexInfos []*tree.Uni
 			if colMap[name].Typ.Id == int32(types.T_json) {
 				return moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("JSON column '%s' cannot be in index", name))
 			}
+			if colMap[name].Typ.Id == int32(types.T_array_float32) || colMap[name].Typ.Id == int32(types.T_array_float64) {
+				return moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("VECTOR column '%s' cannot be in index", name))
+			}
+
 			indexParts = append(indexParts, name)
 		}
 
@@ -1581,10 +1727,11 @@ func getTableComment(tableDef *plan.TableDef) string {
 	return comment
 }
 
-func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) {
+func buildAlterTableInplace(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) {
 	tableName := string(stmt.Table.ObjectName)
 	alterTable := &plan.AlterTable{
-		Actions: make([]*plan.AlterTable_Action, len(stmt.Options)),
+		Actions:       make([]*plan.AlterTable_Action, len(stmt.Options)),
+		AlgorithmType: plan.AlterTable_INPLACE,
 	}
 
 	databaseName := string(stmt.Table.SchemaName)
@@ -1592,16 +1739,11 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 		databaseName = ctx.DefaultDatabase()
 	}
 
-	obj, tableDef := ctx.Resolve(databaseName, tableName)
+	_, tableDef := ctx.Resolve(databaseName, tableName)
 	if tableDef == nil {
 		return nil, moerr.NewNoSuchTable(ctx.GetContext(), databaseName, tableName)
 	}
-	if tableDef.ViewSql != nil {
-		return nil, moerr.NewInternalError(ctx.GetContext(), "you should use alter view statemnt for View")
-	}
-	if obj.PubInfo != nil {
-		return nil, moerr.NewInternalError(ctx.GetContext(), "cannot alter table in subscription database")
-	}
+
 	alterTable.Database = databaseName
 	alterTable.IsClusterTable = util.TableIsClusterTable(tableDef.GetTableType())
 	if alterTable.IsClusterTable && ctx.GetAccountId() != catalog.System_Account {
@@ -1658,7 +1800,7 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 			case tree.AlterTableDropPrimaryKey:
 				alterTableDrop.Typ = plan.AlterTableDrop_PRIMARY_KEY
 				if tableDef.Pkey == nil || tableDef.Pkey.PkeyColName == catalog.FakePrimaryKeyColName {
-					return nil, moerr.NewInternalError(ctx.GetContext(), "Can't DROP Primary Key; check that column/key exists")
+					return nil, moerr.NewErrCantDropFieldOrKey(ctx.GetContext(), "PRIMARY")
 				}
 				return nil, moerr.NewInternalError(ctx.GetContext(), "Can't DROP exists Primary Key")
 			case tree.AlterTableDropForeignKey:
@@ -1851,6 +1993,12 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 					return nil, moerr.NewInvalidInput(ctx.GetContext(), "string width (%d) is too long", colType.GetWidth())
 				}
 			}
+
+			if colType.Id == int32(types.T_array_float32) || colType.Id == int32(types.T_array_float64) {
+				if colType.GetWidth() > types.MaxArrayDimension {
+					return nil, moerr.NewInvalidInput(ctx.GetContext(), "vector width (%d) is too long", colType.GetWidth())
+				}
+			}
 			var pks []string
 			var comment string
 			var auto_incr bool
@@ -1866,6 +2014,9 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 					if colType.GetId() == int32(types.T_json) {
 						return nil, moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("JSON column '%s' cannot be in primary key", opt.Column.Name.Parts[0]))
 					}
+					if colType.GetId() == int32(types.T_array_float32) || colType.GetId() == int32(types.T_array_float64) {
+						return nil, moerr.NewNotSupported(ctx.GetContext(), fmt.Sprintf("VECTOR column '%s' cannot be in primary key", opt.Column.Name.Parts[0]))
+					}
 					pks = append(pks, opt.Column.Name.Parts[0])
 				case *tree.AttributeComment:
 					comment = attribute.CMT.String()
@@ -1878,15 +2029,16 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 						return nil, moerr.NewNotSupported(ctx.GetContext(), "the auto_incr column is only support integer type now")
 					}
 				case *tree.AttributeUnique, *tree.AttributeUniqueKey:
-					uniqueIndexInfos = append(uniqueIndexInfos, &tree.UniqueIndex{
-						KeyParts: []*tree.KeyPart{
-							{
-								ColName: opt.Column.Name,
-							},
-						},
-						Name: opt.Column.Name.Parts[0],
-					})
-					indexs = append(indexs, opt.Column.Name.Parts[0])
+					return nil, moerr.NewNotSupported(ctx.GetContext(), "unsupport add unique index constraints when adding new column")
+					//uniqueIndexInfos = append(uniqueIndexInfos, &tree.UniqueIndex{
+					//	KeyParts: []*tree.KeyPart{
+					//		{
+					//			ColName: opt.Column.Name,
+					//		},
+					//	},
+					//	Name: opt.Column.Name.Parts[0],
+					//})
+					//indexs = append(indexs, opt.Column.Name.Parts[0])
 				}
 			}
 			if len(pks) > 0 {
@@ -1924,8 +2076,8 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 			}
 			colMap[col.Name] = col
 			preName := ""
-			if opt.Pos.PreColName != nil {
-				preName = opt.Pos.PreColName.Parts[0]
+			if opt.Position.RelativeColumn != nil {
+				preName = opt.Position.RelativeColumn.Parts[0]
 			}
 			err = checkIsAddableColumn(tableDef, opt.Column.Name.Parts[0], colType, ctx)
 			if err != nil {
@@ -1937,7 +2089,7 @@ func buildAlterTable(stmt *tree.AlterTable, ctx CompilerContext) (*Plan, error) 
 						Name:    opt.Column.Name.Parts[0],
 						PreName: preName,
 						Type:    colType,
-						Pos:     opt.Pos.Pos,
+						Pos:     int32(opt.Position.Typ),
 					},
 				},
 			}
@@ -2129,46 +2281,61 @@ func getForeignKeyData(ctx CompilerContext, tableDef *TableDef, def *tree.Foreig
 
 	columnIdPos := make(map[uint64]int)
 	columnNamePos := make(map[string]int)
-	uniqueColumn := make(map[string]uint64)
+	uniqueColumns := make([]map[string]uint64, 0, len(tableRef.Cols))
 	for i, col := range tableRef.Cols {
 		columnIdPos[col.ColId] = i
 		columnNamePos[col.Name] = i
-		if col.Primary {
-			uniqueColumn[col.Name] = col.ColId
-		}
 	}
 	if tableRef.Pkey != nil {
+		uniqueMap := make(map[string]uint64)
 		for _, colName := range tableRef.Pkey.Names {
-			uniqueColumn[colName] = tableRef.Cols[columnNamePos[colName]].ColId
+			uniqueMap[colName] = tableRef.Cols[columnNamePos[colName]].ColId
 		}
+		uniqueColumns = append(uniqueColumns, uniqueMap)
 	}
 
 	// now tableRef.Indices is empty, you can not test it
 	for _, index := range tableRef.Indexes {
 		if index.Unique {
-			if len(index.Parts) == 1 {
-				uniqueColName := index.Parts[0]
+			uniqueMap := make(map[string]uint64)
+			for _, uniqueColName := range index.Parts {
 				colId := tableRef.Cols[columnNamePos[uniqueColName]].ColId
-				uniqueColumn[uniqueColName] = colId
+				uniqueMap[uniqueColName] = colId
 			}
+			uniqueColumns = append(uniqueColumns, uniqueMap)
 		}
 	}
 
-	for i, keyPart := range refer.KeyParts {
-		colName := keyPart.ColName.Parts[0]
-		if _, exists := columnNamePos[colName]; exists {
-			if colId, ok := uniqueColumn[colName]; ok {
-				// check column type
-				if tableRef.Cols[columnIdPos[colId]].Typ.Id != fkColTyp[i].Id {
-					return nil, moerr.NewInternalError(ctx.GetContext(), "type of reference column '%v' is not match for column '%v'", colName, fkColName[i])
+	matchCol := make([]uint64, 0, len(refer.KeyParts))
+	for _, uniqueColumn := range uniqueColumns {
+		for i, keyPart := range refer.KeyParts {
+			colName := keyPart.ColName.Parts[0]
+			if _, exists := columnNamePos[colName]; exists {
+				if colId, ok := uniqueColumn[colName]; ok {
+					// check column type
+					if tableRef.Cols[columnIdPos[colId]].Typ.Id != fkColTyp[i].Id {
+						return nil, moerr.NewInternalError(ctx.GetContext(), "type of reference column '%v' is not match for column '%v'", colName, fkColName[i])
+					}
+					matchCol = append(matchCol, colId)
+				} else {
+					matchCol = matchCol[:0]
+					break
 				}
-				fkData.Def.ForeignCols[i] = colId
 			} else {
-				return nil, moerr.NewInternalError(ctx.GetContext(), "reference column '%v' is not unique constraint(Unique index or Primary Key)", colName)
+				return nil, moerr.NewInternalError(ctx.GetContext(), "column '%v' no exists in table '%v'", colName, fkTableName)
 			}
-		} else {
-			return nil, moerr.NewInternalError(ctx.GetContext(), "column '%v' no exists in table '%v'", colName, fkTableName)
+		}
+
+		if len(matchCol) > 0 {
+			break
 		}
 	}
+
+	if len(matchCol) == 0 {
+		return nil, moerr.NewInternalError(ctx.GetContext(), "failed to add the foreign key constraint")
+	} else {
+		fkData.Def.ForeignCols = matchCol
+	}
+
 	return &fkData, nil
 }

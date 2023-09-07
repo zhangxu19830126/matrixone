@@ -43,7 +43,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/util/errutil"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/cache"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -56,17 +55,17 @@ func New(
 	cli client.TxnClient,
 	idGen IDGenerator,
 ) *Engine {
-	var services []metadata.DNService
+	var services []metadata.TNService
 	cluster := clusterservice.GetMOCluster()
-	cluster.GetDNService(clusterservice.NewSelector(),
-		func(d metadata.DNService) bool {
+	cluster.GetTNService(clusterservice.NewSelector(),
+		func(d metadata.TNService) bool {
 			services = append(services, d)
 			return true
 		})
 
-	var dnID string
+	var tnID string
 	if len(services) > 0 {
-		dnID = services[0].ServiceID
+		tnID = services[0].ServiceID
 	}
 
 	ls, ok := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.LockService)
@@ -75,13 +74,12 @@ func New(
 	}
 
 	e := &Engine{
-		mp:         mp,
-		fs:         fs,
-		ls:         ls.(lockservice.LockService),
-		cli:        cli,
-		idGen:      idGen,
-		dnID:       dnID,
-		partitions: make(map[[2]uint64]*logtailreplay.Partition),
+		mp:    mp,
+		fs:    fs,
+		ls:    ls.(lockservice.LockService),
+		cli:   cli,
+		idGen: idGen,
+		tnID:  tnID,
 		packerPool: fileservice.NewPool(
 			128,
 			func() *types.Packer {
@@ -122,7 +120,7 @@ func (e *Engine) Create(ctx context.Context, name string, op client.TxnOperator)
 	}
 	// non-io operations do not need to pass context
 	if err := txn.WriteBatch(INSERT, catalog.MO_CATALOG_ID, catalog.MO_DATABASE_ID,
-		catalog.MO_CATALOG, catalog.MO_DATABASE, bat, txn.dnStores[0], -1, false, false); err != nil {
+		catalog.MO_CATALOG, catalog.MO_DATABASE, bat, txn.tnStores[0], -1, false, false); err != nil {
 		return err
 	}
 	txn.databaseMap.Store(genDatabaseKey(ctx, name), &txnDatabase{
@@ -214,8 +212,8 @@ func (e *Engine) GetNameById(ctx context.Context, op client.TxnOperator, tableId
 
 	if tblName == "" {
 		dbNames := e.catalog.Databases(accountId, txn.meta.SnapshotTS)
-		for _, dbName := range dbNames {
-			db, err = e.Database(noRepCtx, dbName, op)
+		for _, databaseName := range dbNames {
+			db, err = e.Database(noRepCtx, databaseName, op)
 			if err != nil {
 				return "", "", err
 			}
@@ -223,6 +221,7 @@ func (e *Engine) GetNameById(ctx context.Context, op client.TxnOperator, tableId
 			tableName, rel := distDb.getRelationById(noRepCtx, tableId)
 			if rel != nil {
 				tblName = tableName
+				dbName = databaseName
 				break
 			}
 		}
@@ -326,7 +325,7 @@ func (e *Engine) Delete(ctx context.Context, name string, op client.TxnOperator)
 	}
 	// non-io operations do not need to pass context
 	if err := txn.WriteBatch(DELETE, catalog.MO_CATALOG_ID, catalog.MO_DATABASE_ID,
-		catalog.MO_CATALOG, catalog.MO_DATABASE, bat, txn.dnStores[0], -1, false, false); err != nil {
+		catalog.MO_CATALOG, catalog.MO_DATABASE, bat, txn.tnStores[0], -1, false, false); err != nil {
 		return err
 	}
 	return nil
@@ -353,7 +352,7 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 		engine:   e,
 		meta:     op.TxnRef(),
 		idGen:    e.idGen,
-		dnStores: e.getDNServices(),
+		tnStores: e.getTNServices(),
 		tableCache: struct {
 			cachedIndex int
 			tableMap    *sync.Map
@@ -377,8 +376,9 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 		},
 		cnBlkId_Pos:                     map[types.Blockid]Pos{},
 		blockId_raw_batch:               make(map[types.Blockid]*batch.Batch),
-		blockId_dn_delete_metaLoc_batch: make(map[types.Blockid][]*batch.Batch),
+		blockId_tn_delete_metaLoc_batch: make(map[types.Blockid][]*batch.Batch),
 		batchSelectList:                 make(map[*batch.Batch][]int64),
+		syncCommittedTSCount:            e.cli.GetSyncLatestCommitTSTimes(),
 		dupCheckMap:                     make(map[string][2]timestamp.Timestamp),
 	}
 	if txn.meta.IsRCIsolation() {
@@ -481,11 +481,11 @@ func (e *Engine) getTransaction(op client.TxnOperator) *Transaction {
 	return op.GetWorkspace().(*Transaction)
 }
 
-func (e *Engine) getDNServices() []DNStore {
+func (e *Engine) getTNServices() []DNStore {
 	var values []DNStore
 	cluster := clusterservice.GetMOCluster()
-	cluster.GetDNService(clusterservice.NewSelector(),
-		func(d metadata.DNService) bool {
+	cluster.GetTNService(clusterservice.NewSelector(),
+		func(d metadata.TNService) bool {
 			values = append(values, d)
 			return true
 		})
@@ -496,12 +496,10 @@ func (e *Engine) setPushClientStatus(ready bool) {
 	e.Lock()
 	defer e.Unlock()
 
-	if tc, ok := e.cli.(client.TxnClientWithFeature); ok {
-		if ready {
-			tc.Resume()
-		} else {
-			tc.Pause()
-		}
+	if ready {
+		e.cli.Resume()
+	} else {
+		e.cli.Pause()
 	}
 
 	e.pClient.receivedLogTailTime.ready.Store(ready)

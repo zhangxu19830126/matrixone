@@ -65,7 +65,7 @@ func isSetLeaseHolderUpdate(cmd []byte) bool {
 
 func getNodeHostConfig(cfg Config) config.NodeHostConfig {
 	meta := storeMeta{
-		serviceAddress: cfg.ServiceAddress,
+		serviceAddress: cfg.LogServiceServiceAddr(),
 	}
 	if cfg.GossipProbeInterval.Duration == 0 {
 		panic("cfg.GossipProbeInterval.Duration is 0")
@@ -84,8 +84,8 @@ func getNodeHostConfig(cfg Config) config.NodeHostConfig {
 		NodeHostDir:         cfg.DataDir,
 		RTTMillisecond:      cfg.RTTMillisecond,
 		AddressByNodeHostID: true,
-		RaftAddress:         cfg.RaftAddress,
-		ListenAddress:       cfg.RaftListenAddress,
+		RaftAddress:         cfg.RaftServiceAddr(),
+		ListenAddress:       cfg.RaftListenAddr(),
 		Expert: config.ExpertConfig{
 			FS:           cfg.FS,
 			LogDBFactory: logdbFactory,
@@ -95,8 +95,8 @@ func getNodeHostConfig(cfg Config) config.NodeHostConfig {
 			LogDB:                   logdb,
 		},
 		Gossip: config.GossipConfig{
-			BindAddress:      cfg.GossipListenAddress,
-			AdvertiseAddress: cfg.GossipAddress,
+			BindAddress:      cfg.GossipListenAddr(),
+			AdvertiseAddress: cfg.GossipServiceAddr(),
 			Seed:             cfg.GossipSeedAddresses,
 			Meta:             meta.marshal(),
 			CanUseSelfAsSeed: cfg.GossipAllowSelfAsSeed,
@@ -150,7 +150,7 @@ func newLogStore(cfg Config,
 	hakeeperConfig := cfg.GetHAKeeperConfig()
 	rt.SubLogger(runtime.SystemInit).Info("HAKeeper Timeout Configs",
 		zap.Int64("LogStoreTimeout", int64(hakeeperConfig.LogStoreTimeout)),
-		zap.Int64("DNStoreTimeout", int64(hakeeperConfig.DNStoreTimeout)),
+		zap.Int64("DNStoreTimeout", int64(hakeeperConfig.TNStoreTimeout)),
 		zap.Int64("CNStoreTimeout", int64(hakeeperConfig.CNStoreTimeout)),
 	)
 	ls := &store{
@@ -352,10 +352,10 @@ func (l *store) read(ctx context.Context,
 	}
 }
 
-func (l *store) getOrExtendDNLease(ctx context.Context,
-	shardID uint64, dnID uint64) error {
+func (l *store) getOrExtendTNLease(ctx context.Context,
+	shardID uint64, tnID uint64) error {
 	session := l.nh.GetNoOPSession(shardID)
-	cmd := getSetLeaseHolderCmd(dnID)
+	cmd := getSetLeaseHolderCmd(tnID)
 	_, err := l.propose(ctx, session, cmd)
 	return err
 }
@@ -466,10 +466,10 @@ func (l *store) cnAllocateID(ctx context.Context,
 	return result.Value, nil
 }
 
-func (l *store) addDNStoreHeartbeat(ctx context.Context,
-	hb pb.DNStoreHeartbeat) (pb.CommandBatch, error) {
+func (l *store) addTNStoreHeartbeat(ctx context.Context,
+	hb pb.TNStoreHeartbeat) (pb.CommandBatch, error) {
 	data := MustMarshal(&hb)
-	cmd := hakeeper.GetDNStoreHeartbeatCmd(data)
+	cmd := hakeeper.GetTNStoreHeartbeatCmd(data)
 	session := l.nh.GetNoOPSession(hakeeper.DefaultHAKeeperShardID)
 	if result, err := l.propose(ctx, session, cmd); err != nil {
 		l.runtime.Logger().Error("propose failed", zap.Error(err))
@@ -835,9 +835,9 @@ func (l *store) hakeeperTick() {
 func (l *store) getHeartbeatMessage() pb.LogStoreHeartbeat {
 	m := pb.LogStoreHeartbeat{
 		UUID:           l.id(),
-		RaftAddress:    l.cfg.RaftAddress,
-		ServiceAddress: l.cfg.ServiceAddress,
-		GossipAddress:  l.cfg.GossipAddress,
+		RaftAddress:    l.cfg.RaftServiceAddr(),
+		ServiceAddress: l.cfg.LogServiceServiceAddr(),
+		GossipAddress:  l.cfg.GossipServiceAddr(),
 		Replicas:       make([]pb.LogReplicaInfo, 0),
 	}
 	opts := dragonboat.NodeHostInfoOption{

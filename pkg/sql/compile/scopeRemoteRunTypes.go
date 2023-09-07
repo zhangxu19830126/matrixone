@@ -44,7 +44,8 @@ import (
 const (
 	maxMessageSizeToMoRpc = 64 * mpool.MB
 
-	HandleNotifyTimeout = 120 * time.Second
+	// need to fix this in the future. for now, increase it to make tpch1T can run on 3 CN
+	HandleNotifyTimeout = 300 * time.Second
 )
 
 // cnInformation records service information to help handle messages.
@@ -143,8 +144,8 @@ func (sender *messageSenderOnClient) send(
 func (sender *messageSenderOnClient) receiveMessage() (morpc.Message, error) {
 	select {
 	case <-sender.ctx.Done():
-		logutil.Errorf("sender ctx done during receive")
 		return nil, nil
+
 	case val, ok := <-sender.receiveCh:
 		if !ok || val == nil {
 			// ch close
@@ -288,7 +289,7 @@ func (receiver *messageReceiverOnServer) newCompile() *Compile {
 		anal: &anaylze{analInfos: proc.AnalInfos},
 		addr: receiver.cnInformation.cnAddr,
 	}
-	c.proc.Ctx = perfcounter.WithCounterSet(c.proc.Ctx, &c.s3CounterSet)
+	c.proc.Ctx = perfcounter.WithCounterSet(c.proc.Ctx, &c.counterSet)
 	c.ctx = context.WithValue(c.proc.Ctx, defines.TenantIDKey{}, pHelper.accountId)
 
 	c.fill = func(_ any, b *batch.Batch) error {
@@ -320,6 +321,10 @@ func (receiver *messageReceiverOnServer) sendBatch(
 	if b == nil {
 		return nil
 	}
+
+	// There is still a memory problem here. If row count is very small, but the cap of batch's vectors is very large,
+	// to encode will allocate a large memory.
+	// but I'm not sure how string type store data in vector, so I can't do a simple optimization like vec.col = vec.col[:len].
 	data, err := types.Encode(b)
 	if err != nil {
 		return err

@@ -95,7 +95,10 @@ func (bat *Batch) AppendPlaceholder() {
 }
 
 func (bat *Batch) GetVectorByName(name string) Vector {
-	pos := bat.Nameidx[name]
+	pos, ok := bat.Nameidx[name]
+	if !ok {
+		panic(fmt.Sprintf("vector %s not found", name))
+	}
 	return bat.Vecs[pos]
 }
 
@@ -140,6 +143,14 @@ func (bat *Batch) Compact() {
 
 func (bat *Batch) Length() int {
 	return bat.Vecs[0].Length()
+}
+
+func (bat *Batch) ApproxSize() int {
+	size := 0
+	for _, vec := range bat.Vecs {
+		size += vec.ApproxSize()
+	}
+	return size
 }
 
 func (bat *Batch) Allocated() int {
@@ -229,6 +240,23 @@ func (bat *Batch) Close() {
 	for _, vec := range bat.Vecs {
 		vec.Close()
 	}
+}
+
+func (bat *Batch) Reset() {
+	for i, vec := range bat.Vecs {
+		var newVec Vector
+		if bat.Pool != nil {
+			newVec = bat.Pool.GetVector(vec.GetType())
+		} else {
+			opts := Options{
+				Allocator: vec.GetAllocator(),
+			}
+			newVec = NewVector(*vec.GetType(), opts)
+		}
+		vec.Close()
+		bat.Vecs[i] = newVec
+	}
+	bat.Deletes = nil
 }
 
 func (bat *Batch) Equals(o *Batch) bool {
@@ -492,4 +520,29 @@ func (b *BatchWithVersion) Swap(i, j int) {
 // Sort by seqnum
 func (b *BatchWithVersion) Less(i, j int) bool {
 	return b.Seqnums[i] < b.Seqnums[j]
+}
+
+func NewBatchSplitter(bat *Batch, sliceSize int) *BatchSplitter {
+	if sliceSize <= 0 || bat == nil {
+		panic("sliceSize should not be 0 and bat should not be nil")
+	}
+	return &BatchSplitter{
+		internal:  bat,
+		sliceSize: sliceSize,
+	}
+}
+
+func (bs *BatchSplitter) Next() (*Batch, error) {
+	if bs.offset == bs.internal.Length() {
+		return nil, moerr.GetOkExpectedEOB()
+	}
+	length := bs.sliceSize
+	nextOffset := bs.offset + bs.sliceSize
+	if nextOffset >= bs.internal.Length() {
+		nextOffset = bs.internal.Length()
+		length = nextOffset - bs.offset
+	}
+	bat := bs.internal.Window(bs.offset, length)
+	bs.offset = nextOffset
+	return bat, nil
 }

@@ -28,9 +28,10 @@ type WrappedService struct {
 func NewWrappedService(
 	c Config,
 	fileService fileservice.FileService,
+	shutdownC chan struct{},
 	opts ...Option,
 ) (*WrappedService, error) {
-	svc, err := NewService(c, fileService, opts...)
+	svc, err := NewService(c, fileService, shutdownC, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -59,10 +60,10 @@ func (w *WrappedService) GetClusterState() (*pb.CheckerState, error) {
 }
 
 func (w *WrappedService) SetInitialClusterInfo(
-	logShardNum, dnShardNum, logReplicaNum uint64,
+	logShardNum, tnShartnum, logReplicaNum uint64,
 ) error {
 	return w.svc.store.setInitialClusterInfo(
-		logShardNum, dnShardNum, logReplicaNum,
+		logShardNum, tnShartnum, logReplicaNum, 0, nil,
 	)
 }
 

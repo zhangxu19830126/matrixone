@@ -207,6 +207,7 @@ func DeepCopyNode(node *plan.Node) *plan.Node {
 		LockTargets:     make([]*plan.LockTarget, len(node.LockTargets)),
 		AnalyzeInfo:     DeepCopyAnalyzeInfo(node.AnalyzeInfo),
 		IsEnd:           node.IsEnd,
+		ExternScan:      node.ExternScan,
 	}
 	newNode.Uuid = append(newNode.Uuid, node.Uuid...)
 
@@ -253,15 +254,7 @@ func DeepCopyNode(node *plan.Node) *plan.Node {
 		newNode.TableDefVec[i] = DeepCopyTableDef(tbl)
 	}
 
-	if node.Stats != nil {
-		newNode.Stats = &plan.Stats{
-			BlockNum:    node.Stats.BlockNum,
-			Rowsize:     node.Stats.Rowsize,
-			HashmapSize: node.Stats.HashmapSize,
-			Cost:        node.Stats.Cost,
-			Outcnt:      node.Stats.Outcnt,
-		}
-	}
+	newNode.Stats = DeepCopyStats(node.Stats)
 
 	newNode.ObjRef = DeepCopyObjectRef(node.ObjRef)
 
@@ -313,6 +306,7 @@ func DeepCopyType(typ *plan.Type) *plan.Type {
 		Width:       typ.Width,
 		Scale:       typ.Scale,
 		AutoIncr:    typ.AutoIncr,
+		Enumvalues:  typ.Enumvalues,
 	}
 }
 
@@ -654,7 +648,11 @@ func DeepCopyDataDefinition(old *plan.DataDefinition) *plan.DataDefinition {
 		AlterTable := &plan.AlterTable{
 			Database:       df.AlterTable.Database,
 			TableDef:       DeepCopyTableDef(df.AlterTable.TableDef),
+			CopyTableDef:   DeepCopyTableDef(df.AlterTable.CopyTableDef),
 			IsClusterTable: df.AlterTable.IsClusterTable,
+			AlgorithmType:  df.AlterTable.AlgorithmType,
+			CreateTableSql: df.AlterTable.CreateTableSql,
+			InsertDataSql:  df.AlterTable.InsertDataSql,
 			Actions:        make([]*plan.AlterTable_Action, len(df.AlterTable.Actions)),
 		}
 		for i, action := range df.AlterTable.Actions {
@@ -852,6 +850,8 @@ func DeepCopyExpr(expr *Expr) *Expr {
 			pc.Value = &plan.Const_Defaultval{Defaultval: c.Defaultval}
 		case *plan.Const_UpdateVal:
 			pc.Value = &plan.Const_UpdateVal{UpdateVal: c.UpdateVal}
+		case *plan.Const_EnumVal:
+			pc.Value = &plan.Const_EnumVal{EnumVal: c.EnumVal}
 		}
 
 		newExpr.Expr = &plan.Expr_C{
@@ -930,7 +930,11 @@ func DeepCopyExpr(expr *Expr) *Expr {
 	case *plan.Expr_Sub:
 		newExpr.Expr = &plan.Expr_Sub{
 			Sub: &plan.SubqueryRef{
-				NodeId: item.Sub.GetNodeId(),
+				NodeId:  item.Sub.GetNodeId(),
+				Typ:     item.Sub.Typ,
+				Op:      item.Sub.Op,
+				RowSize: item.Sub.RowSize,
+				Child:   DeepCopyExpr(item.Sub.Child),
 			},
 		}
 
@@ -966,6 +970,13 @@ func DeepCopyExpr(expr *Expr) *Expr {
 		}
 		newExpr.Expr = &plan.Expr_List{
 			List: e,
+		}
+
+	case *plan.Expr_Bin:
+		newExpr.Expr = &plan.Expr_Bin{
+			Bin: &plan.BinaryData{
+				Data: item.Bin.Data,
+			},
 		}
 	}
 
