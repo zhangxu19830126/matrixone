@@ -16,6 +16,7 @@ package merge
 
 import (
 	"bytes"
+
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
@@ -28,7 +29,7 @@ func String(_ any, buf *bytes.Buffer) {
 func Prepare(proc *process.Process, arg any) error {
 	ap := arg.(*Argument)
 	ap.ctr = new(container)
-	ap.ctr.InitReceiver(proc, true)
+	ap.ctr.InitReceiver(proc, true, ap.Producers)
 	return nil
 }
 

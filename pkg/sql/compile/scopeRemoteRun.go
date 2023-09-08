@@ -413,7 +413,7 @@ func encodeProcessInfo(proc *process.Process) ([]byte, error) {
 }
 
 func refactorScope(c *Compile, s *Scope) *Scope {
-	rs := c.newMergeScope([]*Scope{s})
+	rs := c.newMergeScope([]*Scope{s}, nil)
 	rs.Instructions = append(rs.Instructions, vm.Instruction{
 		Op:  vm.Output,
 		Idx: -1, // useless
@@ -957,7 +957,8 @@ func convertToPipelineInstruction(opr *vm.Instruction, ctx *scopeContext, ctxId 
 		}
 	case *merge.Argument:
 		in.Merge = &pipeline.Merge{
-			SinkScan: t.SinkScan,
+			SinkScan:  t.SinkScan,
+			Producers: t.Producers,
 		}
 	case *mergerecursive.Argument:
 	case *mergegroup.Argument:
@@ -1367,7 +1368,10 @@ func convertToVmInstruction(opr *pipeline.Instruction, ctx *scopeContext, eng en
 			Reg: ctx.root.getRegister(t.PipelineId, t.ConnectorIndex),
 		}
 	case vm.Merge:
-		v.Arg = &merge.Argument{}
+		t := opr.GetMerge()
+		v.Arg = &merge.Argument{
+			Producers: t.Producers,
+		}
 	case vm.MergeRecursive:
 		v.Arg = &mergerecursive.Argument{}
 	case vm.MergeGroup:

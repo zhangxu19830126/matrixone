@@ -19,15 +19,20 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
 // isMergeType means the receiver operator receive batch from all regs or single by some order
 // Merge/MergeGroup/MergeLimit ... are Merge-Type
 // while Join/Intersect/Minus ... are not
-func (r *ReceiverOperator) InitReceiver(proc *process.Process, isMergeType bool) {
+func (r *ReceiverOperator) InitReceiver(proc *process.Process, isMergeType bool, producers []string) {
 	r.proc = proc
 	if isMergeType {
+		if len(producers) != 0 {
+			r.producers = append([]string{"context"}, producers...)
+			r.producers = append(r.producers, "timeout")
+		}
 		r.aliveMergeReceiver = len(proc.Reg.MergeReceivers)
 		r.chs = make([]chan *batch.Batch, r.aliveMergeReceiver)
 		r.receiverListener = make([]reflect.SelectCase, r.aliveMergeReceiver+1)
@@ -39,6 +44,12 @@ func (r *ReceiverOperator) InitReceiver(proc *process.Process, isMergeType bool)
 				Chan: reflect.ValueOf(mr.Ch),
 			}
 		}
+		r.receiverListener = append(r.receiverListener, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(time.After(3 * time.Second)),
+		})
+	} else if len(producers) != 0 {
+		r.producers = append(r.producers, producers...)
 	}
 }
 
@@ -103,6 +114,11 @@ func (r *ReceiverOperator) ReceiveFromAllRegs(analyze process.Analyze) (*batch.B
 			return nil, true, nil
 		}
 
+		n := len(r.receiverListener) - 1
+		r.receiverListener[n] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(time.After(3 * time.Second)),
+		}
 		start := time.Now()
 		chosen, value, ok := reflect.Select(r.receiverListener)
 		analyze.WaitStop(start)
@@ -110,6 +126,9 @@ func (r *ReceiverOperator) ReceiveFromAllRegs(analyze process.Analyze) (*batch.B
 		// chosen == 0 means the info comes from proc context.Done
 		if chosen == 0 {
 			return nil, true, nil
+		}
+		if chosen == n {
+			logutil.Errorf("+++timeout %v\n", r.producers)
 		}
 
 		if !ok {
@@ -153,5 +172,8 @@ func (r *ReceiverOperator) FreeMergeTypeOperator(failed bool) {
 
 func (r *ReceiverOperator) RemoveChosen(idx int) {
 	r.receiverListener = append(r.receiverListener[:idx], r.receiverListener[idx+1:]...)
+	if len(r.producers) > 0 {
+		r.producers = append(r.producers[:idx], r.producers[idx+1:]...)
+	}
 	r.aliveMergeReceiver--
 }

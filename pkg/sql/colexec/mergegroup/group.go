@@ -29,7 +29,7 @@ func String(_ interface{}, buf *bytes.Buffer) {
 func Prepare(proc *process.Process, arg interface{}) error {
 	ap := arg.(*Argument)
 	ap.ctr = new(container)
-	ap.ctr.InitReceiver(proc, true)
+	ap.ctr.InitReceiver(proc, true, nil)
 	ap.ctr.inserted = make([]uint8, hashmap.UnitLimit)
 	ap.ctr.zInserted = make([]uint8, hashmap.UnitLimit)
 	return nil

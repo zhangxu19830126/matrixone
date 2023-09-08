@@ -31,7 +31,7 @@ func Prepare(proc *process.Process, argument any) error {
 	var err error
 	arg := argument.(*Argument)
 	arg.ctr = new(container)
-	arg.ctr.InitReceiver(proc, false)
+	arg.ctr.InitReceiver(proc, false, nil)
 	arg.ctr.btc = nil
 	arg.ctr.hashTable, err = hashmap.NewStrMap(true, arg.IBucket, arg.NBucket, proc.Mp())
 	if err != nil {

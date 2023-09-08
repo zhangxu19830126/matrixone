@@ -37,7 +37,7 @@ func String(_ any, buf *bytes.Buffer) {
 func Prepare(p *proc, arg any) error {
 	ap := arg.(*Argument)
 	ap.ctr = &container{}
-	ap.ctr.InitReceiver(p, true)
+	ap.ctr.InitReceiver(p, true, nil)
 	return nil
 }
 

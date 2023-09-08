@@ -29,7 +29,7 @@ func String(_ any, buf *bytes.Buffer) {
 func Prepare(proc *process.Process, arg any) error {
 	ap := arg.(*Argument)
 	ap.ctr = new(container)
-	ap.ctr.InitReceiver(proc, false)
+	ap.ctr.InitReceiver(proc, false, nil)
 	return nil
 }
 

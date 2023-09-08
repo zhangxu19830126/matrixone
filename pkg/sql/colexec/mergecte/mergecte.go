@@ -16,6 +16,7 @@ package mergecte
 
 import (
 	"bytes"
+
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
@@ -29,7 +30,7 @@ func String(_ any, buf *bytes.Buffer) {
 func Prepare(proc *process.Process, arg any) error {
 	ap := arg.(*Argument)
 	ap.ctr = new(container)
-	ap.ctr.InitReceiver(proc, true)
+	ap.ctr.InitReceiver(proc, true, nil)
 	ap.ctr.nodeCnt = int32(len(proc.Reg.MergeReceivers)) - 1
 	ap.ctr.curNodeCnt = ap.ctr.nodeCnt
 	ap.ctr.status = sendInitial

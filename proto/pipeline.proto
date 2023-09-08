@@ -66,6 +66,7 @@ message Dispatch {
 
 message Merge {
   bool sinkScan = 1;
+  repeated string producers = 2;
 }
 
 message MultiArguemnt{

@@ -66,8 +66,12 @@ func Prepare(proc *process.Process, v any) error {
 	arg.rt.parker = types.NewPacker(proc.Mp())
 	arg.rt.retryError = nil
 	arg.rt.step = stepLock
+	producers := make([]string, len(proc.Reg.MergeReceivers))
+	for i := range producers {
+		producers[i] = "lockop"
+	}
 	if arg.block {
-		arg.rt.InitReceiver(proc, true)
+		arg.rt.InitReceiver(proc, true, producers)
 	}
 	return nil
 }

@@ -15,9 +15,10 @@
 package colexec
 
 import (
-	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"reflect"
 	"sync"
+
+	"github.com/matrixorigin/matrixone/pkg/container/batch"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -96,6 +97,7 @@ type ReceiverOperator struct {
 	aliveMergeReceiver int
 	chs                []chan *batch.Batch
 	receiverListener   []reflect.SelectCase
+	producers          []string
 }
 
 type RuntimeFilterChan struct {

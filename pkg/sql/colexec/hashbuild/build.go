@@ -40,10 +40,10 @@ func Prepare(proc *process.Process, arg any) (err error) {
 	ap := arg.(*Argument)
 	ap.ctr = new(container)
 	if len(proc.Reg.MergeReceivers) > 1 {
-		ap.ctr.InitReceiver(proc, true)
+		ap.ctr.InitReceiver(proc, true, nil)
 		ap.ctr.isMerge = true
 	} else {
-		ap.ctr.InitReceiver(proc, false)
+		ap.ctr.InitReceiver(proc, false, nil)
 	}
 
 	if ap.NeedHashMap {
