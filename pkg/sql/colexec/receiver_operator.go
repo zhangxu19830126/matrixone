@@ -173,7 +173,9 @@ func (r *ReceiverOperator) FreeMergeTypeOperator(failed bool) {
 func (r *ReceiverOperator) RemoveChosen(idx int) {
 	r.receiverListener = append(r.receiverListener[:idx], r.receiverListener[idx+1:]...)
 	if len(r.producers) > 0 {
-		r.producers = append(r.producers[:idx], r.producers[idx+1:]...)
+		if idx+1 < len(r.producers) { // only for test
+			r.producers = append(r.producers[:idx], r.producers[idx+1:]...)
+		}
 	}
 	r.aliveMergeReceiver--
 }
