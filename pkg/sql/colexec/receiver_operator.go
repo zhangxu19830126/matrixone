@@ -129,6 +129,7 @@ func (r *ReceiverOperator) ReceiveFromAllRegs(analyze process.Analyze) (*batch.B
 		}
 		if chosen == n {
 			logutil.Errorf("+++timeout %v\n", r.producers)
+			continue
 		}
 
 		if !ok {
