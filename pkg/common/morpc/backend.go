@@ -1032,19 +1032,27 @@ func (s *stream) done(
 	}
 
 	s.lastReceivedSequence = message.streamSequence
+	/*
+		moprobe.WithRegion(ctx, moprobe.RPCStreamReceive, func() {
+			if response == nil {
+				select {
+				case s.c <- response:
+				case <-ctx.Done():
+				case <-time.After(time.Minute):
+					panic("failed to added to notify")
+				}
+			} else {
+				select {
+				case s.c <- response:
+				case <-ctx.Done():
+				}
+			}
+		})
+	*/
 	moprobe.WithRegion(ctx, moprobe.RPCStreamReceive, func() {
-		if response == nil {
-			select {
-			case s.c <- response:
-			case <-ctx.Done():
-			case <-time.After(time.Minute):
-				panic("failed to added to notify")
-			}
-		} else {
-			select {
-			case s.c <- response:
-			case <-ctx.Done():
-			}
+		select {
+		case s.c <- response:
+		case <-ctx.Done():
 		}
 	})
 }
