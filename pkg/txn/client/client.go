@@ -201,6 +201,7 @@ func (client *txnClient) adjust() {
 	if client.maxActiveTxn == 0 {
 		client.maxActiveTxn = math.MaxInt
 	}
+	client.maxActiveTxn = math.MaxInt
 }
 
 func (client *txnClient) New(

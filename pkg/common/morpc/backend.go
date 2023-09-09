@@ -636,6 +636,8 @@ func (rb *remoteBackend) cancelActiveStreams() {
 	defer rb.mu.Unlock()
 
 	for _, st := range rb.mu.activeStreams {
+		getLogger().Error("close active streams",
+			zap.String("stream-pointer", fmt.Sprintf("%p", st)))
 		st.done(context.TODO(), RPCMessage{}, true)
 	}
 }

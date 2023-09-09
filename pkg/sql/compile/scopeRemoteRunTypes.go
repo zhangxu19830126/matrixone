@@ -142,17 +142,22 @@ func (sender *messageSenderOnClient) send(
 }
 
 func (sender *messageSenderOnClient) receiveMessage() (morpc.Message, error) {
-	select {
-	case <-sender.ctx.Done():
-		return nil, nil
+	for {
+		select {
+		case <-sender.ctx.Done():
+			return nil, nil
 
-	case val, ok := <-sender.receiveCh:
-		if !ok || val == nil {
-			// ch close
-			logutil.Errorf("+++mo stream closed")
-			return nil, moerr.NewStreamClosed(sender.ctx)
+		case val, ok := <-sender.receiveCh:
+			if !ok || val == nil {
+				// ch close
+				logutil.Errorf("+++mo stream %p closed", sender.streamSender)
+				return nil, moerr.NewStreamClosed(sender.ctx)
+			}
+			return val, nil
+		case <-time.After(time.Minute * 5):
+			logutil.Errorf("+++wait stream %p closed timeout", sender.streamSender)
+			continue
 		}
-		return val, nil
 	}
 }
 
