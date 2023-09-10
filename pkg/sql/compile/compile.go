@@ -359,6 +359,12 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		c.proc.TxnOperator.GetWorkspace().IncrSQLCount()
 		c.proc.TxnOperator.ResetRetry(false)
 	}
+
+	logutil.Infof("%x run sql: %+v\n", c.proc.TxnOperator.Txn().ID, c.sql)
+	defer func() {
+		logutil.Infof("%x run sql: %+v, end\n", c.proc.TxnOperator.Txn().ID, c.sql)
+	}()
+
 	if err := c.runOnce(); err != nil {
 		c.fatalLog(0, err)
 
