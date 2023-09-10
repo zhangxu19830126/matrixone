@@ -92,7 +92,7 @@ spec:
       [cn.Engine]
       type = "distributed-tae"
       [log]
-      level = "info"
+      level = "debug"
       format = "json"
       max-size = 512
       [cn.rpc]
