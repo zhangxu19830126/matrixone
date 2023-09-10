@@ -92,7 +92,7 @@ spec:
       [cn.Engine]
       type = "distributed-tae"
       [log]
-      level = "info"
+      level = "debug"
       format = "json"
       max-size = 512
       [cn.rpc]
@@ -100,6 +100,9 @@ spec:
       busy-queue-size = 1
       [cn.ctl.address]
       listen-address = "0.0.0.0:19958"
+      [cn.txn]
+      enable-leak-check = 1
+      max-active-ages = "5m"
     replicas: 2
     overlay:
       tolerations:
