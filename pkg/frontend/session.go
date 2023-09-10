@@ -512,6 +512,7 @@ func (ses *Session) Close() {
 		mpool.DeleteMPool(mp)
 		ses.SetMemPool(nil)
 	}
+	logutil.Infof("session %p closed\n", ses)
 }
 
 // BackgroundSession executing the sql in background

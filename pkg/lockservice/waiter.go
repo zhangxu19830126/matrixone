@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
@@ -178,16 +179,23 @@ func (w *waiter) wait(ctx context.Context) notifyValue {
 		logWaiterGetNotify(w, v)
 		w.setStatus(completed)
 	}
-	select {
-	case v := <-w.c:
-		apply(v)
-		return v
-	case <-ctx.Done():
+OUTER:
+	for {
 		select {
 		case v := <-w.c:
 			apply(v)
 			return v
-		default:
+		case <-ctx.Done():
+			select {
+			case v := <-w.c:
+				apply(v)
+				return v
+			default:
+				break OUTER
+			}
+		case <-time.After(time.Minute * 10):
+			getLogger().Info("waite timeout", zap.String("waiter", w.String()))
+			continue
 		}
 	}
 

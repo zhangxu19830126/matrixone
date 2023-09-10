@@ -17,6 +17,7 @@ package lockservice
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/txn/clock"
 	"github.com/matrixorigin/matrixone/pkg/util/list"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
+	"go.uber.org/zap"
 )
 
 type service struct {
@@ -128,6 +130,9 @@ func (s *service) Unlock(
 	ctx context.Context,
 	txnID []byte,
 	commitTS timestamp.Timestamp) error {
+	getLogger().Info("txn unlock",
+		zap.String("txn", hex.EncodeToString(txnID)))
+
 	// FIXME(fagongzi): too many mem alloc in trace
 	_, span := trace.Debug(ctx, "lockservice.unlock")
 	defer span.End()

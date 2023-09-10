@@ -343,6 +343,10 @@ func (c *Compile) run(s *Scope) error {
 	return nil
 }
 
+func (c *Compile) SetOriginSQL(sql string) {
+	c.originSQL = sql
+}
+
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 	var cc *Compile
@@ -360,9 +364,14 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		c.proc.TxnOperator.ResetRetry(false)
 	}
 
-	logutil.Infof("%x run sql: %+v\n", c.proc.TxnOperator.Txn().ID, c.sql)
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+
+	logutil.Infof("%x run sql: %+v\n", c.proc.TxnOperator.Txn().ID, sql)
 	defer func() {
-		logutil.Infof("%x run sql: %+v, end\n", c.proc.TxnOperator.Txn().ID, c.sql)
+		logutil.Infof("%x run sql: %+v, end\n", c.proc.TxnOperator.Txn().ID, sql)
 	}()
 
 	if err := c.runOnce(); err != nil {
