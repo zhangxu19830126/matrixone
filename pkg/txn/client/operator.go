@@ -212,7 +212,7 @@ func newTxnOperatorWithSnapshot(
 	tc.option.readyOnly = v.ReadyOnly
 
 	tc.adjust()
-	util.LogTxnCreated(tc.mu.txn)
+	util.LogTxnCreated(tc.mu.txn, tc.option.createBy)
 	return tc, nil
 }
 
