@@ -139,8 +139,8 @@ func logLocalLockWaitOnResult(
 	waiter *waiter,
 	notify notifyValue) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("lock wait on local result",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("lock wait on local result",
 			txnField(txn),
 			zap.Uint64("table", tableID),
 			bytesField("wait-on-key", key),
@@ -493,8 +493,8 @@ func logWaiterContactPool(
 	w *waiter,
 	action string) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("waiter contact to pool",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("waiter contact to pool",
 			zap.String("action", action),
 			zap.Stringer("waiter", w))
 	}
