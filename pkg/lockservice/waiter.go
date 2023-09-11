@@ -38,8 +38,9 @@ var (
 )
 
 func acquireWaiter(txn pb.WaitTxn) *waiter {
-	w := waiterPool.Get().(*waiter)
-	logWaiterContactPool(w, "get")
+	// w := waiterPool.Get().(*waiter)
+	// logWaiterContactPool(w, "get")
+	w := newWaiter()
 	w.txn = txn
 	if w.ref() != 1 {
 		panic("BUG: invalid ref count")

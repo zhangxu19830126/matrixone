@@ -191,7 +191,7 @@ func (l *localLockTable) unlock(
 			lock.closeTxn(
 				txn,
 				notifyValue{ts: commitTS})
-			logLockUnlocked(txn, key, lock)
+			logLockUnlocked(txn, l.bind.Table, key, lock)
 			if lock.isEmpty() {
 				l.mu.store.Delete(key)
 				if len(startKey) > 0 {

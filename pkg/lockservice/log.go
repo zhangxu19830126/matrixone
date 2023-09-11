@@ -122,19 +122,12 @@ func logLocalLockWaitOn(
 	waitOn Lock) {
 	logger := getWithSkipLogger()
 	if logger.Enabled(zap.InfoLevel) {
-		var waits [][]byte
-		waitOn.waiters.iter(func(v *waiter) bool {
-			waits = append(waits, v.txn.TxnID)
-			return true
-		})
-
 		logger.Info("lock wait on local",
 			txnField(txn),
 			zap.Uint64("table", tableID),
 			zap.Stringer("waiter", w),
 			bytesField("wait-on-key", key),
-			zap.Stringer("wait-on", waitOn),
-			bytesArrayField("wait-txn-list", waits))
+			zap.Stringer("wait-on", waitOn))
 	}
 }
 
@@ -217,11 +210,13 @@ func logTxnLockAdded(
 
 func logLockUnlocked(
 	txn *activeTxn,
+	table uint64,
 	key []byte,
 	lock Lock) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("lock unlocked",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("lock unlocked",
+			zap.Uint64("table", table),
 			txnField(txn),
 			bytesField("key", key),
 			zap.Stringer("lock", lock))
