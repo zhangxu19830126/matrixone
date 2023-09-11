@@ -218,6 +218,13 @@ func (p *PartitionReader) Read(
 			}
 		}
 		if rows == 0 {
+			if p.table.tableId == 10000000 {
+				state, err := p.table.getPartitionState(ctx)
+				if err != nil {
+					panic(err)
+				}
+				state.DumpPrimaryKeys(p.table.db.txn.op)
+			}
 			return nil, nil
 		}
 		b.SetRowCount(rows)

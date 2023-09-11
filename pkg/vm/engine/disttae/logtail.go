@@ -33,7 +33,7 @@ func consumeEntry(
 	e *api.Entry,
 ) error {
 	if e.TableId == 10000000 {
-		logutil.Infof(">>>>> apply 10000000 entry %s", e.EntryType.String())
+		logutil.Infof(">>>>> apply 10000000 entry %s\n", e.EntryType.String())
 	}
 
 	var packer *types.Packer

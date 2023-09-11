@@ -5250,7 +5250,10 @@ var supportedOthersBuiltIns = []FuncNew{
 											v = append(v, types.EncodeInt32(&v2)...)
 											ts := proc.TxnOperator.GetWorkspace().GetCheckNotChanged(fmt.Sprintf("%x", v))
 											if len(ts) > 0 {
-												logutil.Infof(">>>>> %x dup found for %x(%d,%d,%d), [%s, %s]", proc.TxnOperator.Txn().ID, v, v1, v2, tuples[2], ts[0].DebugString(), ts[1].DebugString())
+												logutil.Infof(">>>>> %x %s, dup found for %x(%d,%d,%d), [%s, %s]",
+													proc.TxnOperator.Txn().ID,
+													proc.TxnOperator.Txn().SnapshotTS.DebugString(),
+													v, v1, v2, tuples[2], ts[0].DebugString(), ts[1].DebugString())
 											}
 											return moerr.NewDuplicateEntry(proc.Ctx, tuples.ErrString(), string(col))
 										}

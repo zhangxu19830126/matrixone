@@ -279,3 +279,11 @@ func (s *StorageTxnOperator) GetDupCheck() bool {
 func (s *StorageTxnOperator) SetInfo(info string) {
 	panic("should not call")
 }
+
+func (s *StorageTxnOperator) AppendReadInfo(string) {
+	panic("should not call")
+}
+
+func (s *StorageTxnOperator) GetReadInfo() []string {
+	panic("should not call")
+}

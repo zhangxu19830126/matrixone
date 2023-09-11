@@ -344,6 +344,10 @@ func (c *Compile) run(s *Scope) error {
 	return nil
 }
 
+func (c *Compile) SetOriginSQL(sql string) {
+	c.originSQL = sql
+}
+
 // Run is an important function of the compute-layer, it executes a single sql according to its scope
 func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 	var cc *Compile
@@ -360,6 +364,36 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		c.proc.TxnOperator.GetWorkspace().IncrSQLCount()
 		c.proc.TxnOperator.ResetRetry(false)
 	}
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+
+	if strings.Contains(sql, "select bmsql_district.d_tax, bmsql_district.d_next_o_id from bmsql_district") {
+		f := c.fill
+		msg := fmt.Sprintf("%x run sql: %s(%s)",
+			c.proc.TxnOperator.Txn().ID,
+			sql,
+			c.proc.GetPrepareParams())
+		c.fill = func(a any, b *batch.Batch) error {
+			if b != nil {
+				v := vector.MustFixedCol[int32](b.GetVector(1))[0]
+				logutil.Infof("%s, result: %d\n",
+					msg,
+					v)
+			}
+
+			return f(a, b)
+		}
+	}
+
+	if strings.Contains(sql, "bmsql_") {
+		logutil.Infof("%x run sql: %s, %s\n",
+			c.proc.TxnOperator.Txn().ID,
+			sql,
+			c.proc.GetPrepareParams())
+	}
+
 	if err := c.runOnce(); err != nil {
 		c.fatalLog(0, err)
 
@@ -393,6 +427,7 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 				c.stmt,
 				c.isInternal,
 				c.cnLabel)
+			cc.fill = c.fill
 			if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetryWithDefChanged) {
 				pn, err := c.buildPlanFunc()
 				if err != nil {
@@ -3435,11 +3470,7 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if err == nil {
 		return
 	}
-	v, ok := moruntime.ProcessLevelRuntime().
-		GetGlobalVariables(moruntime.EnableCheckInvalidRCErrors)
-	if !ok || !v.(bool) {
-		return
-	}
+
 	fatal := moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
 		moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetryWithDefChanged) ||
 		moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
@@ -3453,6 +3484,11 @@ func (c *Compile) fatalLog(retry int, err error) {
 		(moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
 			moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetryWithDefChanged)) {
 		return
+	}
+
+	readInfo := c.proc.TxnOperator.GetReadInfo()
+	for _, s := range readInfo {
+		fmt.Printf("%x: %s\n", c.proc.TxnOperator.Txn().ID, s)
 	}
 
 	logutil.Fatalf("BUG(RC): txn %s retry %d, error %+v\n",

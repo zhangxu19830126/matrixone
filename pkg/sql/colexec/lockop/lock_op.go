@@ -805,7 +805,7 @@ func hasNewVersionInRange(
 		vv, _ := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.InternalSQLExecutor)
 		exec := vv.(executor.SQLExecutor)
 		sql := fmt.Sprintf("select d_next_o_id from bmsql_district where d_w_id = %d and d_id = %d", v1, v2)
-		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithMinCommittedTS(to).WithDatabase("tpcc").WithDisableIncrStatement())
+		res, err := exec.Exec(proc.Ctx, sql, executor.Options{}.WithMinCommittedTS(to).WithDatabase("tpcc"))
 		if err != nil {
 			return false, err
 		}

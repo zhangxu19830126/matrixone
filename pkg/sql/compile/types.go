@@ -186,7 +186,8 @@ type Compile struct {
 	// uid the user who initiated the sql.
 	uid string
 	// sql sql text.
-	sql string
+	sql       string
+	originSQL string
 
 	anal *anaylze
 	// e db engine instance.

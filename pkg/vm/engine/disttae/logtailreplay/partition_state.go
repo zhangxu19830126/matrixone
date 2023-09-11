@@ -36,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/tidwall/btree"
 )
 
@@ -136,6 +137,7 @@ func (b *BlockEntry) Visible(ts types.TS) bool {
 }
 
 type PrimaryIndexEntry struct {
+	OriginPK   []byte
 	Bytes      []byte
 	RowEntryID int64
 
@@ -343,7 +345,9 @@ func (p *PartitionState) HandleRowsInsert(
 			p.rows.Set(entry)
 
 			if i < len(primaryKeys) && len(primaryKeys[i]) > 0 {
+				var originKey []byte
 				if entry2.TableId == 10000000 {
+					originKey = batch.Vecs[2+primarySeqnum].GetBytesAt(i)
 					tuples, _, _ := types.DecodeTuple(batch.Vecs[2+primarySeqnum].GetBytesAt(i))
 					v1 := tuples[0].(int32)
 					v2 := tuples[1].(int32)
@@ -352,9 +356,14 @@ func (p *PartitionState) HandleRowsInsert(
 					v = append(v, types.EncodeInt32(&v2)...)
 					key := fmt.Sprintf(">>>>> %x", v)
 					nextOId := vector.GetFixedAt[int32](batch.Vecs[6], i)
-					logutil.Infof("%s add insert %d by commit ts %s", key, nextOId, entry.Time.ToTimestamp().DebugString())
+					logutil.Infof("%s add insert %d by commit ts %s, rowid %s\n",
+						key,
+						nextOId,
+						entry.Time.ToTimestamp().DebugString(),
+						entry.RowID.String())
 				}
 				entry := &PrimaryIndexEntry{
+					OriginPK:   originKey,
 					Bytes:      primaryKeys[i],
 					RowEntryID: entry.ID,
 					BlockID:    blockID,
@@ -449,17 +458,23 @@ func (p *PartitionState) HandleRowsDelete(
 			p.dirtyBlocks.Set(bPivot)
 
 			// primary key
+			var originKey []byte
 			if i < len(primaryKeys) && len(primaryKeys[i]) > 0 {
 				if entry2.TableId == 10000000 {
+					originKey = batch.Vecs[2].GetBytesAt(i)
 					tuples, _, _ := types.DecodeTuple(batch.Vecs[2].GetBytesAt(i))
 					v1 := tuples[0].(int32)
 					v2 := tuples[1].(int32)
 					v := types.EncodeInt32(&v1)
 					v = append(v, types.EncodeInt32(&v2)...)
 					key := fmt.Sprintf(">>>>> %x", v)
-					logutil.Infof("%s add delete by commit ts %s", key, entry.Time.ToTimestamp().DebugString())
+					logutil.Infof("%s add delete by commit ts %s, %s\n",
+						key,
+						entry.Time.ToTimestamp().DebugString(),
+						entry.RowID.String())
 				}
 				entry := &PrimaryIndexEntry{
+					OriginPK:   originKey,
 					Bytes:      primaryKeys[i],
 					RowEntryID: entry.ID,
 					BlockID:    blockID,
@@ -467,8 +482,6 @@ func (p *PartitionState) HandleRowsDelete(
 					Time:       entry.Time,
 				}
 				p.primaryIndex.Set(entry)
-			} else {
-				logutil.Fatal("missing pk for delete")
 			}
 
 		})
@@ -618,6 +631,9 @@ func (p *PartitionState) HandleMetadataInsert(ctx context.Context, entry2 *api.E
 
 				// if there are no rows for the block, delete the block from the dirty
 				if scanCnt == numDeleted && p.dirtyBlocks.Len() > 0 {
+					if strings.Contains(entry2.TableName, "10000000") {
+						logutil.Infof("dirtyBlocks delete %s", blockEntry.BlockID.String())
+					}
 					p.dirtyBlocks.Delete(blockEntry)
 				}
 			}
@@ -712,4 +728,26 @@ func (p *PartitionState) consumeCheckpoints(
 	}
 	p.checkpoints = p.checkpoints[:0]
 	return nil
+}
+
+func (p *PartitionState) DumpPrimaryKeys(txn client.TxnOperator) {
+	var buf bytes.Buffer
+	iter := p.primaryIndex.Copy().Iter()
+	defer iter.Release()
+	for ok := iter.First(); ok; ok = iter.Next() {
+		item := iter.Item()
+
+		tuples, _, _ := types.DecodeTuple(item.OriginPK)
+		v1 := tuples[0].(int32)
+		v2 := tuples[1].(int32)
+
+		v := types.EncodeInt32(&v1)
+		v = append(v, types.EncodeInt32(&v2)...)
+		buf.WriteString(fmt.Sprintf("%x, rowid %s, blockid %s, %s\n\n",
+			v,
+			item.RowID.String(),
+			item.BlockID.String(),
+			item.Time.ToTimestamp().DebugString()))
+	}
+	txn.AppendReadInfo(buf.String())
 }

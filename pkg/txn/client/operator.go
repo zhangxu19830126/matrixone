@@ -23,7 +23,6 @@ import (
 	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
-	moruntime "github.com/matrixorigin/matrixone/pkg/common/runtime"
 	"github.com/matrixorigin/matrixone/pkg/lockservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/lock"
@@ -169,6 +168,7 @@ type txnOperator struct {
 		dupCheck     bool
 		closed       bool
 		info         string
+		readInfos    []string
 		txn          txn.TxnMeta
 		cachedWrites map[uint64][]txn.TxnRequest
 		lockTables   []lock.LockTable
@@ -427,6 +427,10 @@ func (tc *txnOperator) Commit(ctx context.Context) error {
 			tc.mu.txn.SnapshotTS.DebugString(),
 			tc.mu.txn.CommitTS.DebugString())
 	}
+	logutil.Infof("%x committed, [%s, %s]\n",
+		tc.mu.txn.ID,
+		tc.mu.txn.SnapshotTS.DebugString(),
+		tc.mu.txn.CommitTS.DebugString())
 	return nil
 }
 
@@ -785,14 +789,11 @@ func (tc *txnOperator) handleErrorResponse(resp txn.TxnResponse) error {
 			return err
 		}
 
-		v, ok := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.EnableCheckInvalidRCErrors)
-		if ok && v.(bool) {
-			if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
-				moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) {
-				util.GetLogger().Fatal("failed",
-					zap.Error(err),
-					zap.String("txn", hex.EncodeToString(tc.txnID)))
-			}
+		if moerr.IsMoErrCode(err, moerr.ErrTxnWWConflict) ||
+			moerr.IsMoErrCode(err, moerr.ErrDuplicateEntry) {
+			util.GetLogger().Error("failed",
+				zap.Error(err),
+				zap.String("txn", hex.EncodeToString(tc.txnID)))
 		}
 		return err
 	case txn.TxnMethod_Rollback:
@@ -965,4 +966,22 @@ func (tc *txnOperator) SetInfo(info string) {
 	}
 
 	tc.mu.info = info
+}
+
+func (tc *txnOperator) AppendReadInfo(info string) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	if tc.mu.txn.Mirror {
+		panic(info)
+	}
+
+	tc.mu.readInfos = append(tc.mu.readInfos, info)
+}
+
+func (tc *txnOperator) GetReadInfo() []string {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	return tc.mu.readInfos
 }

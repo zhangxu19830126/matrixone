@@ -128,6 +128,8 @@ type TxnOperator interface {
 	SetDupCheck(bool)
 	GetDupCheck() bool
 	SetInfo(info string)
+	AppendReadInfo(info string)
+	GetReadInfo() []string
 
 	// AppendEventCallback append callback. All append callbacks will be called sequentially
 	// if event happen.
