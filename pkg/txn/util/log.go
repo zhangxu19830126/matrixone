@@ -108,10 +108,12 @@ func LogTxnRollback(txnMeta txn.TxnMeta) {
 }
 
 // LogTxnCreated log txn created
-func LogTxnCreated(txnMeta txn.TxnMeta) {
+func LogTxnCreated(txnMeta txn.TxnMeta, createBy string) {
 	logger := getSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("txn created", zap.String("txn", txnMeta.DebugString()))
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("txn created",
+			zap.String("create-by", createBy),
+			zap.String("txn", txnMeta.DebugString()))
 	}
 }
 
