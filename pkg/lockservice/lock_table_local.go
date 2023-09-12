@@ -188,6 +188,10 @@ func (l *localLockTable) unlock(
 				return true
 			}
 
+			if !lock.holders.contains(txn.txnID) {
+				getLogger().Fatal("BUG: unlock a lock that is not held by the current txn")
+			}
+
 			lock.closeTxn(
 				txn,
 				notifyValue{ts: commitTS})
