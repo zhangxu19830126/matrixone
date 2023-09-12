@@ -160,7 +160,6 @@ func (th *TxnHandler) NewTxnOperator() (context.Context, TxnOperator, error) {
 		return nil, nil, moerr.NewInternalError(th.ses.GetRequestContext(), "NewTxnOperator: txnClient new a null txn")
 	}
 
-	logutil.Infof("%x exec sql %s in frontend\n", th.txnOperator.Txn().ID, th.ses.GetSql())
 	return txnCtx, th.txnOperator, err
 }
 

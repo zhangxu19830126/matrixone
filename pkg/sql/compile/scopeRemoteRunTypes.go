@@ -150,12 +150,10 @@ func (sender *messageSenderOnClient) receiveMessage() (morpc.Message, error) {
 		case val, ok := <-sender.receiveCh:
 			if !ok || val == nil {
 				// ch close
-				logutil.Errorf("+++mo stream %p closed", sender.streamSender)
 				return nil, moerr.NewStreamClosed(sender.ctx)
 			}
 			return val, nil
 		case <-time.After(time.Minute * 5):
-			logutil.Errorf("+++wait stream %p closed timeout", sender.streamSender)
 			continue
 		}
 	}
