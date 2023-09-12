@@ -369,10 +369,12 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		sql = c.sql
 	}
 
-	logutil.Infof("%x run sql: %+v\n", c.proc.TxnOperator.Txn().ID, sql)
-	defer func() {
-		logutil.Infof("%x run sql: %+v, end\n", c.proc.TxnOperator.Txn().ID, sql)
-	}()
+	if strings.Contains(sql, "bmsql") {
+		logutil.Infof("%x run sql: %+v\n", c.proc.TxnOperator.Txn().ID, sql)
+		defer func() {
+			logutil.Infof("%x run sql: %+v, end\n", c.proc.TxnOperator.Txn().ID, sql)
+		}()
+	}
 
 	if err := c.runOnce(); err != nil {
 		c.fatalLog(0, err)

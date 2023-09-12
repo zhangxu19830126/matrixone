@@ -501,7 +501,6 @@ func logStatementStatus(ctx context.Context, ses *Session, stmt tree.Statement, 
 }
 
 func logStatementStringStatus(ctx context.Context, ses *Session, stmtStr string, status statementStatus, err error) {
-	return
 	str := SubStringFromBegin(stmtStr, int(ses.GetParameterUnit().SV.LengthOfQueryPrinted))
 	outBytes := ses.GetMysqlProtocol().CalculateOutTrafficBytes()
 	if status == success {
@@ -542,7 +541,6 @@ func appendSessionField(fields []zap.Field, ses *Session) []zap.Field {
 }
 
 func logInfo(ses *Session, info string, msg string, fields ...zap.Field) {
-	return
 	if ses != nil && ses.tenant != nil && ses.tenant.User == db_holder.MOLoggerUser {
 		return
 	}

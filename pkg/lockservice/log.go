@@ -216,8 +216,8 @@ func logLockUnlocked(
 	key []byte,
 	lock Lock) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.InfoLevel) {
-		logger.Info("lock unlocked",
+	if logger.Enabled(zap.DebugLevel) {
+		logger.Debug("lock unlocked",
 			zap.Uint64("table", table),
 			txnField(txn),
 			bytesField("key", key),
@@ -495,8 +495,8 @@ func logWaiterContactPool(
 	w *waiter,
 	action string) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.InfoLevel) {
-		logger.Info("waiter contact to pool",
+	if logger.Enabled(zap.DebugLevel) {
+		logger.Debug("waiter contact to pool",
 			zap.String("action", action),
 			zap.Stringer("waiter", w))
 	}
