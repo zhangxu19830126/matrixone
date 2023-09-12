@@ -276,12 +276,15 @@ func (l *localLockTable) acquireRowLockLocked(c *lockContext) error {
 		if ok &&
 			(bytes.Equal(key, row) ||
 				lock.isLockRangeEnd()) {
-			if lock.tryHold(c) {
+			hold, hasPrevHold := lock.tryHold(c)
+			if hold {
 				if c.w != nil {
 					c.w.close()
 					c.w = nil
 				}
-				c.txn.lockAdded(l.bind.Table, [][]byte{key})
+				if !hasPrevHold {
+					c.txn.lockAdded(l.bind.Table, [][]byte{key})
+				}
 				continue
 			}
 
@@ -456,8 +459,11 @@ func (l *localLockTable) addRangeLockLocked(
 		}
 
 		if len(conflictKey) > 0 {
-			if conflictWith.tryHold(c) {
-				c.txn.lockAdded(l.bind.Table, [][]byte{conflictKey})
+			hold, hasPrevHold := conflictWith.tryHold(c)
+			if hold {
+				if !hasPrevHold {
+					c.txn.lockAdded(l.bind.Table, [][]byte{conflictKey})
+				}
 				conflictWith = Lock{}
 				conflictKey = nil
 				rangeStartEncountered = false
