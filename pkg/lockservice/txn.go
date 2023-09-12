@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/util"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
+	"go.uber.org/zap"
 )
 
 var (
@@ -182,6 +183,10 @@ func (txn *activeTxn) cancelBlocks() {
 }
 
 func (txn *activeTxn) clearBlocked(txnID []byte) {
+	for _, w := range txn.blockedWaiters {
+		getLogger().Info("blocked waiter cleared",
+			txnField(txn), zap.Stringer("waiter", w))
+	}
 	txn.blockedWaiters = txn.blockedWaiters[:0]
 }
 

@@ -375,7 +375,7 @@ func (l *localLockTable) handleLockConflictLocked(
 		}
 
 		conflictWith.waiters.commitChange()
-		logLocalLockWaitOn(c.txn, l.bind.Table, c.w, key, conflictWith)
+		logLocalLockWaitOn(c.txn, l.bind.Table, c.w, key, conflictWith, c.opts.Proc)
 	}()
 
 	// added to waiters list, and wait for notify

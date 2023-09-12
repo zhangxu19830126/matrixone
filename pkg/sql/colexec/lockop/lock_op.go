@@ -415,6 +415,7 @@ func doLock(
 		Policy:          lock.WaitPolicy_Wait,
 		Mode:            opts.mode,
 		TableDefChanged: opts.changeDef,
+		Proc:            fmt.Sprintf("%p", proc),
 	}
 	if txn.Mirror {
 		options.ForwardTo = txn.LockService

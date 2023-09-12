@@ -88,8 +88,8 @@ func logLocalLockAdded(
 	rows [][]byte,
 	opts LockOptions) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("lock added to local",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("lock added to local",
 			txnField(txn),
 			zap.Uint64("table", tableID),
 			bytesArrayField("rows", rows),
@@ -119,7 +119,8 @@ func logLocalLockWaitOn(
 	tableID uint64,
 	w *waiter,
 	key []byte,
-	waitOn Lock) {
+	waitOn Lock,
+	proc string) {
 	logger := getWithSkipLogger()
 	if logger.Enabled(zap.InfoLevel) {
 		logger.Info("lock wait on local",
@@ -127,7 +128,8 @@ func logLocalLockWaitOn(
 			zap.Uint64("table", tableID),
 			zap.Stringer("waiter", w),
 			bytesField("wait-on-key", key),
-			zap.Stringer("wait-on", waitOn))
+			zap.Stringer("wait-on", waitOn),
+			zap.String("proc", proc))
 	}
 }
 

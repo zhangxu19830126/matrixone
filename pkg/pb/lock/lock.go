@@ -151,10 +151,11 @@ func (m Response) UnwrapError() error {
 
 // DebugString debug string
 func (m LockOptions) DebugString() string {
-	return fmt.Sprintf("%s-%s-%s",
+	return fmt.Sprintf("%s-%s-%s-%s",
 		m.Mode.String(),
 		m.Granularity.String(),
-		m.Policy.String())
+		m.Policy.String(),
+		m.Proc)
 }
 
 func (m *LockRequest) DebugString() string {

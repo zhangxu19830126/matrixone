@@ -193,8 +193,8 @@ OUTER:
 			default:
 				break OUTER
 			}
-		case <-time.After(time.Minute * 10):
-			getLogger().Info("waite timeout", zap.String("waiter", w.String()))
+		case <-time.After(time.Minute * 1):
+			getLogger().Info("wait timeout", zap.String("waiter", w.String()))
 			continue
 		}
 	}
