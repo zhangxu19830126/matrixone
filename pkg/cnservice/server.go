@@ -545,7 +545,7 @@ func (s *service) getTxnClient() (c client.TxnClient, err error) {
 				client.WithEnableRefreshExpression())
 		}
 		opts = append(opts, client.WithEnableLeakCheck(
-			time.Minute*3,
+			time.Second*70,
 			func(txnID []byte, createAt time.Time, createBy string) {
 				runtime.DefaultRuntime().Logger().Fatal("found leak txn",
 					zap.String("txn-id", hex.EncodeToString(txnID)),
