@@ -29,8 +29,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	mokafka "github.com/matrixorigin/matrixone/pkg/stream/adapter/kafka"
-
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/cnservice/cnclient"
@@ -64,6 +62,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/tree"
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
+	mokafka "github.com/matrixorigin/matrixone/pkg/stream/adapter/kafka"
 	util2 "github.com/matrixorigin/matrixone/pkg/util"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
@@ -76,8 +75,10 @@ import (
 // Note: Now the cost going from stat is actually the number of rows, so we can only estimate a number for the size of each row.
 // The current insertion of around 200,000 rows triggers cn to write s3 directly
 const (
-	DistributedThreshold   uint64 = 10 * mpool.MB
-	SingleLineSizeEstimate uint64 = 300 * mpool.B
+	DistributedThreshold              uint64 = 10 * mpool.MB
+	SingleLineSizeEstimate            uint64 = 300 * mpool.B
+	shuffleJoinMergeChannelBufferSize        = 4
+	shuffleJoinProbeChannelBufferSize        = 16
 )
 
 var (
@@ -113,7 +114,7 @@ func New(addr, db string, sql string, tenant, uid string, ctx context.Context,
 	c.stepRegs = make(map[int32][][2]int32)
 	c.isInternal = isInternal
 	c.cnLabel = cnLabel
-	c.runtimeFilterReceiverMap = make(map[int32]chan *pipeline.RuntimeFilter)
+	c.runtimeFilterReceiverMap = make(map[int32]*runtimeFilterReceiver)
 	return c
 }
 
@@ -1430,7 +1431,7 @@ func (c *Compile) compileExternScan(ctx context.Context, n *plan.Node) ([]*Scope
 		if err != nil {
 			return nil, err
 		}
-		err = lockTable(c.e, c.proc, rel, false)
+		err = lockTable(c.ctx, c.e, c.proc, rel, n.ObjRef.SchemaName, nil, false)
 		if err != nil {
 			return nil, err
 		}
@@ -1756,7 +1757,13 @@ func (c *Compile) compileTableScanWithNode(n *plan.Node, node engine.Node, filte
 	// prcoess partitioned table
 	var partitionRelNames []string
 	if n.TableDef.Partition != nil {
-		partitionRelNames = append(partitionRelNames, n.TableDef.Partition.PartitionTableNames...)
+		if n.PartitionPrune != nil && n.PartitionPrune.IsPruned {
+			for _, partition := range n.PartitionPrune.SelectedPartitions {
+				partitionRelNames = append(partitionRelNames, partition.PartitionTableName)
+			}
+		} else {
+			partitionRelNames = append(partitionRelNames, n.TableDef.Partition.PartitionTableNames...)
+		}
 	}
 
 	s = &Scope{
@@ -2782,8 +2789,9 @@ func (c *Compile) newShuffleJoinScopeList(left, right []*Scope, n *plan.Node) ([
 			ss[i].NodeInfo.Mcpu = 1
 			ss[i].Proc = process.NewWithAnalyze(c.proc, c.ctx, sum, c.anal.Nodes())
 			ss[i].BuildIdx = lnum
+			ss[i].ShuffleCnt = dop
 			for _, rr := range ss[i].Proc.Reg.MergeReceivers {
-				rr.Ch = make(chan *batch.Batch, 16)
+				rr.Ch = make(chan *batch.Batch, shuffleJoinMergeChannelBufferSize)
 			}
 		}
 		children = append(children, ss...)
@@ -2866,7 +2874,6 @@ func (c *Compile) newJoinProbeScope(s *Scope, ss []*Scope) *Scope {
 	if ss == nil {
 		s.Proc.Reg.MergeReceivers[0] = &process.WaitRegister{
 			Ctx: s.Proc.Ctx,
-			Ch:  make(chan *batch.Batch, 16),
 		}
 		rs.appendInstruction(vm.Instruction{
 			Op: vm.Connector,
@@ -2901,7 +2908,7 @@ func (c *Compile) newJoinBuildScope(s *Scope, ss []*Scope) *Scope {
 		Op:      vm.HashBuild,
 		Idx:     s.Instructions[0].Idx,
 		IsFirst: true,
-		Arg:     constructHashBuild(c, s.Instructions[0], c.proc, ss != nil),
+		Arg:     constructHashBuild(c, s.Instructions[0], c.proc, s.ShuffleCnt, ss != nil),
 	})
 
 	if ss == nil { // unparallel, send the hashtable to join scope directly
@@ -3057,26 +3064,45 @@ func (c *Compile) generateNodes(n *plan.Node) (engine.Nodes, error) {
 
 	if n.TableDef.Partition != nil {
 		isPartitionTable = true
-		partitionInfo := n.TableDef.Partition
-		partitionNum := int(partitionInfo.PartitionNum)
-		partitionTableNames := partitionInfo.PartitionTableNames
-		for i := 0; i < partitionNum; i++ {
-			partTableName := partitionTableNames[i]
-			subrelation, err := db.Relation(ctx, partTableName, c.proc)
-			if err != nil {
-				return nil, err
+		if n.PartitionPrune != nil && n.PartitionPrune.IsPruned {
+			for i, partitionItem := range n.PartitionPrune.SelectedPartitions {
+				partTableName := partitionItem.PartitionTableName
+				subrelation, err := db.Relation(ctx, partTableName, c.proc)
+				if err != nil {
+					return nil, err
+				}
+				subranges, err := subrelation.Ranges(ctx, n.BlockFilterList)
+				if err != nil {
+					return nil, err
+				}
+				//add partition number into catalog.BlockInfo.
+				for _, r := range subranges[1:] {
+					blkInfo := catalog.DecodeBlockInfo(r)
+					blkInfo.PartitionNum = i
+					ranges = append(ranges, r)
+				}
 			}
-			subranges, err := subrelation.Ranges(ctx, n.BlockFilterList)
-			if err != nil {
-				return nil, err
+		} else {
+			partitionInfo := n.TableDef.Partition
+			partitionNum := int(partitionInfo.PartitionNum)
+			partitionTableNames := partitionInfo.PartitionTableNames
+			for i := 0; i < partitionNum; i++ {
+				partTableName := partitionTableNames[i]
+				subrelation, err := db.Relation(ctx, partTableName, c.proc)
+				if err != nil {
+					return nil, err
+				}
+				subranges, err := subrelation.Ranges(ctx, n.BlockFilterList)
+				if err != nil {
+					return nil, err
+				}
+				//add partition number into catalog.BlockInfo.
+				for _, r := range subranges[1:] {
+					blkInfo := catalog.DecodeBlockInfo(r)
+					blkInfo.PartitionNum = i
+					ranges = append(ranges, r)
+				}
 			}
-			//add partition number into catalog.BlockInfo.
-			for _, r := range subranges[1:] {
-				blkInfo := catalog.DecodeBlockInfo(r)
-				blkInfo.PartitionNum = i
-				ranges = append(ranges, r)
-			}
-			//ranges = append(ranges, subranges[1:]...)
 		}
 	}
 

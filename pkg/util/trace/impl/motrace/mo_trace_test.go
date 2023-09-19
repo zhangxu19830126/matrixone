@@ -213,6 +213,10 @@ func TestSpanContext_MarshalTo(t *testing.T) {
 }
 
 func TestMOSpan_End(t *testing.T) {
+	if runtime.NumCPU() < 4 {
+		t.Skip("machine's performance too low to handle time sensitive case, issue #11669")
+		return
+	}
 
 	s := gostub.Stub(&freeMOSpan, func(span *MOSpan) {})
 	defer s.Reset()
@@ -278,7 +282,6 @@ func TestMOSpan_End(t *testing.T) {
 
 	// span with deadline context (plus calling cancel2() before func return)
 	deadlineCtx2, cancel2 := context.WithTimeout(ctx, time.Millisecond)
-	defer cancel()
 	var deadlineSpan2 trace.Span
 	WG.Add(1)
 	go func() {
@@ -297,7 +300,6 @@ func TestMOSpan_End(t *testing.T) {
 
 	// span with hung option, with Deadline situation
 	caseHungOptionWithDeadline := func() {
-		defer cancel()
 		var hungSpan trace.Span
 		WG.Add(1)
 		go func() {
@@ -317,7 +319,6 @@ func TestMOSpan_End(t *testing.T) {
 
 	// span with hung option, with NO Deadline situation
 	caseHungOptionWithoutDeadline := func() {
-		defer cancel()
 		var hungSpan trace.Span
 		WG.Add(1)
 		go func() {
@@ -549,40 +550,42 @@ func TestWithFSSpan(t *testing.T) {
 
 }
 
-func BenchmarkMOTracer_Start(b *testing.B) {
+func TestMOCtledKindOverwrite(t *testing.T) {
 	tracer := &MOTracer{
 		TracerConfig: trace.TracerConfig{Name: "motrace_test"},
 		provider:     defaultMOTracerProvider(),
 	}
 	tracer.provider.enable = true
 
-	trace.MOCtledSpanEnableConfig.EnableLocalFSSpan.Store(true)
-	trace.MOCtledSpanEnableConfig.EnableS3FSSpan.Store(false)
+	fctx, fspan := tracer.Start(context.Background(), "test2", trace.WithKind(trace.SpanKindRemote))
+	defer fspan.End()
+	require.Equal(t, fspan.SpanContext().Kind, trace.SpanKindRemote)
 
-	b.Run("enable with opts", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			tracer.IsEnable(trace.WithKind(trace.SpanKindLocalFSVis))
-		}
-	})
+	trace.MOCtledSpanEnableConfig.EnableS3FSSpan.Store(true)
+	// won't be overwritten
+	_, span := tracer.Start(fctx, "test3", trace.WithKind(trace.SpanKindS3FSVis))
+	defer span.End()
+	require.NotEqual(t, span.SpanContext().Kind, fspan.SpanContext().Kind)
+	require.Equal(t, span.SpanContext().Kind, trace.SpanKindS3FSVis)
 
-	b.Run("enable without opts", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			tracer.IsEnable()
-		}
-	})
+}
 
-	b.Run("total with opts", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, span := tracer.Start(context.Background(), "test", trace.WithKind(
-				trace.SpanKindLocalFSVis))
-			span.End(trace.WithFSReadWriteExtra("xxx", nil, 0))
-		}
-	})
+func TestMOCtledKindPassDown(t *testing.T) {
+	tracer := &MOTracer{
+		TracerConfig: trace.TracerConfig{Name: "motrace_test"},
+		provider:     defaultMOTracerProvider(),
+	}
+	tracer.provider.enable = true
 
-	b.Run("total without opts", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, span := tracer.Start(context.Background(), "test")
-			span.End()
-		}
-	})
+	trace.MOCtledSpanEnableConfig.EnableS3FSSpan.Store(true)
+	specialCtx, specialSpan := tracer.Start(context.Background(), "special span",
+		trace.WithKind(trace.SpanKindS3FSVis))
+	defer specialSpan.End()
+	require.Equal(t, specialSpan.SpanContext().Kind, trace.SpanKindS3FSVis)
+
+	// won't pass down kind to child
+	_, span := tracer.Start(specialCtx, "child span")
+	defer span.End()
+	require.NotEqual(t, span.SpanContext().Kind, specialSpan.SpanContext().Kind)
+
 }

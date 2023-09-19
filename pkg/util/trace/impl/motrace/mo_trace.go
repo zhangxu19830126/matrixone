@@ -24,6 +24,7 @@ package motrace
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 	"unsafe"
@@ -91,7 +92,7 @@ func (t *MOTracer) Start(ctx context.Context, name string, opts ...trace.SpanSta
 		span.TraceID, span.SpanID = t.provider.idGenerator.NewIDs()
 		span.Parent = trace.NoopSpan{}
 	} else {
-		span.TraceID, span.SpanID, span.Kind = psc.TraceID, t.provider.idGenerator.NewSpanID(), psc.Kind
+		span.TraceID, span.SpanID = psc.TraceID, t.provider.idGenerator.NewSpanID()
 		span.Parent = parent
 	}
 
@@ -158,7 +159,7 @@ func newMOHungSpan(span *MOSpan) *MOHungSpan {
 	s.trigger = time.AfterFunc(s.HungThreshold(), func() {
 		s.mux.Lock()
 		defer s.mux.Unlock()
-		if e := s.quitCtx.Err(); e == context.Canceled || s.stopped {
+		if e := s.quitCtx.Err(); errors.Is(e, context.Canceled) || s.stopped {
 			return
 		}
 		s.doProfile()

@@ -381,9 +381,6 @@ func (e *Engine) New(ctx context.Context, op client.TxnOperator) error {
 		syncCommittedTSCount:            e.cli.GetSyncLatestCommitTSTimes(),
 		dupCheckMap:                     make(map[string][2]timestamp.Timestamp),
 	}
-	if txn.meta.IsRCIsolation() {
-		txn.tableCache.cachedIndex = e.catalog.GetDeletedTableIndex()
-	}
 	txn.readOnly.Store(true)
 	// transaction's local segment for raw batch.
 	colexec.Srv.PutCnSegment(id, colexec.TxnWorkSpaceIdType)

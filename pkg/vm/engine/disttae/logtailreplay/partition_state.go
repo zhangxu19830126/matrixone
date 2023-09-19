@@ -36,7 +36,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
-	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/tidwall/btree"
 )
 
@@ -71,6 +70,10 @@ type PartitionState struct {
 	// should have been in the Partition structure, but doing that requires much more codes changes
 	// so just put it here.
 	shared *sharedStates
+
+	// blocks deleted before minTS is hard deleted.
+	// partition state can't serve txn with snapshotTS less than minTS
+	minTS types.TS
 }
 
 // sharedStates is shared among all PartitionStates
@@ -728,26 +731,4 @@ func (p *PartitionState) consumeCheckpoints(
 	}
 	p.checkpoints = p.checkpoints[:0]
 	return nil
-}
-
-func (p *PartitionState) DumpPrimaryKeys(txn client.TxnOperator) {
-	var buf bytes.Buffer
-	iter := p.primaryIndex.Copy().Iter()
-	defer iter.Release()
-	for ok := iter.First(); ok; ok = iter.Next() {
-		item := iter.Item()
-
-		tuples, _, _ := types.DecodeTuple(item.OriginPK)
-		v1 := tuples[0].(int32)
-		v2 := tuples[1].(int32)
-
-		v := types.EncodeInt32(&v1)
-		v = append(v, types.EncodeInt32(&v2)...)
-		buf.WriteString(fmt.Sprintf("%x, rowid %s, blockid %s, %s\n\n",
-			v,
-			item.RowID.String(),
-			item.BlockID.String(),
-			item.Time.ToTimestamp().DebugString()))
-	}
-	txn.AppendReadInfo(buf.String())
 }
