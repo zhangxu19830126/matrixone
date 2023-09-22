@@ -130,6 +130,11 @@ type TxnOperator interface {
 	SetInfo(info string)
 	AppendReadInfo(info string)
 	GetReadInfo() []string
+	SetNeedRetry(bool)
+	IsNeedRetry() bool
+
+	SetRanges(any)
+	GetRanges() any
 
 	// AppendEventCallback append callback. All append callbacks will be called sequentially
 	// if event happen.

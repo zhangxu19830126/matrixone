@@ -180,8 +180,10 @@ func callBlocking(
 		return false, nil
 	case stepDownstream:
 		if arg.rt.retryError != nil {
-			arg.rt.step = stepEnd
-			return false, nil
+			arg.cleanCachedBatch(proc)
+			proc.SetInputBatch(nil)
+			proc.TxnOperator.SetNeedRetry(true)
+			return true, arg.rt.retryError
 		}
 
 		bat := arg.rt.cachedBatches[0]
@@ -195,6 +197,9 @@ func callBlocking(
 	case stepEnd:
 		arg.cleanCachedBatch(proc)
 		proc.SetInputBatch(nil)
+		if arg.rt.retryError != nil {
+			proc.TxnOperator.SetNeedRetry(true)
+		}
 		return true, arg.rt.retryError
 	default:
 		panic("BUG")
@@ -463,6 +468,7 @@ func doLock(
 			return false, false, timestamp.Timestamp{}, err
 		}
 		if changed {
+			logutil.Infof("%x update new snapshot to %s, changed", txnOp.Txn().ID, newSnapshotTS.DebugString())
 			if err := txnOp.UpdateSnapshot(ctx, newSnapshotTS); err != nil {
 				return false, false, timestamp.Timestamp{}, err
 			}
@@ -496,6 +502,7 @@ func doLock(
 
 	// forward rc's snapshot ts
 	snapshotTS = result.Timestamp.Next()
+	logutil.Infof("%x update new snapshot to %s, prev txn committed", txnOp.Txn().ID, snapshotTS.DebugString())
 	if err := txnOp.UpdateSnapshot(ctx, snapshotTS); err != nil {
 		return false, false, timestamp.Timestamp{}, err
 	}
@@ -792,6 +799,9 @@ func hasNewVersionInRange(
 	why, changed, err := rel.PrimaryKeysMayBeModified(proc.Ctx, fromTS, toTS, vec)
 	if err != nil {
 		return false, err
+	}
+	if changed && strings.Contains(tableName, "bmsql_stock") {
+		logutil.Infof("%x changed, why: %s", proc.TxnOperator.Txn().ID, why)
 	}
 	if !changed && strings.Contains(tableName, "bmsql_district") {
 		//  pk:  [from,to] no changed

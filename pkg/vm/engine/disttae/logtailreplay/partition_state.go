@@ -36,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/tidwall/btree"
 )
 
@@ -731,4 +732,82 @@ func (p *PartitionState) consumeCheckpoints(
 	}
 	p.checkpoints = p.checkpoints[:0]
 	return nil
+}
+
+func (p *PartitionState) truncate(ids [2]uint64, ts types.TS) {
+	if p.minTS.Greater(ts) {
+		logutil.Errorf("logic error: current minTS %v, incoming ts %v", p.minTS.ToString(), ts.ToString())
+		return
+	}
+	p.minTS = ts
+	gced := false
+	pivot := BlockIndexByTSEntry{
+		Time:     ts.Next(),
+		BlockID:  types.Blockid{},
+		IsDelete: true,
+	}
+	iter := p.blockIndexByTS.Copy().Iter()
+	ok := iter.Seek(pivot)
+	if !ok {
+		ok = iter.Last()
+	}
+	blksToDelete := ""
+	for ; ok; ok = iter.Prev() {
+		entry := iter.Item()
+		if entry.Time.Greater(ts) {
+			continue
+		}
+		if entry.IsDelete {
+			p.blockIndexByTS.Delete(entry)
+			blockPivot := BlockEntry{
+				BlockInfo: catalog.BlockInfo{
+					BlockID: entry.BlockID,
+				},
+			}
+			blkEntry, ok := p.blocks.Get(blockPivot)
+			if !ok {
+				panic("blk entry not existed")
+			}
+			createEntry := BlockIndexByTSEntry{
+				Time:         blkEntry.CreateTime,
+				BlockID:      blkEntry.BlockID,
+				IsDelete:     false,
+				IsAppendable: blkEntry.EntryState,
+			}
+			p.blockIndexByTS.Delete(createEntry)
+			p.blockIndexByTS.Delete(entry)
+			p.blocks.Delete(blkEntry)
+			if gced {
+				blksToDelete = fmt.Sprintf("%s, %v", blksToDelete, entry.BlockID.ShortStringEx())
+			} else {
+				blksToDelete = fmt.Sprintf("%s%v", blksToDelete, entry.BlockID.ShortStringEx())
+			}
+			gced = true
+		}
+	}
+	if gced {
+		logutil.Infof("GC partition_state at %v for table %d:%s", ts.ToString(), ids[1], blksToDelete)
+	}
+}
+
+func (p *PartitionState) DumpPrimaryKeys(txn client.TxnOperator) {
+	var buf bytes.Buffer
+	iter := p.primaryIndex.Copy().Iter()
+	defer iter.Release()
+	for ok := iter.First(); ok; ok = iter.Next() {
+		item := iter.Item()
+
+		tuples, _, _ := types.DecodeTuple(item.OriginPK)
+		v1 := tuples[0].(int32)
+		v2 := tuples[1].(int32)
+
+		v := types.EncodeInt32(&v1)
+		v = append(v, types.EncodeInt32(&v2)...)
+		buf.WriteString(fmt.Sprintf("%x, rowid %s, blockid %s, %s\n\n",
+			v,
+			item.RowID.String(),
+			item.BlockID.String(),
+			item.Time.ToTimestamp().DebugString()))
+	}
+	txn.AppendReadInfo(buf.String())
 }

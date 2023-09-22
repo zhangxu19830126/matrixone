@@ -16,7 +16,9 @@ package output
 
 import (
 	"bytes"
+
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -32,11 +34,13 @@ func Call(_ int, proc *process.Process, arg any, isFirst bool, isLast bool) (pro
 	ap := arg.(*Argument)
 	bat := proc.InputBatch()
 	if bat == nil {
+		logutil.Infof("%x output skip by bat == nil", proc.TxnOperator.Txn().ID)
 		return process.ExecStop, nil
 	}
 	if bat.IsEmpty() {
 		proc.PutBatch(bat)
 		proc.SetInputBatch(batch.EmptyBatch)
+		logutil.Infof("%x output skip by bat is empty", proc.TxnOperator.Txn().ID)
 		return process.ExecNext, nil
 	}
 	if err := ap.Func(ap.Data, bat); err != nil {

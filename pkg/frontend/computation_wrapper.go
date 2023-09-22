@@ -284,7 +284,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 			if prepareStmt.params.Length() != numParams {
 				return nil, moerr.NewInvalidInput(requestCtx, "Incorrect arguments to EXECUTE")
 			}
-			cwft.proc.SetPrepareParams(prepareStmt.params)
+			cwft.proc.SetPrepareParams(prepareStmt.params, cwft.uuid[:])
 		} else if len(executePlan.Args) > 0 {
 			if len(executePlan.Args) != numParams {
 				return nil, moerr.NewInvalidInput(requestCtx, "Incorrect arguments to EXECUTE")
@@ -299,12 +299,13 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 				if param == nil {
 					return nil, moerr.NewInvalidInput(requestCtx, "Incorrect arguments to EXECUTE")
 				}
+
 				err = util.AppendAnyToStringVector(cwft.proc, param, params)
 				if err != nil {
 					return nil, err
 				}
 			}
-			cwft.proc.SetPrepareParams(params)
+			cwft.proc.SetPrepareParams(params, cwft.uuid[:])
 		} else {
 			if numParams > 0 {
 				return nil, moerr.NewInvalidInput(requestCtx, "Incorrect arguments to EXECUTE")
@@ -358,6 +359,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		cwft.ses.isInternal,
 		deepcopy.Copy(cwft.ses.getCNLabels()).(map[string]string),
 	)
+	cwft.compile.SetOriginSQL(originSQL)
 	cwft.compile.SetBuildPlanFunc(func() (*plan2.Plan, error) {
 		return buildPlan(requestCtx, cwft.ses, cwft.ses.GetTxnCompileCtx(), cwft.stmt)
 	})
@@ -365,6 +367,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 	if _, ok := cwft.stmt.(*tree.ExplainAnalyze); ok {
 		fill = func(obj interface{}, bat *batch.Batch) error { return nil }
 	}
+
 	err = cwft.compile.Compile(txnCtx, cwft.plan, cwft.ses, fill)
 	if err != nil {
 		return nil, err
@@ -410,7 +413,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 
 		cwft.ses.EnableInitTempEngine()
 	}
-	cwft.compile.SetOriginSQL(originSQL)
+
 	return cwft.compile, err
 }
 

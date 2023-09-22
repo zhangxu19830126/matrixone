@@ -159,7 +159,7 @@ func (proc *Process) GetPrepareParams() *vector.Vector {
 	return proc.prepareParams
 }
 
-func (proc *Process) SetPrepareParams(prepareParams *vector.Vector) {
+func (proc *Process) SetPrepareParams(prepareParams *vector.Vector, uuid []byte) {
 	proc.prepareParams = prepareParams
 }
 

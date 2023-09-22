@@ -68,6 +68,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
+	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 	"github.com/panjf2000/ants/v2"
 )
@@ -115,6 +116,8 @@ func New(addr, db string, sql string, tenant, uid string, ctx context.Context,
 	c.isInternal = isInternal
 	c.cnLabel = cnLabel
 	c.runtimeFilterReceiverMap = make(map[int32]*runtimeFilterReceiver)
+	c.originSQL = ""
+	c.disableWrap = false
 	return c
 }
 
@@ -203,6 +206,111 @@ func (c *Compile) Compile(ctx context.Context, pn *plan.Plan, u any, fill func(a
 		}
 	}()
 
+	f := fill
+	c.fill = fill
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+	if !c.disableWrap &&
+		strings.Contains(sql, "select bmsql_stock.s_quantity, bmsql_stock.s_data, bmsql_stock.s_dist_01, bmsql_stock.s_dist_02, bmsql_stock.s_dist_03, bmsql_stock.s_dist_04, bmsql_stock.s_dist_05, bmsql_stock.s_dist_06, bmsql_stock.s_dist_07, bmsql_stock.s_dist_08, bmsql_stock.s_dist_09, bmsql_stock.s_dist_10 from bmsql_stock where bmsql_stock.s_w_id = ? and bmsql_stock.s_i_id = ? for update") {
+		msg := fmt.Sprintf("%x(%p) run sql: %s(%s)",
+			c.proc.TxnOperator.Txn().ID,
+			c.proc,
+			sql,
+			c.proc.GetPrepareParams())
+		v1 := c.proc.GetPrepareParams().GetStringAt(0)
+		v2 := c.proc.GetPrepareParams().GetStringAt(1)
+
+		first := true
+		c.fill = func(a any, b *batch.Batch) error {
+			if c.proc.TxnOperator.IsNeedRetry() {
+				return f(a, b)
+			}
+
+			logutil.Infof("%x(%p, %s) call fill: %p",
+				c.proc.TxnOperator.Txn().ID,
+				c.proc, c.proc.TxnOperator.Txn().SnapshotTS.DebugString(),
+				b)
+			if b != nil {
+				if b.RowCount() == 0 {
+					logutil.Fatalf("%s return empty",
+						msg)
+				}
+
+				logutil.Infof("%s, stock result: %d",
+					msg,
+					b.RowCount())
+			} else if first {
+				state := c.proc.TxnOperator.GetRanges().(*logtailreplay.PartitionState)
+				iter := state.NewRowsIter2(types.TimestampToTS(timestamp.Timestamp{PhysicalTime: math.MaxInt64}), nil, false)
+				for {
+					if !iter.Next() {
+						break
+					}
+
+					e := iter.Entry()
+					v1ColIndex := 0
+					v2ColIndex := 0
+					for i, attr := range e.Batch.Attrs {
+						if attr == "s_w_id" {
+							v1ColIndex = i
+						}
+						if attr == "s_i_id" {
+							v2ColIndex = i
+						}
+					}
+
+					wid := executor.GetFixedRows[int32](e.Batch.Vecs[v1ColIndex])[e.Offset]
+					iid := executor.GetFixedRows[int32](e.Batch.Vecs[v2ColIndex])[e.Offset]
+					logutil.Infof("%x: read mem [%d %d, %s]\n", c.proc.TxnOperator.Txn().ID, wid, iid, e.Time.ToTimestamp().DebugString())
+				}
+
+				v, ok := moruntime.ProcessLevelRuntime().GetGlobalVariables(moruntime.InternalSQLExecutor)
+				if !ok {
+					panic("missing lock service")
+				}
+				exec := v.(executor.SQLExecutor)
+				opts := executor.Options{}.
+					WithTxn(c.proc.TxnOperator).
+					WithDatabase(c.db).WithDisableIncrStatement()
+
+				sql2 := fmt.Sprintf("select bmsql_stock.s_quantity, bmsql_stock.s_data, bmsql_stock.s_dist_01, bmsql_stock.s_dist_02, bmsql_stock.s_dist_03, bmsql_stock.s_dist_04, bmsql_stock.s_dist_05, bmsql_stock.s_dist_06, bmsql_stock.s_dist_07, bmsql_stock.s_dist_08, bmsql_stock.s_dist_09, bmsql_stock.s_dist_10 from bmsql_stock where bmsql_stock.s_w_id = %s and bmsql_stock.s_i_id = %s", v1, v2)
+				rows2 := 0
+				if res, err := exec.Exec(c.proc.Ctx, sql2, opts); err == nil {
+					res.ReadRows(func(cols []*vector.Vector) bool {
+						rows2 = cols[0].Length()
+						return true
+					})
+					res.Close()
+				} else {
+					logutil.Fatalf("%s, stock empty result, second query(%s) %d, error: %+v",
+						msg, sql2, rows2, err)
+				}
+
+				sql3 := fmt.Sprintf("select bmsql_stock.s_quantity, bmsql_stock.s_data, bmsql_stock.s_dist_01, bmsql_stock.s_dist_02, bmsql_stock.s_dist_03, bmsql_stock.s_dist_04, bmsql_stock.s_dist_05, bmsql_stock.s_dist_06, bmsql_stock.s_dist_07, bmsql_stock.s_dist_08, bmsql_stock.s_dist_09, bmsql_stock.s_dist_10 from bmsql_stock where bmsql_stock.s_w_id = %s and bmsql_stock.s_i_id = %s for update", v1, v2)
+				rows3 := 0
+				if res, err := exec.Exec(c.proc.Ctx, sql3, opts); err == nil {
+					res.ReadRows(func(cols []*vector.Vector) bool {
+						rows3 = cols[0].Length()
+						return true
+					})
+					res.Close()
+				} else {
+					logutil.Fatalf("%s, stock empty result, second query(%s) %d, error: %+v",
+						msg, sql2, rows3, err)
+				}
+
+				logutil.Fatalf("%s, stock empty result, query 2: %d, query 3: %d",
+					msg, rows2, rows3)
+			}
+			first = false
+			return f(a, b)
+		}
+
+		logutil.Infof("%x(%p) reset fill to %p, old %p", c.proc.TxnOperator.Txn().ID, c.proc, c.fill, f)
+	}
+
 	// with values
 	c.proc.Ctx = perfcounter.WithCounterSet(c.proc.Ctx, &c.counterSet)
 	c.ctx = c.proc.Ctx
@@ -210,7 +318,6 @@ func (c *Compile) Compile(ctx context.Context, pn *plan.Plan, u any, fill func(a
 	// session info and callback function to write back query result.
 	// XXX u is really a bad name, I'm not sure if `session` or `user` will be more suitable.
 	c.u = u
-	c.fill = fill
 
 	c.pn = pn
 	// get execute related information
@@ -388,7 +495,7 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		}
 	}
 
-	if strings.Contains(sql, "bmsql_") {
+	if strings.Contains(sql, "bmsql") {
 		logutil.Infof("%x run sql: %s, %s\n",
 			c.proc.TxnOperator.Txn().ID,
 			sql,
@@ -404,13 +511,23 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 			c.proc.TxnOperator.Txn().IsRCIsolation() {
 			c.proc.TxnOperator.ResetRetry(true)
 			c.proc.TxnOperator.GetWorkspace().IncrSQLCount()
+			c.proc.TxnOperator.SetNeedRetry(false)
+
+			if strings.Contains(sql, "bmsql") {
+				logutil.Infof("%x retry run sql: %s, %s\n",
+					c.proc.TxnOperator.Txn().ID,
+					sql,
+					c.proc.GetPrepareParams())
+			}
 
 			// clear the workspace of the failed statement
 			if e := c.proc.TxnOperator.GetWorkspace().RollbackLastStatement(c.ctx); e != nil {
+				c.fatalLog(1, err)
 				return nil, e
 			}
 			//  increase the statement id
 			if e := c.proc.TxnOperator.GetWorkspace().IncrStatementID(c.ctx, false); e != nil {
+				c.fatalLog(1, err)
 				return nil, e
 			}
 
@@ -428,14 +545,15 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 				c.stmt,
 				c.isInternal,
 				c.cnLabel)
-			cc.fill = c.fill
 			if moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetryWithDefChanged) {
 				pn, err := c.buildPlanFunc()
 				if err != nil {
+					c.fatalLog(1, err)
 					return nil, err
 				}
 				c.pn = pn
 			}
+			cc.disableWrap = true
 			if err := cc.Compile(c.proc.Ctx, c.pn, c.u, c.fill); err != nil {
 				c.fatalLog(1, err)
 				return nil, err
@@ -450,6 +568,10 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 			return result, c.proc.TxnOperator.GetWorkspace().Adjust()
 		}
 		return nil, err
+	}
+
+	if strings.Contains(sql, "bmsql") {
+		logutil.Infof("%x exit 1, need retry: %+v", c.proc.TxnOperator.Txn().ID, c.proc.TxnOperator.IsNeedRetry())
 	}
 
 	result.AffectRows = c.getAffectedRows()
@@ -3504,6 +3626,7 @@ func (c *Compile) fatalLog(retry int, err error) {
 		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY) ||
 		moerr.IsMoErrCode(err, moerr.ER_DUP_ENTRY_WITH_KEY_NAME)
 	if !fatal {
+		logutil.Infof("%x run error: %+v", c.proc.TxnOperator.Txn().ID, err)
 		return
 	}
 	if retry == 0 &&

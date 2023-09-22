@@ -174,6 +174,8 @@ type txnOperator struct {
 		lockTables   []lock.LockTable
 		callbacks    map[EventType][]func(txn.TxnMeta)
 		retry        bool
+		needRetry    bool
+		ranges       any
 	}
 	workspace       Workspace
 	timestampWaiter TimestampWaiter
@@ -984,4 +986,28 @@ func (tc *txnOperator) GetReadInfo() []string {
 	defer tc.mu.Unlock()
 
 	return tc.mu.readInfos
+}
+
+func (tc *txnOperator) SetNeedRetry(v bool) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.mu.needRetry = v
+}
+
+func (tc *txnOperator) IsNeedRetry() bool {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	return tc.mu.needRetry
+}
+
+func (tc *txnOperator) SetRanges(ranges any) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.mu.ranges = ranges
+}
+
+func (tc *txnOperator) GetRanges() any {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	return tc.mu.ranges
 }

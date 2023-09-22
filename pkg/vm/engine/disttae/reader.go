@@ -299,8 +299,10 @@ func (r *blockReader) Read(
 	mp *mpool.MPool,
 	vp engine.VectorPool,
 ) (*batch.Batch, error) {
+	proc := vp.(*process.Process)
 	// if the block list is empty, return nil
 	if len(r.blks) == 0 {
+		logutil.Infof("%x skipped by len(r.blks) == 0", proc.TxnOperator.Txn().ID)
 		return nil, nil
 	}
 
@@ -323,6 +325,7 @@ func (r *blockReader) Read(
 
 	// if any null expr is found in the primary key (composite primary keys), quick return
 	if r.filterState.hasNull {
+		logutil.Infof("%x skipped by r.filterState.hasNull ", proc.TxnOperator.Txn().ID)
 		return nil, nil
 	}
 
@@ -354,6 +357,12 @@ func (r *blockReader) Read(
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if bat.RowCount() == 0 {
+		for _, blk := range r.blks {
+			logutil.Infof("%x read %x empty by blockio.BlockRead", proc.TxnOperator.Txn().ID, blk.BlockID)
+		}
 	}
 
 	if filter != nil {

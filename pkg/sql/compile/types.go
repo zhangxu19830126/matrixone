@@ -217,6 +217,8 @@ type Compile struct {
 	cnLabel map[string]string
 
 	buildPlanFunc func() (*plan2.Plan, error)
+
+	disableWrap bool
 }
 
 type runtimeFilterReceiver struct {

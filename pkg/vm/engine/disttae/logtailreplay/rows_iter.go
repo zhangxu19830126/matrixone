@@ -37,6 +37,20 @@ type rowsIter struct {
 	iterDeleted  bool
 }
 
+func (p *PartitionState) NewRowsIter2(ts types.TS, blockID *types.Blockid, iterDeleted bool) RowsIter {
+	iter := p.rows.Copy().Iter()
+	ret := &rowsIter{
+		ts:          ts,
+		iter:        iter,
+		iterDeleted: iterDeleted,
+	}
+	if blockID != nil {
+		ret.checkBlockID = true
+		ret.blockID = *blockID
+	}
+	return ret
+}
+
 func (p *PartitionState) NewRowsIter(ts types.TS, blockID *types.Blockid, iterDeleted bool) *rowsIter {
 	iter := p.rows.Copy().Iter()
 	ret := &rowsIter{

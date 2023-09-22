@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -242,6 +243,8 @@ func (txn *Transaction) PutCnBlockDeletes(blockId *types.Blockid, offsets []int6
 
 func (txn *Transaction) StartStatement() {
 	if txn.startStatementCalled {
+		stack := string(debug.Stack())
+		fmt.Printf(stack)
 		logutil.Fatal("BUG: StartStatement called twice")
 	}
 	txn.startStatementCalled = true
@@ -414,6 +417,7 @@ func (txn *Transaction) handleRCSnapshot(ctx context.Context, commit bool) error
 			timestamp.Timestamp{}); err != nil {
 			return err
 		}
+		logutil.Infof("%x update new snapshot to %s, prev incr statement", txn.meta.ID, txn.meta.SnapshotTS.DebugString())
 		txn.resetSnapshot()
 	}
 	return nil

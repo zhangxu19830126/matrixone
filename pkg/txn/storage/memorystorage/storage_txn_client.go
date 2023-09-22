@@ -287,3 +287,8 @@ func (s *StorageTxnOperator) AppendReadInfo(string) {
 func (s *StorageTxnOperator) GetReadInfo() []string {
 	panic("should not call")
 }
+func (s *StorageTxnOperator) SetNeedRetry(bool) { panic("should not call") }
+func (s *StorageTxnOperator) IsNeedRetry() bool { panic("should not call") }
+
+func (s *StorageTxnOperator) SetRanges(any)  { panic("should not call") }
+func (s *StorageTxnOperator) GetRanges() any { panic("should not call") }

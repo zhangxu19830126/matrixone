@@ -15,8 +15,10 @@
 package disttae
 
 import (
+	"bytes"
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -568,7 +570,6 @@ func (tbl *txnTable) Ranges(ctx context.Context, exprs []*plan.Expr) (ranges [][
 	if part, err = tbl.getPartitionState(ctx); err != nil {
 		return
 	}
-
 	ranges = make([][]byte, 0, 1)
 	ranges = append(ranges, []byte{})
 
@@ -603,6 +604,24 @@ func (tbl *txnTable) Ranges(ctx context.Context, exprs []*plan.Expr) (ranges [][
 		&ranges,
 		tbl.proc,
 	)
+
+	if strings.Contains(tbl.tableName, "bmsql_stock") {
+		var exprsInfo bytes.Buffer
+		for _, expr := range exprs {
+			exprsInfo.WriteString(expr.String())
+			exprsInfo.WriteString("    ")
+		}
+
+		if len(ranges) == 2 {
+			blk := &catalog.BlockInfo{}
+			blk.Unmarshal(ranges[1])
+			logutil.Infof(">>> %x(%s)(%p)(%s) call range result %p, %x, blockinfos %d", tbl.db.txn.meta.ID, tbl.db.txn.meta.SnapshotTS.DebugString(), tbl, exprsInfo.String(), part, blk.BlockID, len(tbl.blockInfos))
+		} else {
+			logutil.Infof(">>> %x(%s)(%p)(%s) call range result %p, %d, blockinfos %d", tbl.db.txn.meta.ID, tbl.db.txn.meta.SnapshotTS.DebugString(), tbl, exprsInfo.String(), part, len(ranges), len(tbl.blockInfos))
+		}
+
+		tbl.db.txn.op.SetRanges(part)
+	}
 	return
 }
 
@@ -1501,6 +1520,10 @@ func (tbl *txnTable) newReader(
 
 	var iter logtailreplay.RowsIter
 	if len(encodedPrimaryKey) > 0 {
+		if strings.Contains(tbl.tableName, "bmsql_stock") {
+			logutil.Infof("%x call newReader %p, %x, %s",
+				tbl.db.txn.meta.ID, state, encodedPrimaryKey, ts.DebugString())
+		}
 		iter = state.NewPrimaryKeyIter(
 			types.TimestampToTS(ts),
 			logtailreplay.Prefix(encodedPrimaryKey),
