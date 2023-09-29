@@ -106,12 +106,66 @@ func (s *sqlStore) Allocate(
 				res.ReadRows(func(cols []*vector.Vector) bool {
 					current = executor.GetFixedRows[uint64](cols[0])[0]
 					step = executor.GetFixedRows[uint64](cols[1])[0]
-					rows++
+					rows += len(executor.GetFixedRows[uint64](cols[0]))
 					return true
 				})
 				res.Close()
 
 				if rows != 1 {
+					getLogger().Info("BUG: read incr record invalid",
+						zap.String("fetch-sql", fetchSQL),
+						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
+						zap.Uint64("table", tableID),
+						zap.String("col", colName),
+						zap.Int("rows", rows))
+
+					fetchNoUpdateSQL := fmt.Sprintf(`select offset, step from %s where table_id = %d and col_name = '%s'`,
+						incrTableName,
+						tableID,
+						colName)
+					res, err := te.Exec(fetchNoUpdateSQL)
+					if err != nil {
+						return err
+					}
+					rows = 0
+					res.ReadRows(func(cols []*vector.Vector) bool {
+						current = executor.GetFixedRows[uint64](cols[0])[0]
+						step = executor.GetFixedRows[uint64](cols[1])[0]
+						rows += len(executor.GetFixedRows[uint64](cols[0]))
+						return true
+					})
+					res.Close()
+					getLogger().Info("After BUG: read incr record invalid, fetch without for update",
+						zap.String("fetch-sql", fetchNoUpdateSQL),
+						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
+						zap.Uint64("table", tableID),
+						zap.String("col", colName),
+						zap.Int("rows", rows))
+
+					fetchAllSQL := fmt.Sprintf(`select offset, step, table_id, col_name from %s`,
+						incrTableName)
+					res, err = te.Exec(fetchAllSQL)
+					if err != nil {
+						return err
+					}
+					rows = 0
+					res.ReadRows(func(cols []*vector.Vector) bool {
+						for i:=0;i<len(executor.GetFixedRows[uint64](cols[0]));i++ {
+							current = executor.GetFixedRows[uint64](cols[0])[i]
+							step = executor.GetFixedRows[uint64](cols[1])[i]
+							tid := executor.GetFixedRows[uint64](cols[2])[i]
+							coln := executor.GetStringRows(cols[3])[i]
+							getLogger().Info("After BUG: read incr record invalid, fetch all data",
+								zap.Uint64("current", current),
+								zap.Uint64("step", step),
+								zap.Uint64("tid", tid),
+								zap.String("colName", coln))
+							rows++
+						}						
+						return true
+					})
+					res.Close()
+
 					getLogger().Fatal("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
 						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
