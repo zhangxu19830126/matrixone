@@ -144,12 +144,17 @@ func (s *sqlStore) Allocate(
 
 					fetchAllSQL := fmt.Sprintf(`select offset, step, table_id, col_name from %s`,
 						incrTableName)
+					getLogger().Info("After BUG: read incr record invalid, begin to fetch all data",
+						zap.String("fetch-sql", fetchAllSQL))
 					res, err = te.Exec(fetchAllSQL)
 					if err != nil {
 						return err
 					}
+					getLogger().Info("After BUG: read incr record invalid, finish fetch all data",
+						zap.String("fetch-sql", fetchAllSQL))
 					rows = 0
 					res.ReadRows(func(cols []*vector.Vector) bool {
+						getLogger().Info("After BUG: read incr record invalid, begin to read rows for fetching all data")
 						for i := 0; i < len(executor.GetFixedRows[uint64](cols[0])); i++ {
 							current = executor.GetFixedRows[uint64](cols[0])[i]
 							step = executor.GetFixedRows[uint64](cols[1])[i]
