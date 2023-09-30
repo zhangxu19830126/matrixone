@@ -150,7 +150,7 @@ func (s *sqlStore) Allocate(
 					}
 					rows = 0
 					res.ReadRows(func(cols []*vector.Vector) bool {
-						for i:=0;i<len(executor.GetFixedRows[uint64](cols[0]));i++ {
+						for i := 0; i < len(executor.GetFixedRows[uint64](cols[0])); i++ {
 							current = executor.GetFixedRows[uint64](cols[0])[i]
 							step = executor.GetFixedRows[uint64](cols[1])[i]
 							tid := executor.GetFixedRows[uint64](cols[2])[i]
@@ -161,7 +161,7 @@ func (s *sqlStore) Allocate(
 								zap.Uint64("tid", tid),
 								zap.String("colName", coln))
 							rows++
-						}						
+						}
 						return true
 					})
 					res.Close()
@@ -171,7 +171,8 @@ func (s *sqlStore) Allocate(
 						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
-						zap.Int("rows", rows))
+						zap.Int("rows", rows),
+						zap.String("txn", res.Txn.Txn().DebugString()))
 				}
 
 				next = getNext(current, count, int(step))
