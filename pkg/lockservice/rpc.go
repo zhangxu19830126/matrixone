@@ -58,7 +58,7 @@ func NewClient(cfg morpc.Config) (Client, error) {
 	// add read timeout for lockservice client, to avoid remote lock hung and cannot read the lock response
 	// due to tcp disconnected.
 	c.cfg.BackendOptions = append(c.cfg.BackendOptions,
-		morpc.WithBackendReadTimeout(time.Minute))
+		morpc.WithBackendReadTimeout(defaultRPCTimeout))
 
 	client, err := c.cfg.NewClient("",
 		getLogger().RawLogger(),
