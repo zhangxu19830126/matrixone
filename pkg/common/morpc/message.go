@@ -32,6 +32,10 @@ func (m RPCMessage) Timeout() bool {
 
 // GetTimeoutFromContext returns the timeout duration from context.
 func (m RPCMessage) GetTimeoutFromContext() (time.Duration, error) {
+	if m.internal {
+		return time.Duration(time.Second * 10), nil
+	}
+
 	d, ok := m.Ctx.Deadline()
 	if !ok {
 		return 0, moerr.NewInvalidInputNoCtx("timeout deadline not set")
