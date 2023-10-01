@@ -82,6 +82,9 @@ func (s *service) Create(
 	if txnOp == nil {
 		panic("txn operator is nil")
 	}
+	s.logger.Error("create auto increment cache",
+		zap.Uint64("table-id", tableID),
+		zap.String("txn", hex.EncodeToString(txnOp.Txn().ID)))
 	txnOp.AppendEventCallback(
 		client.ClosedEvent,
 		s.txnClosed)

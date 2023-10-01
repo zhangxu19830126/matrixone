@@ -201,7 +201,8 @@ func (s *sqlStore) Allocate(
 						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
-						zap.Uint64("affected-rows", res.AffectedRows))
+						zap.Uint64("affected-rows", res.AffectedRows),
+						zap.String("txn", res.Txn.Txn().DebugString()))
 				}
 				res.Close()
 				return nil
