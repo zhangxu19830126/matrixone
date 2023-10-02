@@ -247,3 +247,62 @@ func TestDebugData(t *testing.T) {
 	_, err = DebugDataWithBlockID(ctx, service, blockId.String())
 	assert.Nil(t, err)
 }
+
+func TestDebugBlockData(t *testing.T) {
+	defer testutils.AfterTest(t)()
+	ctx := context.Background()
+
+	dir := testutils.InitTestEnv(ModuleName, t)
+	dir = path.Join(dir, "/local")
+	sid := objectio.NewSegmentid()
+	name := objectio.BuildObjectName(sid, 0)
+	c := fileservice.Config{
+		Name:    defines.LocalFileServiceName,
+		Backend: "DISK",
+		DataDir: dir,
+	}
+	service, err := fileservice.NewFileService(ctx, c, nil)
+	assert.Nil(t, err)
+	writer, _ := NewBlockWriterNew(service, name, 0, nil)
+
+	schema := catalog.MockSchemaAll(3, 2)
+	bats := catalog.MockBatch(schema, 40000*2).Split(2)
+
+	_, err = writer.WriteBatch(containers.ToCNBatch(bats[0]))
+	assert.Nil(t, err)
+	_, err = writer.WriteBatch(containers.ToCNBatch(bats[1]))
+	assert.Nil(t, err)
+	blocks, _, err := writer.Sync(context.Background())
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(blocks))
+	block1 := blocks[0]
+	blockBuff := [20]byte{32, 221, 105, 180, 96, 230, 17, 238, 159, 154, 230, 238, 244, 99, 153, 225, 0, 0, 0, 0}
+	blockid1 := types.Blockid(blockBuff)
+	logutil.Infof("blockId1 is %v", blockid1.String())
+	_, fileName, _, _ := GetObjectFileName(blockid1.String())
+	logutil.Infof("blockId11 is %v, name is %v", blockid1.String(), fileName)
+	blockId := *objectio.NewBlockid(
+		sid,
+		0,
+		block1.GetID())
+	meta, location, err := GetLocationWithBlockID(ctx, service, blockId.String())
+	assert.Nil(t, err)
+	dataMeta := meta.MustDataMeta()
+	block := dataMeta.GetBlockMeta(0)
+	colx := block.MustGetColumn(2 /* xyz seqnum*/)
+	colZoneMap := colx.ZoneMap()
+	zm := index.DecodeZM(colZoneMap)
+	logutil.Infof("zone map max: %v, min: %v", zm.GetMax(), zm.GetMin())
+
+	reader, err := NewObjectReader(service, location)
+	assert.Nil(t, err)
+	dataMeta1, err := reader.LoadObjectMeta(ctx, nil)
+	blocksss := dataMeta1.GetBlockMeta(0)
+	colx1 := blocksss.MustGetColumn(12 /* xyz seqnum*/)
+	colZoneMap1 := colx1.ZoneMap()
+	zm1 := index.DecodeZM(colZoneMap1)
+	logutil.Infof("zone map max: %v, min: %v", zm1.GetMax(), zm1.GetMin())
+
+	_, err = DebugDataWithBlockID(ctx, service, blockId.String())
+	assert.Nil(t, err)
+}
