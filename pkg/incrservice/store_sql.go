@@ -160,7 +160,7 @@ func (s *sqlStore) Allocate(
 					// read all data from blocks
 					fs := s.exec.GetFileService()
 					blocks := txnOp2.(client.TxnOperatorWithBlocks).GetAllBlocks().([]catalog.BlockInfo)
-					tctx, tcancel := context.WithTimeout(context.Background(), time.Second*30)
+					tctx, tcancel := context.WithTimeout(context.Background(), time.Second*60)
 					defer tcancel()
 					for _, b := range blocks {
 						getLogger().Error("incr record invalid", 
