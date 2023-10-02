@@ -120,12 +120,19 @@ func (s *sqlStore) Allocate(
 				res.Close()
 
 				if rows != 1 {
+					done := false
+					select {
+					case <- ctx.Done():
+						done = true
+					default:
+					}
 					getLogger().Info("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
 						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
-						zap.Int("rows", rows))
+						zap.Int("rows", rows),
+						zap.Bool("done", done))
 
 					fetchAllSQL := fmt.Sprintf(`select offset, step, table_id, col_name from %s`,
 						incrTableName)
