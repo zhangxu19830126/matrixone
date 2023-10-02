@@ -149,6 +149,9 @@ type TxnOperatorWithBlocks interface {
 	TxnOperator
 	SetAllBlocks(any)
 	GetAllBlocks() any
+
+	SetPartitionState(any)
+	GetPartitionState() any
 }
 
 // TxnIDGenerator txn id generator

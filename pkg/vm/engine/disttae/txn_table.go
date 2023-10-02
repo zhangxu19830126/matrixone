@@ -564,13 +564,14 @@ func (tbl *txnTable) Ranges(ctx context.Context, exprs []*plan.Expr) (ranges [][
 		return
 	}
 
-	tbl.db.txn.op.(client.TxnOperatorWithBlocks).SetAllBlocks(tbl.blockInfos)
-
 	// get the table's snapshot
 	var part *logtailreplay.PartitionState
 	if part, err = tbl.getPartitionState(ctx); err != nil {
 		return
 	}
+
+	tbl.db.txn.op.(client.TxnOperatorWithBlocks).SetAllBlocks(tbl.blockInfos)
+	tbl.db.txn.op.(client.TxnOperatorWithBlocks).SetPartitionState(part)
 
 	ranges = make([][]byte, 0, 1)
 	ranges = append(ranges, []byte{})
