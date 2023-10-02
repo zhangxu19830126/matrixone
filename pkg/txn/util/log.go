@@ -94,7 +94,7 @@ func LogTxnWrite(txnMeta txn.TxnMeta) {
 // LogTxnCommit log txn commit
 func LogTxnCommit(txnMeta txn.TxnMeta) {
 	logger := getSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
+	if logger.Enabled(zap.InfoLevel) {
 		logger.Info("txn commit", zap.String("txn", txnMeta.DebugString()))
 	}
 }
@@ -102,7 +102,7 @@ func LogTxnCommit(txnMeta txn.TxnMeta) {
 // LogTxnRollback log txn rollback
 func LogTxnRollback(txnMeta txn.TxnMeta) {
 	logger := getSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
+	if logger.Enabled(zap.InfoLevel) {
 		logger.Info("txn rollback", zap.String("txn", txnMeta.DebugString()))
 	}
 }
@@ -110,7 +110,7 @@ func LogTxnRollback(txnMeta txn.TxnMeta) {
 // LogTxnCreated log txn created
 func LogTxnCreated(txnMeta txn.TxnMeta) {
 	logger := getSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
+	if logger.Enabled(zap.InfoLevel) {
 		logger.Info("txn created", zap.String("txn", txnMeta.DebugString()))
 	}
 }
