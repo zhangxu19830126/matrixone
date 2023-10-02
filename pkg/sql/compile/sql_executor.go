@@ -75,6 +75,10 @@ func NewSQLExecutor(
 	}
 }
 
+func (s *sqlExecutor) GetFileService() fileservice.FileService {
+	return s.fs
+}
+
 func (s *sqlExecutor) Exec(
 	ctx context.Context,
 	sql string,

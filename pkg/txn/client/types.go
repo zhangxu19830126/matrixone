@@ -145,6 +145,12 @@ type TxnOperator interface {
 	Debug(ctx context.Context, ops []txn.TxnRequest) (*rpc.SendResult, error)
 }
 
+type TxnOperatorWithBlocks interface {
+	TxnOperator
+	SetAllBlocks(any)
+	GetAllBlocks() any
+}
+
 // TxnIDGenerator txn id generator
 type TxnIDGenerator interface {
 	// Generate returns a unique transaction id

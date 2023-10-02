@@ -18,10 +18,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/defines"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
+	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"go.uber.org/zap"
 )
 
@@ -169,7 +171,20 @@ func (s *sqlStore) Allocate(
 						}
 						return true
 					})
+					txnOp = res.Txn
 					res.Close()
+
+					// read all data from blocks
+					fs := s.exec.GetFileService()
+					blocks := txnOp.(client.TxnOperatorWithBlocks).GetAllBlocks().([]catalog.BlockInfo)
+					for _, b := range blocks {
+						_, err := blockio.DebugDataWithBlockID(ctx, fs, b.BlockID.String())
+						if err != nil {
+							getLogger().Error("read block data failed",
+								zap.String("block", b.String()),
+								zap.Error(err))
+						}
+					}
 
 					getLogger().Fatal("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
@@ -177,6 +192,7 @@ func (s *sqlStore) Allocate(
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
 						zap.Int("rows", rows),
+						zap.Int("blocks", len(blocks)),
 						zap.String("txn", res.Txn.Txn().DebugString()))
 				}
 
