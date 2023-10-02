@@ -17,11 +17,18 @@ package incrservice
 import (
 	"context"
 	"fmt"
+	"math"
 
+	"github.com/matrixorigin/matrixone/pkg/catalog"
+	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/defines"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
+	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
+	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
+	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"go.uber.org/zap"
 )
 
@@ -169,7 +176,45 @@ func (s *sqlStore) Allocate(
 						}
 						return true
 					})
+					txnOp2 := res.Txn
 					res.Close()
+
+					// read all data from blocks
+					fs := s.exec.GetFileService()
+					blocks := txnOp2.(client.TxnOperatorWithBlocks).GetAllBlocks().([]catalog.BlockInfo)
+					for _, b := range blocks {
+						_, err := blockio.DebugDataWithBlockID(ctx, fs, b.BlockID.String())
+						if err != nil {
+							getLogger().Error("read block data failed",
+								zap.String("block", b.String()),
+								zap.Error(err))
+						}
+					}
+
+					// read mem data
+					state := txnOp2.(client.TxnOperatorWithBlocks).GetPartitionState().(*logtailreplay.PartitionState)
+					iter := state.NewRowsIter2(types.TimestampToTS(timestamp.Timestamp{PhysicalTime: math.MaxInt64}), nil, false)
+					for {
+						if !iter.Next() {
+							break
+						}
+
+						e := iter.Entry()
+						v1ColIndex := 0
+						v2ColIndex := 0
+						for i, attr := range e.Batch.Attrs {
+							if attr == "table_id" {
+								v1ColIndex = i
+							}
+							if attr == "col_name" {
+								v2ColIndex = i
+							}
+						}
+
+						tid := executor.GetFixedRows[uint64](e.Batch.Vecs[v1ColIndex])[e.Offset]
+						col := executor.GetStringRows(e.Batch.Vecs[v2ColIndex])[e.Offset]
+						logutil.Infof("%x: read mem [%d, %s, %s]", txnOp2.Txn().ID, tid, col, e.Time.ToTimestamp().DebugString())
+					}
 
 					getLogger().Fatal("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
@@ -177,6 +222,7 @@ func (s *sqlStore) Allocate(
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
 						zap.Int("rows", rows),
+						zap.Int("blocks", len(blocks)),
 						zap.String("txn", res.Txn.Txn().DebugString()))
 				}
 

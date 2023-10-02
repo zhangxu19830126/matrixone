@@ -21,6 +21,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 )
 
 type memExecutor struct {
@@ -45,6 +46,10 @@ func (e *memExecutor) ExecTxn(
 	opts Options) error {
 	te := &memTxnExecutor{mocker: e.mocker}
 	return execFunc(te)
+}
+
+func (e *memExecutor) GetFileService() fileservice.FileService {
+	panic("not implemented")
 }
 
 type memTxnExecutor struct {

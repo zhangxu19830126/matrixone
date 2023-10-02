@@ -20,6 +20,7 @@ import (
 
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/client"
 )
@@ -33,6 +34,7 @@ type SQLExecutor interface {
 	// ExecTxn executor sql in a txn. execFunc can use TxnExecutor to exec multiple sql
 	// in a transaction.
 	ExecTxn(ctx context.Context, execFunc func(TxnExecutor) error, opts Options) error
+	GetFileService() fileservice.FileService
 }
 
 // TxnExecutor exec all sql in a transaction.

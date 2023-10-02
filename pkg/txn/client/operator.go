@@ -176,6 +176,9 @@ type txnOperator struct {
 
 		lockSeq   uint64
 		waitLocks map[uint64]Lock
+
+		blocks any
+		state  any
 	}
 	workspace       Workspace
 	timestampWaiter TimestampWaiter
@@ -995,4 +998,28 @@ func (tc *txnOperator) getWaitLocksLocked() []Lock {
 		values = append(values, l)
 	}
 	return values
+}
+
+func (tc *txnOperator) SetAllBlocks(blocks any) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.mu.blocks = blocks
+}
+
+func (tc *txnOperator) GetAllBlocks() any {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	return tc.mu.blocks
+}
+
+func (tc *txnOperator) SetPartitionState(blocks any) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.mu.state = blocks
+}
+
+func (tc *txnOperator) GetPartitionState() any {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	return tc.mu.state
 }

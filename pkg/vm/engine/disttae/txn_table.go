@@ -33,6 +33,7 @@ import (
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan/rule"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/util/errutil"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/logtailreplay"
@@ -568,6 +569,9 @@ func (tbl *txnTable) Ranges(ctx context.Context, exprs []*plan.Expr) (ranges [][
 	if part, err = tbl.getPartitionState(ctx); err != nil {
 		return
 	}
+
+	tbl.db.txn.op.(client.TxnOperatorWithBlocks).SetAllBlocks(tbl.blockInfos)
+	tbl.db.txn.op.(client.TxnOperatorWithBlocks).SetPartitionState(part)
 
 	ranges = make([][]byte, 0, 1)
 	ranges = append(ranges, []byte{})
