@@ -152,6 +152,9 @@ type TxnOperatorWithBlocks interface {
 
 	SetPartitionState(any)
 	GetPartitionState() any
+
+	AddCost(name string, cost time.Duration)
+	GetAllCosts() string
 }
 
 // TxnIDGenerator txn id generator
