@@ -16,8 +16,10 @@ package vm
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -63,8 +65,15 @@ func fubarRun(ins Instructions, proc *process.Process, start int) (end bool, err
 	var fubarStack []int
 	var ok process.ExecStatus
 
+	txnOp := proc.TxnOperator.(client.TxnOperatorWithBlocks)
+	buf := &bytes.Buffer{}
 	for i := start; i < len(ins); i++ {
-		if ok, err = execFunc[ins[i].Op](ins[i].Idx, proc, ins[i].Arg, ins[i].IsFirst, ins[i].IsLast); err != nil {
+		buf.Reset()
+		s := time.Now()
+		ok, err = execFunc[ins[i].Op](ins[i].Idx, proc, ins[i].Arg, ins[i].IsFirst, ins[i].IsLast)
+		stringFunc[ins[i].Op](ins[i].Arg, buf)
+		txnOp.AddCost(buf.String(), time.Since(s))
+		if err != nil {
 			return ok == process.ExecStop || end, err
 		}
 

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/catalog"
+	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/defines"
@@ -102,11 +103,17 @@ func (s *sqlStore) Allocate(
 	if txnOp != nil {
 		opts = opts.WithDisableIncrStatement()
 	}
+	left, err := getTimeoutFromContext(ctx)
+	if err != nil {
+		logutil.Fatalf("BUG: get timeout from context failed, %v", err)
+	}
 	for {
 		err := s.exec.ExecTxn(
 			ctx,
 			func(te executor.TxnExecutor) error {
+				st := time.Now()
 				res, err := te.Exec(fetchSQL)
+				cost := time.Since(st)
 				if err != nil {
 					return err
 				}
@@ -122,17 +129,22 @@ func (s *sqlStore) Allocate(
 				if rows != 1 {
 					done := false
 					select {
-					case <- ctx.Done():
+					case <-ctx.Done():
 						done = true
 					default:
 					}
+
 					getLogger().Info("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
 						zap.Any("account", ctx.Value(defines.TenantIDKey{})),
 						zap.Uint64("table", tableID),
 						zap.String("col", colName),
 						zap.Int("rows", rows),
-						zap.Bool("done", done))
+						zap.Bool("done", done),
+						zap.Duration("before-start", left),
+						zap.String("txn", res.Txn.Txn().DebugString()),
+						zap.Duration("sql-cost", cost),
+						zap.String("costs", res.Txn.(client.TxnOperatorWithBlocks).GetAllCosts()))
 
 					fetchAllSQL := fmt.Sprintf(`select offset, step, table_id, col_name from %s`,
 						incrTableName)
@@ -170,7 +182,7 @@ func (s *sqlStore) Allocate(
 					tctx, tcancel := context.WithTimeout(context.Background(), time.Second*60)
 					defer tcancel()
 					for _, b := range blocks {
-						getLogger().Error("incr record invalid", 
+						getLogger().Error("incr record invalid",
 							zap.String("blockid", fmt.Sprintf("%x", b.BlockID)))
 						_, err := blockio.DebugDataWithBlockID(tctx, fs, b.BlockID.String())
 						if err != nil {
@@ -205,10 +217,10 @@ func (s *sqlStore) Allocate(
 						logutil.Infof("%x: read mem [%d, %s, %s], blockid is %x", txnOp2.Txn().ID, tid, col, e.Time.ToTimestamp().DebugString(), e.BlockID)
 					}
 
-					biter,err := state.NewBlocksIter(types.TimestampToTS(timestamp.Timestamp{PhysicalTime: math.MaxInt64}))
+					biter, err := state.NewBlocksIter(types.TimestampToTS(timestamp.Timestamp{PhysicalTime: math.MaxInt64}))
 
 					if err != nil {
-						logutil.Infof("call NewBlockIter failed, %v", err)	
+						logutil.Infof("call NewBlockIter failed, %v", err)
 					} else {
 
 						for {
@@ -216,12 +228,9 @@ func (s *sqlStore) Allocate(
 								break
 							}
 							e := biter.Entry()
-							logutil.Infof("%x: read mem without ts, blockid is %x", txnOp2.Txn().ID, e.BlockID)					
+							logutil.Infof("%x: read mem without ts, blockid is %x", txnOp2.Txn().ID, e.BlockID)
 						}
 					}
-
-					
-
 
 					getLogger().Fatal("BUG: read incr record invalid",
 						zap.String("fetch-sql", fetchSQL),
@@ -367,4 +376,16 @@ func (s *sqlStore) GetColumns(
 
 func (s *sqlStore) Close() {
 
+}
+
+func getTimeoutFromContext(ctx context.Context) (time.Duration, error) {
+	d, ok := ctx.Deadline()
+	if !ok {
+		return 0, moerr.NewInvalidInputNoCtx("timeout deadline not set")
+	}
+	now := time.Now()
+	if now.After(d) {
+		return 0, moerr.NewInvalidInputNoCtx("timeout has invalid deadline")
+	}
+	return d.Sub(now), nil
 }

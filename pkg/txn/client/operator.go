@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	gotrace "runtime/trace"
 	"sync"
 	"time"
@@ -179,6 +180,7 @@ type txnOperator struct {
 
 		blocks any
 		state  any
+		costs  []cost
 	}
 	workspace       Workspace
 	timestampWaiter TimestampWaiter
@@ -1022,4 +1024,30 @@ func (tc *txnOperator) GetPartitionState() any {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	return tc.mu.state
+}
+
+func (tc *txnOperator) AddCost(name string, value time.Duration) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.mu.costs = append(tc.mu.costs, cost{
+		name:  name,
+		value: value,
+	})
+}
+
+func (tc *txnOperator) GetAllCosts() string {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	var value bytes.Buffer
+	for _, cost := range tc.mu.costs {
+		value.WriteString(fmt.Sprintf("%s(%+v) ", cost.name, cost.value))
+	}
+	return value.String()
+}
+
+type cost struct {
+	name  string
+	value time.Duration
 }
