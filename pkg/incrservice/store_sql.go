@@ -111,7 +111,9 @@ func (s *sqlStore) Allocate(
 		err := s.exec.ExecTxn(
 			ctx,
 			func(te executor.TxnExecutor) error {
+				st := time.Now()
 				res, err := te.Exec(fetchSQL)
+				cost := time.Since(st)
 				if err != nil {
 					return err
 				}
@@ -141,6 +143,7 @@ func (s *sqlStore) Allocate(
 						zap.Bool("done", done),
 						zap.Duration("before-start", left),
 						zap.String("txn", res.Txn.Txn().DebugString()),
+						zap.Duration("sql-cost", cost),
 						zap.String("costs", res.Txn.(client.TxnOperatorWithBlocks).GetAllCosts()))
 
 					fetchAllSQL := fmt.Sprintf(`select offset, step, table_id, col_name from %s`,
