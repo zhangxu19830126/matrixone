@@ -95,42 +95,51 @@ func (c *client) AsyncSend(ctx context.Context, request *pb.Request) (*morpc.Fut
 	defer span.End()
 
 	var address string
-	switch request.Method {
-	case pb.Method_ForwardLock:
-		sid := request.Lock.Options.ForwardTo
-		c.cluster.GetCNService(
-			clusterservice.NewServiceIDSelector(sid),
-			func(s metadata.CNService) bool {
-				address = s.LockServiceAddress
-				return false
-			})
-	case pb.Method_Lock,
-		pb.Method_Unlock,
-		pb.Method_GetTxnLock,
-		pb.Method_KeepRemoteLock:
-		sid := request.LockTable.ServiceID
-		c.cluster.GetCNService(
-			clusterservice.NewServiceIDSelector(sid),
-			func(s metadata.CNService) bool {
-				address = s.LockServiceAddress
-				return false
-			})
-	case pb.Method_GetWaitingList:
-		sid := request.GetWaitingList.Txn.CreatedOn
-		c.cluster.GetCNService(
-			clusterservice.NewServiceIDSelector(sid),
-			func(s metadata.CNService) bool {
-				address = s.LockServiceAddress
-				return false
-			})
-	default:
-		c.cluster.GetTNService(
-			clusterservice.NewSelector(),
-			func(d metadata.TNService) bool {
-				address = d.LockServiceAddress
-				return false
-			})
+	for i := 0; i < 2; i++ {
+		switch request.Method {
+		case pb.Method_ForwardLock:
+			sid := request.Lock.Options.ForwardTo
+			c.cluster.GetCNService(
+				clusterservice.NewServiceIDSelector(sid),
+				func(s metadata.CNService) bool {
+					address = s.LockServiceAddress
+					return false
+				})
+		case pb.Method_Lock,
+			pb.Method_Unlock,
+			pb.Method_GetTxnLock,
+			pb.Method_KeepRemoteLock:
+			sid := request.LockTable.ServiceID
+			c.cluster.GetCNService(
+				clusterservice.NewServiceIDSelector(sid),
+				func(s metadata.CNService) bool {
+					address = s.LockServiceAddress
+					return false
+				})
+		case pb.Method_GetWaitingList:
+			sid := request.GetWaitingList.Txn.CreatedOn
+			c.cluster.GetCNService(
+				clusterservice.NewServiceIDSelector(sid),
+				func(s metadata.CNService) bool {
+					address = s.LockServiceAddress
+					return false
+				})
+		default:
+			c.cluster.GetTNService(
+				clusterservice.NewSelector(),
+				func(d metadata.TNService) bool {
+					address = d.LockServiceAddress
+					return false
+				})
+		}
+		if address != "" {
+			break
+		}
+		if i == 0 {
+			c.cluster.ForceRefresh()
+		}
 	}
+
 	return c.client.Send(ctx, address, request)
 }
 

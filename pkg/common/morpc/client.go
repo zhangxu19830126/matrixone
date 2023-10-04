@@ -170,6 +170,10 @@ func (c *client) maybeInitBackends() error {
 }
 
 func (c *client) Send(ctx context.Context, backend string, request Message) (*Future, error) {
+	if backend == "" {
+		return nil, moerr.NewInvalidInput(ctx, "client send to empty backend")
+	}
+
 	if ctx == nil {
 		panic("client Send nil context")
 	}
