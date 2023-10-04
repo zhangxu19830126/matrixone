@@ -151,10 +151,7 @@ func (c *cluster) GetTNService(selector Selector, apply func(metadata.TNService)
 }
 
 func (c *cluster) ForceRefresh() {
-	select {
-	case c.forceRefreshC <- struct{}{}:
-	default:
-	}
+	c.refresh()
 }
 
 func (c *cluster) Close() {
