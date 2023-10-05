@@ -19,7 +19,9 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
+	"go.uber.org/zap"
 )
 
 const (
@@ -82,6 +84,12 @@ func (s *CNState) Update(hb CNStoreHeartbeat, tick uint64) {
 		} else {
 			storeInfo.WorkState = metadata.WorkState(v)
 		}
+	}
+	if ok && storeInfo.LockServiceAddress != hb.LockServiceAddress {
+		logutil.Warn("uuid not change, but ip changed",
+			zap.String("uuid", hb.UUID),
+			zap.String("old-service-ip", storeInfo.LockServiceAddress),
+			zap.String("new-service-ip", hb.LockServiceAddress))
 	}
 	storeInfo.Tick = tick
 	storeInfo.ServiceAddress = hb.ServiceAddress
@@ -154,6 +162,12 @@ func (s *TNState) Update(hb TNStoreHeartbeat, tick uint64) {
 	storeInfo, ok := s.Stores[hb.UUID]
 	if !ok {
 		storeInfo = TNStoreInfo{}
+	}
+	if ok && storeInfo.LockServiceAddress != hb.LockServiceAddress {
+		logutil.Warn("tn uuid not change, but ip changed",
+			zap.String("uuid", hb.UUID),
+			zap.String("old-service-ip", storeInfo.LockServiceAddress),
+			zap.String("new-service-ip", hb.LockServiceAddress))
 	}
 	storeInfo.Tick = tick
 	storeInfo.Shards = hb.Shards
