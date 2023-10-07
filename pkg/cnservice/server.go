@@ -18,6 +18,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"os"
+	struntime "runtime"
 	"sync"
 	"time"
 
@@ -569,6 +571,7 @@ func (s *service) getTxnClient() (c client.TxnClient, err error) {
 			opts = append(opts, client.WithEnableLeakCheck(
 				s.cfg.Txn.MaxActiveAges.Duration,
 				func(txnID []byte, createAt time.Time, createBy string) {
+					printAllStack()
 					runtime.DefaultRuntime().Logger().Fatal("found leak txn",
 						zap.String("txn-id", hex.EncodeToString(txnID)),
 						zap.Time("create-at", createAt),
@@ -713,4 +716,19 @@ func (l *locker) Get(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return v == 1, nil
+}
+
+func printAllStack() {
+	os.Stderr.Write(stack())
+}
+
+func stack() []byte {
+	buf := make([]byte, 1024*1024*10)
+	for {
+		n := struntime.Stack(buf, true)
+		if n < len(buf) {
+			return buf[:n]
+		}
+		buf = make([]byte, 2*len(buf))
+	}
 }
