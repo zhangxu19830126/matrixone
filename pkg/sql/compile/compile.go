@@ -399,6 +399,15 @@ func (c *Compile) Run(_ uint64) (*util2.RunResult, error) {
 		span.End(trace.WithStatementExtra(sp.GetTxnId(), sp.GetStmtId(), sp.GetSqlOfStmt()))
 	}()
 
+	sql := c.originSQL
+	if sql == "" {
+		sql = c.sql
+	}
+	fmt.Printf("%x run sql: %s, %+v\n",
+		c.proc.TxnOperator.Txn().ID,
+		sql,
+		c.proc.GetPrepareParams())
+
 	if c.proc.TxnOperator != nil {
 		c.proc.TxnOperator.GetWorkspace().IncrSQLCount()
 		c.proc.TxnOperator.ResetRetry(false)
@@ -3893,4 +3902,8 @@ func (c *Compile) fatalLog(retry int, err error) {
 
 func (c *Compile) SetBuildPlanFunc(buildPlanFunc func() (*plan2.Plan, error)) {
 	c.buildPlanFunc = buildPlanFunc
+}
+
+func (c *Compile) SetOriginSQL(sql string) {
+	c.originSQL = sql
 }
