@@ -121,21 +121,39 @@ func logLocalLockWaitOn(
 	key []byte,
 	waitOn Lock) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		var waits [][]byte
-		waitOn.waiters.iter(func(v *waiter) bool {
-			waits = append(waits, v.txn.TxnID)
-			return true
-		})
+	var waits [][]byte
+	waitOn.waiters.iter(func(v *waiter) bool {
+		waits = append(waits, v.txn.TxnID)
+		return true
+	})
 
-		logger.Debug("lock wait on local",
-			txnField(txn),
-			zap.Uint64("table", tableID),
-			zap.Stringer("waiter", w),
-			bytesField("wait-on-key", key),
-			zap.Stringer("wait-on", waitOn),
-			bytesArrayField("wait-txn-list", waits))
+	logger.Debug("lock wait on local",
+		txnField(txn),
+		zap.Uint64("table", tableID),
+		zap.Stringer("waiter", w),
+		bytesField("wait-on-key", key),
+		zap.Stringer("wait-on", waitOn),
+		bytesArrayField("wait-txn-list", waits))
+
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+	for idx, row := range waits {
+		buffer.WriteString(fmt.Sprintf("%x", row))
+		if idx != len(waits)-1 {
+			buffer.WriteString(",")
+		}
 	}
+	buffer.WriteString("]")
+	var holder []byte
+	if waitOn.holders.size() > 0 {
+		holder = waitOn.holders.txns[0].TxnID
+	}
+	fmt.Printf("%x wait %x on %x in table %d, waiters: %s\n",
+		w.txn.TxnID,
+		holder,
+		key,
+		tableID,
+		buffer.String())
 }
 
 func logLocalLockWaitOnResult(

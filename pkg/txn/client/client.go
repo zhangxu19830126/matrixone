@@ -16,6 +16,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"math"
 	gotrace "runtime/trace"
 	"sync"
@@ -388,6 +389,7 @@ func (client *txnClient) GetSyncLatestCommitTSTimes() uint64 {
 }
 
 func (client *txnClient) openTxn(op *txnOperator) error {
+	fmt.Printf("%x open\n", op.txnID)
 	client.mu.Lock()
 	defer client.mu.Unlock()
 
@@ -406,6 +408,8 @@ func (client *txnClient) openTxn(op *txnOperator) error {
 }
 
 func (client *txnClient) closeTxn(txn txn.TxnMeta) {
+	fmt.Printf("%x closed\n", txn.ID)
+
 	client.mu.Lock()
 	defer client.mu.Unlock()
 

@@ -29,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/compile"
+	"github.com/matrixorigin/matrixone/pkg/sql/parsers/dialect"
 	"github.com/matrixorigin/matrixone/pkg/sql/parsers/tree"
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/sql/util"
@@ -195,6 +196,7 @@ func (cwft *TxnComputationWrapper) GetServerStatus() uint16 {
 }
 
 func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interface{}, fill func(interface{}, *batch.Batch) error) (interface{}, error) {
+	var originSQL string
 	var span trace.Span
 	requestCtx, span = trace.Start(requestCtx, "TxnComputationWrapper.Compile",
 		trace.WithKind(trace.SpanKindStatement))
@@ -261,6 +263,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		if err != nil {
 			return nil, err
 		}
+		originSQL = tree.String(prepareStmt.PrepareStmt, dialect.MYSQL)
 		preparePlan := prepareStmt.PreparePlan.GetDcl().GetPrepare()
 
 		// TODO check if schema change, obj.Obj is zero all the time in 0.6
@@ -361,6 +364,7 @@ func (cwft *TxnComputationWrapper) Compile(requestCtx context.Context, u interfa
 		deepcopy.Copy(cwft.ses.getCNLabels()).(map[string]string),
 		true,
 	)
+	cwft.compile.SetOriginSQL(originSQL)
 	cwft.compile.SetBuildPlanFunc(func() (*plan2.Plan, error) {
 		return buildPlan(requestCtx, cwft.ses, cwft.ses.GetTxnCompileCtx(), cwft.stmt)
 	})

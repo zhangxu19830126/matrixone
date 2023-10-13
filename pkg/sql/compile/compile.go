@@ -3888,11 +3888,6 @@ func (c *Compile) fatalLog(retry int, err error) {
 	if !fatal {
 		return
 	}
-	if retry == 0 &&
-		(moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetry) ||
-			moerr.IsMoErrCode(err, moerr.ErrTxnNeedRetryWithDefChanged)) {
-		return
-	}
 
 	logutil.Fatalf("BUG(RC): txn %s retry %d, error %+v\n",
 		hex.EncodeToString(c.proc.TxnOperator.Txn().ID),
