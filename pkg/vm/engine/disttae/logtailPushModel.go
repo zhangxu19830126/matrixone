@@ -633,6 +633,9 @@ func newRpcStreamToTnLogTailService(serviceAddr string) (morpc.Stream, error) {
 			goetty.WithSessionRWBUfferSize(1<<20, 1<<20),
 		),
 		morpc.WithBackendLogger(logger),
+		morpc.WithBackendHandleStream(func(d time.Duration) {
+			v2.LogTailHandleReceiveDurationHistogram.Observe(d.Seconds())
+		}),
 	)
 
 	c, err1 := morpc.NewClient(factory,

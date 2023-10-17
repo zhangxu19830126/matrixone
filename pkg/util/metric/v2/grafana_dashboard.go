@@ -106,6 +106,7 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		c.initSendLogTailCostRow(),
 		c.initSendLogTailNetworkCostRow(),
 		c.initSendLogTailNetworkFlushCostRow(),
+		c.initSendLogTailHandleCostRow(),
 		c.initWriteLogTailBytesRow())
 	if err != nil {
 		return err
@@ -942,6 +943,44 @@ func (c *DashboardCreator) initSendLogTailNetworkCostRow() dashboard.Option {
 			"99.99% time",
 			3,
 			`histogram_quantile(0.9999, sum(rate(tn_logtail_send_log_tail_duration_seconds_bucket{step="network"}[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+	)
+}
+
+func (c *DashboardCreator) initSendLogTailHandleCostRow() dashboard.Option {
+	return dashboard.Row(
+		"Logtail Receive Handle Cost",
+
+		c.withGraph(
+			"80% time",
+			3,
+			`histogram_quantile(0.80, sum(rate(cn_logtail_handle_receive_duration_seconds_bucket[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"90% time",
+			3,
+			`histogram_quantile(0.90, sum(rate(cn_logtail_handle_receive_duration_seconds_bucket[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"99% time",
+			3,
+			`histogram_quantile(0.99, sum(rate(cn_logtail_handle_receive_duration_seconds_bucket[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"99.99% time",
+			3,
+			`histogram_quantile(0.9999, sum(rate(cn_logtail_handle_receive_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}",
 			axis.Unit("s"),
 			axis.Min(0)),

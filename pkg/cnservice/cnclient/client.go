@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/pipeline"
 	"github.com/matrixorigin/matrixone/pkg/txn/rpc"
-	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"go.uber.org/zap"
 )
 
@@ -149,9 +148,6 @@ func NewCNClient(
 		),
 		morpc.WithBackendConnectTimeout(cfg.TimeOutForEachConnect),
 		morpc.WithBackendLogger(logger),
-		morpc.WithBackendHandleStream(func(d time.Duration) {
-			v2.LogTailHandleReceiveDurationHistogram.Observe(d.Seconds())
-		}),
 	)
 
 	cli.client, err = morpc.NewClient(factory,
