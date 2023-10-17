@@ -27,7 +27,6 @@ import (
 	"github.com/fagongzi/goetty/v2"
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
-	"github.com/matrixorigin/matrixone/pkg/common/moprobe"
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/util/errutil"
@@ -118,7 +117,7 @@ func WithBackendReadTimeout(value time.Duration) BackendOption {
 	}
 }
 
-func WithBackendHandleStream(fn func(time.Duration)) BackendOption {
+func WithBackendHandleStream(fn func(time.Duration, time.Duration)) BackendOption {
 	return func(rb *remoteBackend) {
 		rb.options.handleStreamCost = fn
 	}
@@ -151,7 +150,7 @@ type remoteBackend struct {
 		streamBufferSize   int
 		filter             func(msg Message, backendAddr string) bool
 		readTimeout        time.Duration
-		handleStreamCost   func(time.Duration)
+		handleStreamCost   func(time.Duration, time.Duration)
 	}
 
 	stateMu struct {
@@ -212,7 +211,8 @@ func NewRemoteBackend(
 				rb.newFuture,
 				rb.doSend,
 				rb.removeActiveStream,
-				rb.active)
+				rb.active,
+				rb.options.handleStreamCost)
 		},
 	}
 	rb.writeC = make(chan *Future, rb.options.bufferSize)
@@ -721,14 +721,7 @@ func (rb *remoteBackend) requestDone(ctx context.Context, id uint64, msg RPCMess
 	} else if st, ok := rb.mu.activeStreams[id]; ok {
 		rb.mu.Unlock()
 		if response != nil {
-			var now time.Time
-			if rb.options.handleStreamCost != nil {
-				now = time.Now()
-			}
 			st.done(ctx, msg, false)
-			if rb.options.handleStreamCost != nil {
-				rb.options.handleStreamCost(time.Since(now))
-			}
 		}
 	} else {
 		// future has been removed, e.g. it has timed out.
@@ -927,6 +920,7 @@ type stream struct {
 	unlockAfterClose bool
 	ctx              context.Context
 	cancel           context.CancelFunc
+	handleStreamCost func(time.Duration, time.Duration)
 
 	// reset fields
 	id                   uint64
@@ -944,17 +938,19 @@ func newStream(
 	acquireFutureFunc func() *Future,
 	sendFunc func(*Future) error,
 	unregisterFunc func(*stream),
-	activeFunc func()) *stream {
+	activeFunc func(),
+	handleStreamCost func(time.Duration, time.Duration)) *stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &stream{
-		rb:             rb,
-		c:              c,
-		ctx:            ctx,
-		cancel:         cancel,
-		sendFunc:       sendFunc,
-		unregisterFunc: unregisterFunc,
-		activeFunc:     activeFunc,
-		newFutureFunc:  acquireFutureFunc,
+		rb:               rb,
+		c:                c,
+		ctx:              ctx,
+		cancel:           cancel,
+		sendFunc:         sendFunc,
+		unregisterFunc:   unregisterFunc,
+		activeFunc:       activeFunc,
+		newFutureFunc:    acquireFutureFunc,
+		handleStreamCost: handleStreamCost,
 	}
 	s.setFinalizer()
 	return s
@@ -1069,6 +1065,13 @@ func (s *stream) done(
 	ctx context.Context,
 	message RPCMessage,
 	clean bool) {
+	var st time.Time
+	var putCost time.Duration
+	if s.handleStreamCost != nil {
+		st = time.Now()
+		defer s.handleStreamCost(time.Since(st), putCost)
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -1092,12 +1095,17 @@ func (s *stream) done(
 	}
 
 	s.lastReceivedSequence = message.streamSequence
-	moprobe.WithRegion(ctx, moprobe.RPCStreamReceive, func() {
-		select {
-		case s.c <- response:
-		case <-ctx.Done():
-		}
-	})
+	var putSt time.Time
+	if s.handleStreamCost != nil {
+		putSt = time.Now()
+	}
+	select {
+	case s.c <- response:
+	case <-ctx.Done():
+	}
+	if s.handleStreamCost != nil {
+		putCost = time.Since(putSt)
+	}
 }
 
 func (s *stream) cleanCLocked() {
