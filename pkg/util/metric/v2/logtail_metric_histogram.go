@@ -90,6 +90,10 @@ func GetSendWithStepNetworkLogTailDurationHistogram() prometheus.Observer {
 	return LogTailSendDurationHistogram.WithLabelValues("network")
 }
 
+func GetSendWithStepNetworkFlushLogTailDurationHistogram() prometheus.Observer {
+	return LogTailSendDurationHistogram.WithLabelValues("network-flush")
+}
+
 func GetSendLogTailTotalDurationHistogram() prometheus.Observer {
 	return LogTailSendDurationHistogram.WithLabelValues("total")
 }

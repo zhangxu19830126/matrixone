@@ -78,6 +78,12 @@ func WithServerDisableAutoCancelContext() ServerOption {
 	}
 }
 
+func WithServerHandleFlushCost(fn func(time.Duration)) ServerOption {
+	return func(s *server) {
+		s.options.flushCost = fn
+	}
+}
+
 type server struct {
 	name        string
 	address     string
@@ -93,6 +99,7 @@ type server struct {
 		batchSendSize            int
 		filter                   func(Message) bool
 		disableAutoCancelContext bool
+		flushCost                func(time.Duration)
 	}
 	pool struct {
 		futures *sync.Pool
@@ -352,7 +359,14 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 					}
 
 					if written > 0 {
+						var now time.Time
+						if s.options.flushCost != nil {
+							now = time.Now()
+						}
 						err := cs.conn.Flush(timeout)
+						if s.options.flushCost != nil {
+							s.options.flushCost(time.Since(now))
+						}
 						if err != nil {
 							if ce != nil {
 								fields = append(fields, zap.Error(err))
