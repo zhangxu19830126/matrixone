@@ -118,6 +118,12 @@ func WithBackendReadTimeout(value time.Duration) BackendOption {
 	}
 }
 
+func WithBackendHandleStream(fn func(time.Duration)) BackendOption {
+	return func(rb *remoteBackend) {
+		rb.options.handleStreamCost = fn
+	}
+}
+
 type remoteBackend struct {
 	remote       string
 	logger       *zap.Logger
@@ -145,6 +151,7 @@ type remoteBackend struct {
 		streamBufferSize   int
 		filter             func(msg Message, backendAddr string) bool
 		readTimeout        time.Duration
+		handleStreamCost   func(time.Duration)
 	}
 
 	stateMu struct {
@@ -714,7 +721,14 @@ func (rb *remoteBackend) requestDone(ctx context.Context, id uint64, msg RPCMess
 	} else if st, ok := rb.mu.activeStreams[id]; ok {
 		rb.mu.Unlock()
 		if response != nil {
+			var now time.Time
+			if rb.options.handleStreamCost != nil {
+				now = time.Now()
+			}
 			st.done(ctx, msg, false)
+			if rb.options.handleStreamCost != nil {
+				rb.options.handleStreamCost(time.Since(now))
+			}
 		}
 	} else {
 		// future has been removed, e.g. it has timed out.
