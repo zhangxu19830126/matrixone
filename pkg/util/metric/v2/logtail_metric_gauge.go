@@ -34,4 +34,12 @@ var (
 			Name:      "receive_queue_size",
 			Help:      "Size of receiving logtail queue size.",
 		})
+
+	LogTailReceiveSelectSizeGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "cn",
+			Subsystem: "logtail",
+			Name:      "receive_select_size",
+			Help:      "Size of receiving logtail select case count size.",
+		})
 )

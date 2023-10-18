@@ -715,14 +715,20 @@ func (c *DashboardCreator) initLogTailQueueRow() dashboard.Option {
 		"LogTail Queue Status",
 		c.withGraph(
 			"Sending Queue",
-			6,
+			4,
 			"sum(tn_logtail_sending_queue_size)",
 			""),
 
 		c.withGraph(
 			"Receiving Queue",
-			6,
+			4,
 			"sum(cn_logtail_receive_queue_size)",
+			""),
+
+		c.withGraph(
+			"Receiving Select Count",
+			4,
+			"sum(cn_logtail_receive_select_size)",
 			""),
 	)
 }

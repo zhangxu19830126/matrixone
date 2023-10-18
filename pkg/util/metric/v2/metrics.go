@@ -39,6 +39,7 @@ func init() {
 	registry.MustRegister(TxnHandleQueueSizeGauge)
 	registry.MustRegister(LogTailSendQueueSizeGauge)
 	registry.MustRegister(LogTailReceiveQueueSizeGauge)
+	registry.MustRegister(LogTailReceiveSelectSizeGauge)
 
 	registry.MustRegister(LogTailHandleReceiveLoopDurationHistogram)
 	registry.MustRegister(LogTailHandleReceiveDurationHistogram)
