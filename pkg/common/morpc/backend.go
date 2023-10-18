@@ -1102,6 +1102,8 @@ func (s *stream) done(
 	select {
 	case s.c <- response:
 	case <-ctx.Done():
+	default:
+		s.rb.logger.Fatal("invalid input")
 	}
 	if s.handleStreamCost != nil {
 		now := time.Now()
