@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/util/errutil"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"go.uber.org/zap"
 )
 
@@ -1066,10 +1067,9 @@ func (s *stream) done(
 	message RPCMessage,
 	clean bool) {
 	var st time.Time
-	var putCost time.Duration
+	var putSt time.Time
 	if s.handleStreamCost != nil {
 		st = time.Now()
-		defer s.handleStreamCost(time.Since(st), putCost)
 	}
 
 	s.mu.RLock()
@@ -1095,16 +1095,18 @@ func (s *stream) done(
 	}
 
 	s.lastReceivedSequence = message.streamSequence
-	var putSt time.Time
 	if s.handleStreamCost != nil {
 		putSt = time.Now()
+		v2.LogTailReceiveQueueSizeGauge.Set(float64(len(s.c)))
 	}
 	select {
 	case s.c <- response:
 	case <-ctx.Done():
 	}
 	if s.handleStreamCost != nil {
-		putCost = time.Since(putSt)
+		now := time.Now()
+		s.handleStreamCost(now.Sub(st), now.Sub(putSt))
+		v2.LogTailReceiveQueueSizeGauge.Set(float64(len(s.c)))
 	}
 }
 

@@ -555,7 +555,8 @@ func TestDoneWithClosedStreamCannotPanic(t *testing.T) {
 			return nil
 		},
 		func(s *stream) {},
-		func() {})
+		func() {},
+		nil)
 	s.init(1, false)
 	assert.NoError(t, s.Send(ctx, &testMessage{id: s.ID()}))
 	assert.NoError(t, s.Close(false))
@@ -572,7 +573,8 @@ func TestGCStream(t *testing.T) {
 			return nil
 		},
 		func(s *stream) {},
-		func() {})
+		func() {},
+		nil)
 	s.init(1, false)
 	s = nil
 	debug.FreeOSMemory()
@@ -904,7 +906,8 @@ func (b *testBackend) NewStream(unlockAfterClose bool) (Stream, error) {
 				b.Unlock()
 			}
 		},
-		b.active)
+		b.active,
+		nil)
 	st.init(1, false)
 	return st, nil
 }

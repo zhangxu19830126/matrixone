@@ -273,15 +273,20 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 
 			// A dead loop to receive log tail response from log tail service.
 			// if any error happened, we should do reconnection.
+			st := time.Now()
 			for {
+				v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("total").Observe(time.Since(st).Seconds())
+				st = time.Now()
 				deadline, cancel := context.WithTimeout(ctx, maxTimeToWaitServerResponse)
 				select {
 				case ch <- client.subscriber.receiveResponse(deadline):
+					v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-1").Observe(time.Since(st).Seconds())
 					// receive a response from log tail service.
 					client.subscriber.receivedResp = nil
 					cancel()
 
 					resp := <-ch
+					v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-2").Observe(time.Since(st).Seconds())
 
 					if resp.err != nil {
 						// POSSIBLE ERROR: context deadline exceeded, rpc closed, decode error.
@@ -298,6 +303,7 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 							logutil.Errorf("[log-tail-push-client] distribute subscribe response failed, err : '%s'.", err)
 							goto cleanAndReconnect
 						}
+						v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-3").Observe(time.Since(st).Seconds())
 						continue
 					}
 
@@ -308,6 +314,7 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 							logutil.Errorf("[log-tail-push-client] distribute update response failed, err : '%s'.", err)
 							goto cleanAndReconnect
 						}
+						v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-3").Observe(time.Since(st).Seconds())
 						continue
 					}
 
@@ -318,6 +325,7 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 							logutil.Errorf("[log-tail-push-client] distribute unsubscribe response failed, err : '%s'.", err)
 							goto cleanAndReconnect
 						}
+						v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-3").Observe(time.Since(st).Seconds())
 						continue
 					}
 
