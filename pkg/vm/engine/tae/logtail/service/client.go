@@ -142,6 +142,7 @@ func (c *LogtailClient) Unsubscribe(
 // 3. response for unsubscription: *LogtailResponse.GetUnsubscribeResponse() != nil
 // 3. response for incremental logtail: *LogtailResponse.GetUpdateResponse() != nil
 func (c *LogtailClient) Receive(stopC chan struct{}, st time.Time) (*LogtailResponse, error) {
+	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(time.Since(st).Seconds())
 	recvFunc := func() (*LogtailResponseSegment, error) {
 		select {
 		case <-stopC:
@@ -166,7 +167,6 @@ func (c *LogtailClient) Receive(stopC chan struct{}, st time.Time) (*LogtailResp
 	}
 
 	prev, err := recvFunc()
-	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(time.Since(st).Seconds())
 	if err != nil {
 		return nil, err
 	}
