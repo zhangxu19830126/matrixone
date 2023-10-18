@@ -143,6 +143,10 @@ func (c *LogtailClient) Unsubscribe(
 // 3. response for incremental logtail: *LogtailResponse.GetUpdateResponse() != nil
 func (c *LogtailClient) Receive(stopC chan struct{}, st time.Time, caseCount int) (*LogtailResponse, error) {
 	v2.LogTailReceiveSelectSizeGauge.Set(float64(caseCount))
+	cost := time.Since(st)
+	if time.Since(st) > time.Millisecond*500 {
+		logutil.Fatalf("invalid time: %+v", cost)
+	}
 	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(time.Since(st).Seconds())
 	recvFunc := func() (*LogtailResponseSegment, error) {
 		select {
