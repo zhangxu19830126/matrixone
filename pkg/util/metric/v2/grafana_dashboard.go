@@ -113,7 +113,6 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		c.initReceiveLogTailHandleLoopCostRow("receive-1"),
 		c.initReceiveLogTailHandleLoopCostRow("receive-2"),
 		c.initReceiveLogTailHandleLoopCostRow("receive-3"),
-		c.initReceiveLogTailHandleLoopCostRow("step-2"),
 		c.initWriteLogTailBytesRow())
 	if err != nil {
 		return err

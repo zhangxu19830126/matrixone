@@ -141,7 +141,7 @@ func (c *LogtailClient) Unsubscribe(
 // 2. response for subscription: *LogtailResponse.GetSubscribeResponse() != nil
 // 3. response for unsubscription: *LogtailResponse.GetUnsubscribeResponse() != nil
 // 3. response for incremental logtail: *LogtailResponse.GetUpdateResponse() != nil
-func (c *LogtailClient) Receive(stopC <-chan time.Time, st time.Time) (*LogtailResponse, error) {
+func (c *LogtailClient) Receive(stopC chan struct{}, st time.Time) (*LogtailResponse, error) {
 	recvFunc := func() (*LogtailResponseSegment, error) {
 		select {
 		case <-stopC:

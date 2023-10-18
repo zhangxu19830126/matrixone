@@ -261,6 +261,7 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 	hasReceivedConnectionMsg := false
 
 	go func() {
+		timer := time.NewTimer(maxTimeToWaitServerResponse)
 		for {
 			// new parallelNums routine to consume log tails.
 			consumeErr := make(chan error, consumerNumber)
@@ -274,17 +275,24 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 			// A dead loop to receive log tail response from log tail service.
 			// if any error happened, we should do reconnection.
 			st := time.Now()
-			timer := time.NewTimer(maxTimeToWaitServerResponse)
+			var lastReceiveAt time.Time
+			stopC := make(chan struct{})
+			timer.Reset(maxTimeToWaitServerResponse)
 			for {
 				v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("total").Observe(time.Since(st).Seconds())
 				st = time.Now()
-				timer.Reset(maxTimeToWaitServerResponse)
 				select {
-				case ch <- client.subscriber.receiveResponse(timer.C, st):
+				case <-timer.C:
+					if time.Since(lastReceiveAt) >= maxTimeToWaitServerResponse {
+						close(stopC)
+						stopC = make(chan struct{})
+					}
+					timer.Reset(maxTimeToWaitServerResponse)
+				case ch <- client.subscriber.receiveResponse(stopC, st):
+					lastReceiveAt = time.Now()
 					v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("step-1").Observe(time.Since(st).Seconds())
 					// receive a response from log tail service.
 					client.subscriber.receivedResp = nil
-					timer.Reset(maxTimeToWaitServerResponse)
 					resp := <-ch
 
 					if resp.err != nil {
@@ -353,6 +361,7 @@ func (client *pushClient) receiveTableLogTailContinuously(ctx context.Context, e
 			}
 
 		cleanAndReconnect:
+			timer.Stop()
 			logutil.Infof("[log-tail-push-client] start to clean log tail consume routines")
 			for _, r := range receiver {
 				r.close()
@@ -724,7 +733,7 @@ func (s *logTailSubscriber) unSubscribeTable(
 	return s.logTailClient.Unsubscribe(ctx, tblId)
 }
 
-func (s *logTailSubscriber) receiveResponse(stopC <-chan time.Time, st time.Time) logTailSubscriberResponse {
+func (s *logTailSubscriber) receiveResponse(stopC chan struct{}, st time.Time) logTailSubscriberResponse {
 	if s.receivedResp != nil {
 		return *s.receivedResp
 	}
