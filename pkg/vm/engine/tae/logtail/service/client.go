@@ -16,6 +16,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -144,10 +145,12 @@ func (c *LogtailClient) Unsubscribe(
 func (c *LogtailClient) Receive(stopC chan struct{}, st time.Time, caseCount int) (*LogtailResponse, error) {
 	v2.LogTailReceiveSelectSizeGauge.Set(float64(caseCount))
 	cost := time.Since(st)
-	if time.Since(st) > time.Millisecond*500 {
+	sec := cost.Seconds()
+	fmt.Printf("%f\n", sec)
+	if cost > time.Millisecond*500 {
 		logutil.Fatalf("invalid time: %+v", cost)
 	}
-	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(time.Since(st).Seconds())
+	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(sec)
 	recvFunc := func() (*LogtailResponseSegment, error) {
 		select {
 		case <-stopC:
