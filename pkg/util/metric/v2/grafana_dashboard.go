@@ -108,6 +108,12 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		c.initSendLogTailNetworkFlushCostRow(),
 		c.initReceiveLogTailHandleTotalCostRow(),
 		c.initReceiveLogTailHandlePutCostRow(),
+		c.initReceiveLogTailHandleLoopCostRow("total"),
+		c.initReceiveLogTailHandleLoopCostRow("step-1"),
+		c.initReceiveLogTailHandleLoopCostRow("receive-1"),
+		c.initReceiveLogTailHandleLoopCostRow("receive-2"),
+		c.initReceiveLogTailHandleLoopCostRow("receive-3"),
+		c.initReceiveLogTailHandleLoopCostRow("step-2"),
 		c.initWriteLogTailBytesRow())
 	if err != nil {
 		return err
@@ -982,6 +988,44 @@ func (c *DashboardCreator) initReceiveLogTailHandleTotalCostRow() dashboard.Opti
 			"99.99% time",
 			3,
 			`histogram_quantile(0.9999, sum(rate(cn_logtail_handle_receive_duration_seconds_bucket{step="total"}[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+	)
+}
+
+func (c *DashboardCreator) initReceiveLogTailHandleLoopCostRow(value string) dashboard.Option {
+	return dashboard.Row(
+		"Logtail Receive Loop "+value+" Cost",
+
+		c.withGraph(
+			"80% time",
+			3,
+			`histogram_quantile(0.80, sum(rate(cn_logtail_handle_receive_loop_duration_seconds_bucket{step="`+value+`"}[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"90% time",
+			3,
+			`histogram_quantile(0.90, sum(rate(cn_logtail_handle_receive_loop_duration_seconds_bucket{step="`+value+`"}[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"99% time",
+			3,
+			`histogram_quantile(0.99, sum(rate(cn_logtail_handle_receive_loop_duration_seconds_bucket{step="`+value+`"}[$interval])) by (le, instance))`,
+			"{{ instance }}",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.withGraph(
+			"99.99% time",
+			3,
+			`histogram_quantile(0.9999, sum(rate(cn_logtail_handle_receive_loop_duration_seconds_bucket{step="`+value+`"}[$interval])) by (le, instance))`,
 			"{{ instance }}",
 			axis.Unit("s"),
 			axis.Min(0)),

@@ -17,6 +17,7 @@ package service
 import (
 	"context"
 	"sync"
+	"time"
 
 	"go.uber.org/ratelimit"
 	"go.uber.org/zap"
@@ -26,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/pb/logtail"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 )
 
 type ClientOption func(*LogtailClient)
@@ -139,7 +141,7 @@ func (c *LogtailClient) Unsubscribe(
 // 2. response for subscription: *LogtailResponse.GetSubscribeResponse() != nil
 // 3. response for unsubscription: *LogtailResponse.GetUnsubscribeResponse() != nil
 // 3. response for incremental logtail: *LogtailResponse.GetUpdateResponse() != nil
-func (c *LogtailClient) Receive(ctx context.Context) (*LogtailResponse, error) {
+func (c *LogtailClient) Receive(ctx context.Context, st time.Time) (*LogtailResponse, error) {
 	recvFunc := func() (*LogtailResponseSegment, error) {
 		select {
 		case <-ctx.Done():
@@ -164,6 +166,7 @@ func (c *LogtailClient) Receive(ctx context.Context) (*LogtailResponse, error) {
 	}
 
 	prev, err := recvFunc()
+	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-1").Observe(time.Since(st).Seconds())
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +181,13 @@ func (c *LogtailClient) Receive(ctx context.Context) (*LogtailResponse, error) {
 		buf = AppendChunk(buf, segment.GetPayload())
 		prev = segment
 	}
-
+	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-2").Observe(time.Since(st).Seconds())
 	resp := &LogtailResponse{}
 	if err := resp.Unmarshal(buf); err != nil {
 		logutil.Error("logtail client: fail to unmarshal logtail response", zap.Error(err))
 		return nil, err
 	}
+	v2.LogTailHandleReceiveLoopDurationHistogram.WithLabelValues("receive-3").Observe(time.Since(st).Seconds())
 	return resp, nil
 }
 
