@@ -1004,21 +1004,33 @@ func (c *DashboardCreator) initFSCountRow() dashboard.Option {
 		"FileService Status",
 		c.withGraph(
 			"S3 op qps",
-			4,
+			3,
 			"sum(rate(cn_fs_s3_io_bytes_count[$interval])) by (type)",
 			"{{ type }}"),
 
 		c.withGraph(
+			"S3 active connections",
+			3,
+			"avg(irate(cn_fs_s3_conn_size[$interval])) by (instance)",
+			"{{ instance }}"),
+
+		c.withGraph(
 			"S3 Connect qps",
-			4,
+			2,
 			"sum(rate(cn_fs_s3_connect_total[$interval]))",
 			""),
 
 		c.withGraph(
 			"S3 DNS Resolve qps",
-			4,
+			2,
 			"sum(rate(cn_fs_s3_dns_resolve_total[$interval]))",
 			""),
+
+		c.withGraph(
+			"S3 reused connections",
+			2,
+			"rate(cn_fs_s3_conn_reused_total[$interval]) by (instance)",
+			"{{ instance }}"),
 	)
 }
 

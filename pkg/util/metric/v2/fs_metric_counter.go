@@ -27,13 +27,13 @@ var (
 			Help:      "Total number of s3 connect count.",
 		})
 
-	S3DNSResolveCounter = prometheus.NewCounter(
+	S3DNSResolveCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "cn",
 			Subsystem: "fs",
 			Name:      "s3_dns_resolve_total",
 			Help:      "Total number of s3 dns resolve count.",
-		})
+		}, []string{"type"})
 
 	S3ConnectionReusedCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -43,3 +43,15 @@ var (
 			Help:      "Total number of s3 conn reused count.",
 		})
 )
+
+func GetS3DNSResolveTotalCounter() prometheus.Counter {
+	return S3DNSResolveCounter.WithLabelValues("total")
+}
+
+func GetS3DNSResolveCustomCounter() prometheus.Counter {
+	return S3DNSResolveCounter.WithLabelValues("custom")
+}
+
+func GetS3DNSResolveMissCacheCounter() prometheus.Counter {
+	return S3DNSResolveCounter.WithLabelValues("miss")
+}

@@ -37,6 +37,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
 	"github.com/rs/dnscache"
 	"go.uber.org/zap"
@@ -68,6 +69,9 @@ func NewAwsSDKv2(
 	options.ClearUnused = true
 	options.PersistOnFailure = false
 	r.RefreshWithOptions(options)
+	r.OnCacheMiss = func() {
+		v2.GetS3DNSResolveMissCacheCounter().Inc()
+	}
 
 	go func() {
 		t := time.NewTicker(5 * time.Minute)
@@ -79,9 +83,10 @@ func NewAwsSDKv2(
 
 	// http client
 	dialer := &net.Dialer{
-		KeepAlive: 5 * time.Second,
+		KeepAlive: 15 * time.Second,
 		Resolver: &net.Resolver{
 			Dial: func(ctx context.Context, network, address string) (conn net.Conn, err error) {
+				v2.GetS3DNSResolveCustomCounter().Inc()
 				host, port, err := net.SplitHostPort(address)
 				if err != nil {
 					return nil, err
