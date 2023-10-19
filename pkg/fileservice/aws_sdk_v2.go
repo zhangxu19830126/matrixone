@@ -38,6 +38,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
+	"github.com/rs/dnscache"
 	"go.uber.org/zap"
 )
 
@@ -62,10 +63,45 @@ func NewAwsSDKv2(
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
+	r := &dnscache.Resolver{}
+	options := dnscache.ResolverRefreshOptions{}
+	options.ClearUnused = true
+	options.PersistOnFailure = false
+	r.RefreshWithOptions(options)
+
+	go func() {
+		t := time.NewTicker(5 * time.Minute)
+		defer t.Stop()
+		for range t.C {
+			r.Refresh(true)
+		}
+	}()
+
 	// http client
 	dialer := &net.Dialer{
 		KeepAlive: 5 * time.Second,
+		Resolver: &net.Resolver{
+			Dial: func(ctx context.Context, network, address string) (conn net.Conn, err error) {
+				host, port, err := net.SplitHostPort(address)
+				if err != nil {
+					return nil, err
+				}
+				ips, err := r.LookupHost(ctx, host)
+				if err != nil {
+					return nil, err
+				}
+				for _, ip := range ips {
+					var dialer net.Dialer
+					conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+					if err == nil {
+						break
+					}
+				}
+				return
+			},
+		},
 	}
+
 	httpClient := &stdhttp.Client{
 		Transport: &stdhttp.Transport{
 			Proxy:                 stdhttp.ProxyFromEnvironment,
@@ -74,8 +110,8 @@ func NewAwsSDKv2(
 			IdleConnTimeout:       180 * time.Second,
 			MaxIdleConnsPerHost:   100,
 			MaxConnsPerHost:       1000,
-			TLSHandshakeTimeout:   3 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 5 * time.Second,
 			ForceAttemptHTTP2:     true,
 		},
 	}

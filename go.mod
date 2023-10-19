@@ -50,6 +50,7 @@ require (
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/client_model v0.4.0
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/rs/dnscache v0.0.0-20230804202142-fc85eb664529
 	github.com/samber/lo v1.38.1
 	github.com/shirou/gopsutil/v3 v3.22.4
 	github.com/smartystreets/goconvey v1.7.2
