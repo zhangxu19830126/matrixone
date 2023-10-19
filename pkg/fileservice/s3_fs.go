@@ -690,6 +690,8 @@ func (s *S3FS) SetAsyncUpdate(b bool) {
 	s.asyncUpdate = b
 }
 
+var usedConnectCount atomic.Int64
+
 func addGetConnMetric(ctx context.Context) context.Context {
 	var start time.Time
 	var dnsStart time.Time
@@ -702,6 +704,14 @@ func addGetConnMetric(ctx context.Context) context.Context {
 
 		GotConn: func(info httptrace.GotConnInfo) {
 			v2.S3GetConnDurationHistogram.Observe(time.Since(start).Seconds())
+			v2.S3UsedConnectionSizeGauge.Set(float64(usedConnectCount.Add(1)))
+			if info.Reused {
+				v2.S3ConnectionReusedCounter.Inc()
+			}
+		},
+
+		PutIdleConn: func(err error) {
+			v2.S3UsedConnectionSizeGauge.Set(float64(usedConnectCount.Add(-1)))
 		},
 
 		DNSStart: func(di httptrace.DNSStartInfo) {

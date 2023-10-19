@@ -34,4 +34,12 @@ var (
 			Name:      "s3_dns_resolve_total",
 			Help:      "Total number of s3 dns resolve count.",
 		})
+
+	S3ConnectionReusedCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "cn",
+			Subsystem: "fs",
+			Name:      "s3_conn_reused_total",
+			Help:      "Total number of s3 conn reused count.",
+		})
 )

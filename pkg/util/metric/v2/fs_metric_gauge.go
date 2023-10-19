@@ -13,3 +13,17 @@
 // limitations under the License.
 
 package v2
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	S3UsedConnectionSizeGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "cn",
+			Subsystem: "fs",
+			Name:      "s3_conn_size",
+			Help:      "Size of used connection size.",
+		})
+)
