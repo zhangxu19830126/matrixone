@@ -218,20 +218,26 @@ func (c *DashboardCreator) initTxnTPSRow() dashboard.Option {
 	return dashboard.Row(
 		"Txn Status",
 		c.withGraph(
-			"Txn tps",
-			4,
+			"Txn Open",
+			3,
 			"sum(rate(cn_txn_txn_total[$interval])) by (type)",
 			"{{ type }}"),
 
 		c.withGraph(
-			"Commit tps",
-			4,
-			"sum(rate(tn_txn_handle_commit_total[$interval]))",
+			"CN Commit Requests",
+			3,
+			"sum(rate(cn_send_request_duration_seconds_count[$interval]))",
+			""),
+
+		c.withGraph(
+			"DN Commit Throughput",
+			3,
+			"sum(rate(tn_txn_handle_commit_duration_seconds_count[$interval]))",
 			""),
 
 		c.withGraph(
 			"Handle Commit Queue",
-			4,
+			3,
 			"sum(cn_txn_handle_request_queue_size) by (instance)",
 			"{{ instance }}"),
 	)
