@@ -19,6 +19,8 @@ import (
 	"hash"
 	"io"
 	"time"
+
+	"github.com/matrixorigin/mocache"
 )
 
 // FileService is a write-once file system
@@ -115,14 +117,15 @@ type IOEntry struct {
 	// When reading, if the ToCacheData field is not nil, the returning object's byte slice will be set to this field
 	// Data, WriterForRead, ReadCloserForRead may be empty if CachedData is not null
 	// if ToCacheData is provided, caller should always read CachedData instead of Data, WriterForRead or ReadCloserForRead
-	CachedData CacheData
+	CachedData mocache.CacheData
 
 	// ToCacheData constructs an object byte slice from entry contents
 	// reader or data must not be retained after returns
 	// reader always contains entry contents
 	// data may contains entry contents if available
 	// if data is empty, the io.Reader must be fully read before returning nil error
-	ToCacheData func(reader io.Reader, data []byte, allocator CacheDataAllocator) (cacheData CacheData, err error)
+	ToCacheData func(reader io.Reader, data []byte, path string, offset uint64,
+		allocator CacheDataAllocator) (cacheData mocache.CacheData, err error)
 
 	// done indicates whether the entry is filled with data
 	// for implementing cascade cache
@@ -132,15 +135,9 @@ type IOEntry struct {
 	fromCache IOVectorCache
 }
 
-type CacheData interface {
-	Bytes() []byte
-	Slice(length int) CacheData
-	Release()
-	Retain()
-}
-
 type CacheDataAllocator interface {
-	Alloc(size int) CacheData
+	Alloc(size int) mocache.CacheData
+	AllocWithKey(path string, offset uint64, size int) mocache.CacheData
 }
 
 // DirEntry is a file or dir

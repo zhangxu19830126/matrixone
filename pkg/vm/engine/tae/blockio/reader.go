@@ -16,6 +16,7 @@ package blockio
 
 import (
 	"context"
+
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -76,7 +77,8 @@ func NewFileReader(service fileservice.FileService, name string) (*BlockReader, 
 	reader, err := objectio.NewObjectReaderWithStr(
 		name,
 		service,
-		objectio.WithMetaCachePolicyOption(fileservice.SkipMemory))
+		objectio.WithMetaCachePolicyOption(fileservice.SkipMemory),
+		objectio.WithDataCachePolicyOption(fileservice.SkipMemory))
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +129,7 @@ func (r *BlockReader) LoadColumns(
 		}
 		ioVectors = v.(*fileservice.IOVector)
 	} else {
-		ioVectors, err = r.reader.ReadOneBlock(ctx, cols, typs, blk, m)
+		ioVectors, err = r.reader.ReadOneBlock(ctx, cols, typs, blk, m, fileservice.SkipMemory)
 		if err != nil {
 			return
 		}
@@ -135,7 +137,7 @@ func (r *BlockReader) LoadColumns(
 	bat = batch.NewWithSize(len(cols))
 	var obj any
 	for i := range cols {
-		obj, err = objectio.Decode(ioVectors.Entries[i].CachedData.Bytes())
+		obj, err = objectio.Decode(ioVectors.Entries[i].CachedData.Get())
 		if err != nil {
 			return
 		}
@@ -158,7 +160,7 @@ func (r *BlockReader) LoadSubColumns(
 		return
 	}
 	var ioVectors []*fileservice.IOVector
-	ioVectors, err = r.reader.ReadSubBlock(ctx, cols, typs, blk, m)
+	ioVectors, err = r.reader.ReadSubBlock(ctx, cols, typs, blk, m, fileservice.SkipMemory)
 	if err != nil {
 		return
 	}
@@ -167,7 +169,7 @@ func (r *BlockReader) LoadSubColumns(
 		bat := batch.NewWithSize(len(cols))
 		var obj any
 		for i := range cols {
-			obj, err = objectio.Decode(ioVectors[idx].Entries[i].CachedData.Bytes())
+			obj, err = objectio.Decode(ioVectors[idx].Entries[i].CachedData.Get())
 			if err != nil {
 				return
 			}
@@ -193,14 +195,14 @@ func (r *BlockReader) LoadOneSubColumns(
 		return
 	}
 	var ioVector *fileservice.IOVector
-	ioVector, err = r.reader.ReadOneSubBlock(ctx, cols, typs, dataType, blk, m)
+	ioVector, err = r.reader.ReadOneSubBlock(ctx, cols, typs, dataType, blk, m, fileservice.SkipMemory)
 	if err != nil {
 		return
 	}
 	bat = batch.NewWithSize(len(cols))
 	var obj any
 	for i := range cols {
-		obj, err = objectio.Decode(ioVector.Entries[i].CachedData.Bytes())
+		obj, err = objectio.Decode(ioVector.Entries[i].CachedData.Get())
 		if err != nil {
 			return
 		}
@@ -241,7 +243,7 @@ func (r *BlockReader) LoadAllColumns(
 		bat := batch.NewWithSize(len(idxs))
 		var obj any
 		for i := range idxs {
-			obj, err = objectio.Decode(ioVectors.Entries[y*len(idxs)+i].CachedData.Bytes())
+			obj, err = objectio.Decode(ioVectors.Entries[y*len(idxs)+i].CachedData.Get())
 			if err != nil {
 				return nil, err
 			}

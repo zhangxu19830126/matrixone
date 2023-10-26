@@ -37,7 +37,7 @@ func ReadExtent(
 	ioVec := &fileservice.IOVector{
 		FilePath:    name,
 		Entries:     make([]fileservice.IOEntry, 1),
-		CachePolicy: cachePolicy,
+		CachePolicy: cachePolicy | fileservice.SkipMemory,
 	}
 
 	ioVec.Entries[0] = fileservice.IOEntry{
@@ -49,7 +49,7 @@ func ReadExtent(
 		return
 	}
 	//TODO when to call ioVec.Release?
-	v = ioVec.Entries[0].CachedData.Bytes()
+	v = ioVec.Entries[0].CachedData.Get()
 	return
 }
 
@@ -111,9 +111,10 @@ func ReadOneBlock(
 	seqnums []uint16,
 	typs []types.Type,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 	fs fileservice.FileService,
 ) (ioVec *fileservice.IOVector, err error) {
-	return ReadOneBlockWithMeta(ctx, meta, name, blk, seqnums, typs, m, fs, constructorFactory)
+	return ReadOneBlockWithMeta(ctx, meta, name, blk, seqnums, typs, m, cachePolicy, fs, constructorFactory)
 }
 
 func ReadOneBlockWithMeta(
@@ -124,12 +125,14 @@ func ReadOneBlockWithMeta(
 	seqnums []uint16,
 	typs []types.Type,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (ioVec *fileservice.IOVector, err error) {
 	ioVec = &fileservice.IOVector{
-		FilePath: name,
-		Entries:  make([]fileservice.IOEntry, 0),
+		FilePath:    name,
+		Entries:     make([]fileservice.IOEntry, 0),
+		CachePolicy: cachePolicy,
 	}
 	var filledEntries []fileservice.IOEntry
 	blkmeta := meta.GetBlockMeta(uint32(blk))
@@ -205,7 +208,7 @@ func ReadOneBlockWithMeta(
 					return
 				}
 				cacheData := fileservice.DefaultCacheDataAllocator.Alloc(buf.Len())
-				copy(cacheData.Bytes(), buf.Bytes())
+				copy(cacheData.Get(), buf.Bytes())
 				filledEntries[i].CachedData = cacheData
 			}
 		}
@@ -220,12 +223,14 @@ func ReadMultiBlocksWithMeta(
 	name string,
 	meta ObjectMeta,
 	options map[uint16]*ReadBlockOptions,
+	cachePolicy fileservice.CachePolicy,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (ioVec *fileservice.IOVector, err error) {
 	ioVec = &fileservice.IOVector{
-		FilePath: name,
-		Entries:  make([]fileservice.IOEntry, 0),
+		FilePath:    name,
+		Entries:     make([]fileservice.IOEntry, 0),
+		CachePolicy: cachePolicy,
 	}
 	var dataMeta ObjectDataMeta
 	for _, opt := range options {

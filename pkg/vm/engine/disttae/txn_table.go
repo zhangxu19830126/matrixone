@@ -470,13 +470,14 @@ func (tbl *txnTable) LoadDeletesForBlock(bid types.Blockid, offsets *[]int64) (e
 			if err != nil {
 				return err
 			}
-			rowIdBat, err := blockio.LoadTombstoneColumns(
+			rowIdBat, _, err := blockio.LoadTombstoneColumns(
 				tbl.db.txn.proc.Ctx,
 				[]uint16{0},
 				nil,
 				tbl.db.txn.engine.fs,
 				location,
-				tbl.db.txn.proc.GetMPool())
+				tbl.db.txn.proc.GetMPool(),
+				fileservice.SkipMemory)
 			if err != nil {
 				return err
 			}
@@ -508,13 +509,14 @@ func (tbl *txnTable) LoadDeletesForMemBlocksIn(
 				if err != nil {
 					return err
 				}
-				rowIdBat, err := blockio.LoadColumns(
+				rowIdBat, _, err := blockio.LoadColumns(
 					tbl.db.txn.proc.Ctx,
 					[]uint16{0},
 					nil,
 					tbl.db.txn.engine.fs,
 					location,
-					tbl.db.txn.proc.GetMPool())
+					tbl.db.txn.proc.GetMPool(),
+					fileservice.SkipMemory)
 				if err != nil {
 					return err
 				}
@@ -1231,7 +1233,8 @@ func (tbl *txnTable) mergeCompaction(
 			tbl.seqnums,
 			tbl.typs,
 			tbl.db.txn.engine.fs,
-			tbl.db.txn.proc.GetMPool())
+			tbl.db.txn.proc.GetMPool(),
+			fileservice.SkipMemory)
 		if e != nil {
 			return nil, e
 		}
@@ -1807,6 +1810,7 @@ func (tbl *txnTable) readNewRowid(vec *vector.Vector, row int,
 			tbl.proc.Load().Ctx, &blk, nil, columns, colTypes, tbl.db.txn.op.SnapshotTS(),
 			nil, nil, nil,
 			tbl.db.txn.engine.fs, tbl.proc.Load().Mp(), tbl.proc.Load(),
+			fileservice.SkipMemory,
 		)
 		if err != nil {
 			return rowid, false, err

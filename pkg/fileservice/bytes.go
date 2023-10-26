@@ -14,17 +14,23 @@
 
 package fileservice
 
+import "github.com/matrixorigin/mocache"
+
 type Bytes []byte
 
 func (b Bytes) Size() int64 {
 	return int64(len(b))
 }
 
-func (b Bytes) Bytes() []byte {
+func (b Bytes) Get() []byte {
 	return b
 }
 
-func (b Bytes) Slice(length int) CacheData {
+func (b Bytes) GetValue() *mocache.Value {
+	return nil
+}
+
+func (b Bytes) Truncate(length int) mocache.CacheData {
 	return b[:length]
 }
 
@@ -38,6 +44,10 @@ type bytesAllocator struct{}
 
 var _ CacheDataAllocator = new(bytesAllocator)
 
-func (b *bytesAllocator) Alloc(size int) CacheData {
+func (b *bytesAllocator) Alloc(size int) mocache.CacheData {
+	return make(Bytes, size)
+}
+
+func (b *bytesAllocator) AllocWithKey(_ string, _ uint64, size int) mocache.CacheData {
 	return make(Bytes, size)
 }

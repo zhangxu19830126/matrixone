@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixone/pkg/util/toml"
+	"github.com/matrixorigin/mocache"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,9 +58,9 @@ func TestCacheExample(t *testing.T) {
 			{
 				Offset: 0,
 				Size:   2,
-				ToCacheData: func(_ io.Reader, data []byte, allocator CacheDataAllocator) (CacheData, error) {
+				ToCacheData: func(_ io.Reader, data []byte, _ string, _ uint64, allocator CacheDataAllocator) (mocache.CacheData, error) {
 					cacheData := allocator.Alloc(len(data))
-					copy(cacheData.Bytes(), data)
+					copy(cacheData.Get(), data)
 					return cacheData, nil
 				},
 			},
@@ -69,6 +70,6 @@ func TestCacheExample(t *testing.T) {
 	assert.Nil(t, err)
 
 	value := vec.Entries[0].CachedData
-	assert.Equal(t, []byte("42"), value.Bytes())
+	assert.Equal(t, []byte("42"), value.Get())
 
 }

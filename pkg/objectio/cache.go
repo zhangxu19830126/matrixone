@@ -173,7 +173,7 @@ func LoadBFWithMeta(
 	v, ok := metaCache.Get(ctx, key)
 	if ok {
 		metaCacheStats.Record(1, 1)
-		return v.Bytes(), nil
+		return v.Get(), nil
 	}
 	extent := meta.BlockHeader().BFExtent()
 	bf, err := ReadBloomFilter(ctx, location.Name().String(), &extent, fileservice.SkipMemory, fs)

@@ -24,11 +24,12 @@ const (
 )
 
 const (
-	SkipReads  = SkipMemoryReads | SkipDiskReads
-	SkipWrites = SkipMemoryWrites | SkipDiskWrites
-	SkipDisk   = SkipDiskReads | SkipDiskWrites
-	SkipMemory = SkipMemoryReads | SkipMemoryWrites
-	SkipAll    = SkipDisk | SkipMemory
+	DefaultCachePolicy = 0
+	SkipReads          = SkipMemoryReads | SkipDiskReads
+	SkipWrites         = SkipMemoryWrites | SkipDiskWrites
+	SkipDisk           = SkipDiskReads | SkipDiskWrites
+	SkipMemory         = SkipMemoryReads | SkipMemoryWrites
+	SkipAll            = SkipDisk | SkipMemory
 )
 
 func (c CachePolicy) Any(policies ...CachePolicy) bool {

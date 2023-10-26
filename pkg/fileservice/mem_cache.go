@@ -21,7 +21,12 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/fileservice/checks/interval"
 	"github.com/matrixorigin/matrixone/pkg/fileservice/lrucache"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	"github.com/matrixorigin/mocache"
 )
+
+// defaultMemCache is only used to mark the fromCache field,
+// and will be deleted when memcache is completely removed.
+var defaultMemCache MemCache
 
 type MemCache struct {
 	cache       DataCache
@@ -43,16 +48,14 @@ func NewLRUCache(
 	capacity int64,
 	checkOverlaps bool,
 	callbacks *CacheCallbacks,
-) *lrucache.LRU[CacheKey, CacheData] {
+) *lrucache.LRU[CacheKey, mocache.CacheData] {
 
 	var overlapChecker *interval.OverlapChecker
 	if checkOverlaps {
 		overlapChecker = interval.NewOverlapChecker("MemCache_LRU")
 	}
 
-	postSetFn := func(key CacheKey, value CacheData) {
-		value.Retain()
-
+	postSetFn := func(key CacheKey, value mocache.CacheData) {
 		if overlapChecker != nil {
 			if err := overlapChecker.Insert(key.Path, key.Offset, key.Offset+key.Sz); err != nil {
 				panic(err)
@@ -66,9 +69,7 @@ func NewLRUCache(
 		}
 	}
 
-	postGetFn := func(key CacheKey, value CacheData) {
-		value.Retain()
-
+	postGetFn := func(key CacheKey, value mocache.CacheData) {
 		if callbacks != nil {
 			for _, fn := range callbacks.PostGet {
 				fn(key, value)
@@ -76,7 +77,7 @@ func NewLRUCache(
 		}
 	}
 
-	postEvictFn := func(key CacheKey, value CacheData) {
+	postEvictFn := func(key CacheKey, value mocache.CacheData) {
 		value.Release()
 
 		if overlapChecker != nil {
@@ -92,7 +93,7 @@ func NewLRUCache(
 		}
 	}
 
-	return lrucache.New[CacheKey, CacheData](capacity, postSetFn, postGetFn, postEvictFn)
+	return lrucache.New[CacheKey, mocache.CacheData](capacity, postSetFn, postGetFn, postEvictFn)
 }
 
 var _ IOVectorCache = new(MemCache)

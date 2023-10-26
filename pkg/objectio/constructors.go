@@ -19,14 +19,15 @@ import (
 
 	"github.com/matrixorigin/matrixone/pkg/compress"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
+	"github.com/matrixorigin/mocache"
 )
 
-type CacheConstructor = func(r io.Reader, buf []byte, allocator fileservice.CacheDataAllocator) (fileservice.CacheData, error)
+type CacheConstructor = func(r io.Reader, buf []byte, path string, offset uint64, allocator fileservice.CacheDataAllocator) (mocache.CacheData, error)
 type CacheConstructorFactory = func(size int64, algo uint8) CacheConstructor
 
 // use this to replace all other constructors
 func constructorFactory(size int64, algo uint8) CacheConstructor {
-	return func(reader io.Reader, data []byte, allocator fileservice.CacheDataAllocator) (cacheData fileservice.CacheData, err error) {
+	return func(reader io.Reader, data []byte, path string, offset uint64, allocator fileservice.CacheDataAllocator) (cacheData mocache.CacheData, err error) {
 		if len(data) == 0 {
 			data, err = io.ReadAll(reader)
 			if err != nil {
@@ -36,29 +37,29 @@ func constructorFactory(size int64, algo uint8) CacheConstructor {
 
 		// no compress
 		if algo == compress.None {
-			cacheData = allocator.Alloc(len(data))
-			copy(cacheData.Bytes(), data)
+			cacheData = allocator.AllocWithKey(path, offset, len(data))
+			copy(cacheData.Get(), data)
 			return cacheData, nil
 		}
 
 		// lz4 compress
-		decompressed := allocator.Alloc(int(size))
-		bs, err := compress.Decompress(data, decompressed.Bytes(), compress.Lz4)
+		decompressed := allocator.AllocWithKey(path, offset, int(size))
+		bs, err := compress.Decompress(data, decompressed.Get(), compress.Lz4)
 		if err != nil {
 			return
 		}
-		decompressed = decompressed.Slice(len(bs))
+		decompressed = decompressed.Truncate(len(bs))
 		return decompressed, nil
 	}
 }
 
-func Decode(buf []byte) (any, error) {
+func Decode(buf []byte) (v any, err error) {
 	header := DecodeIOEntryHeader(buf)
 	codec := GetIOEntryCodec(*header)
 	if codec.NoUnmarshal() {
 		return buf[IOEntryHeaderSize:], nil
 	}
-	v, err := codec.Decode(buf[IOEntryHeaderSize:])
+	v, err = codec.Decode(buf[IOEntryHeaderSize:])
 	if err != nil {
 		return nil, err
 	}

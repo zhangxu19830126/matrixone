@@ -16,6 +16,7 @@ package blockio
 
 import (
 	"context"
+
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -23,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/model"
+	"github.com/matrixorigin/mocache"
 )
 
 func LoadColumnsData(
@@ -33,7 +35,8 @@ func LoadColumnsData(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-) (bat *batch.Batch, err error) {
+	cachePolicy fileservice.CachePolicy,
+) (bat *batch.Batch, datas []mocache.CacheData, err error) {
 	name := location.Name()
 	var meta objectio.ObjectMeta
 	var ioVectors *fileservice.IOVector
@@ -41,20 +44,21 @@ func LoadColumnsData(
 		return
 	}
 	dataMeta := meta.MustGetMeta(metaType)
-	if ioVectors, err = objectio.ReadOneBlock(ctx, &dataMeta, name.String(), location.ID(), cols, typs, m, fs); err != nil {
+	if ioVectors, err = objectio.ReadOneBlock(ctx, &dataMeta, name.String(), location.ID(), cols, typs, m, cachePolicy, fs); err != nil {
 		return
 	}
 	bat = batch.NewWithSize(len(cols))
+	datas = make([]mocache.CacheData, len(cols))
 	var obj any
 	for i := range cols {
-		obj, err = objectio.Decode(ioVectors.Entries[i].CachedData.Bytes())
+		datas[i] = ioVectors.Entries[i].CachedData
+		obj, err = objectio.Decode(ioVectors.Entries[i].CachedData.Get())
 		if err != nil {
 			return
 		}
 		bat.Vecs[i] = obj.(*vector.Vector)
 		bat.SetRowCount(bat.Vecs[i].Length())
 	}
-	//TODO call CachedData.Release
 	return
 }
 
@@ -65,8 +69,9 @@ func LoadColumns(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-) (bat *batch.Batch, err error) {
-	return LoadColumnsData(ctx, objectio.SchemaData, cols, typs, fs, location, m)
+	cachePolicy fileservice.CachePolicy,
+) (bat *batch.Batch, datas []mocache.CacheData, err error) {
+	return LoadColumnsData(ctx, objectio.SchemaData, cols, typs, fs, location, m, cachePolicy)
 }
 
 func LoadTombstoneColumns(
@@ -76,8 +81,9 @@ func LoadTombstoneColumns(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-) (bat *batch.Batch, err error) {
-	return LoadColumnsData(ctx, objectio.SchemaTombstone, cols, typs, fs, location, m)
+	cachePolicy fileservice.CachePolicy,
+) (bat *batch.Batch, datas []mocache.CacheData, err error) {
+	return LoadColumnsData(ctx, objectio.SchemaTombstone, cols, typs, fs, location, m, cachePolicy)
 }
 
 func LoadBF(

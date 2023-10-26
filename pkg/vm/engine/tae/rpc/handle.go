@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/util/fault"
 
 	"github.com/google/shlex"
@@ -1058,13 +1059,14 @@ func (h *Handle) HandleWrite(
 			}
 			var ok bool
 			var bat *batch.Batch
-			bat, err = blockio.LoadTombstoneColumns(
+			bat, _, err = blockio.LoadTombstoneColumns(
 				ctx,
 				[]uint16{uint16(rowidIdx), uint16(pkIdx)},
 				nil,
 				h.db.Runtime.Fs.Service,
 				location,
 				nil,
+				fileservice.SkipMemory,
 			)
 			if err != nil {
 				return

@@ -18,7 +18,65 @@ import (
 	"bytes"
 	"io"
 	"os"
+
+	"github.com/matrixorigin/matrixone/pkg/common/moerr"
+	"github.com/matrixorigin/mocache"
 )
+
+func (e *IOEntry) read(r io.Reader, path string, offset uint64,
+	c *mocache.Cache, skipMemWrite bool) error {
+	var err error
+
+	if e.Size < 0 {
+		var data []byte
+		data, err = io.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		e.Data = data
+		e.Size = int64(len(data))
+	} else {
+		if int64(len(e.Data)) < e.Size {
+			e.Data = make([]byte, e.Size)
+		}
+		var n int
+		n, err = io.ReadFull(r, e.Data)
+		if err != nil {
+			return err
+		}
+		if int64(n) != e.Size {
+			return moerr.NewUnexpectedEOFNoCtx(path)
+		}
+	}
+	if c == nil || skipMemWrite {
+		return e.setCachedDataWithKey(path, offset, DefaultCacheDataAllocator)
+	}
+	if err = e.setCachedDataWithKey(path, offset, c); err != nil {
+		if e.CachedData != nil {
+			mocache.Free(e.CachedData.GetValue())
+		}
+		return err
+	}
+	if e.CachedData != nil {
+		e.CachedData = c.Set(path, offset, e.CachedData.GetValue())
+	}
+	return nil
+}
+
+func (e *IOEntry) setCachedDataWithKey(path string, offset uint64, alloc CacheDataAllocator) error {
+	if e.ToCacheData == nil {
+		return nil
+	}
+	if len(e.Data) == 0 {
+		return nil
+	}
+	bs, err := e.ToCacheData(bytes.NewReader(e.Data), e.Data, path, offset, alloc)
+	if err != nil {
+		return err
+	}
+	e.CachedData = bs
+	return nil
+}
 
 func (e *IOEntry) setCachedData() error {
 	if e.ToCacheData == nil {
@@ -27,7 +85,7 @@ func (e *IOEntry) setCachedData() error {
 	if len(e.Data) == 0 {
 		return nil
 	}
-	bs, err := e.ToCacheData(bytes.NewReader(e.Data), e.Data, DefaultCacheDataAllocator)
+	bs, err := e.ToCacheData(bytes.NewReader(e.Data), e.Data, "", 0, DefaultCacheDataAllocator)
 	if err != nil {
 		return err
 	}
@@ -67,7 +125,7 @@ func (e *IOEntry) ReadFromOSFile(file *os.File) error {
 	return nil
 }
 
-func CacheOriginalData(r io.Reader, data []byte, allocator CacheDataAllocator) (cacheData CacheData, err error) {
+func CacheOriginalData(r io.Reader, data []byte, _ string, _ uint64, allocator CacheDataAllocator) (cacheData mocache.CacheData, err error) {
 	if len(data) == 0 {
 		data, err = io.ReadAll(r)
 		if err != nil {
@@ -75,6 +133,6 @@ func CacheOriginalData(r io.Reader, data []byte, allocator CacheDataAllocator) (
 		}
 	}
 	cacheData = allocator.Alloc(len(data))
-	copy(cacheData.Bytes(), data)
+	copy(cacheData.Get(), data)
 	return
 }

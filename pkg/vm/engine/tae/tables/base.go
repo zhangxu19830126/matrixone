@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/catalog"
@@ -178,13 +179,14 @@ func (blk *baseBlock) LoadPersistedCommitTS() (vec containers.Vector, err error)
 	if location.IsEmpty() {
 		return
 	}
-	bat, err := blockio.LoadColumns(
+	bat, _, err := blockio.LoadColumns(
 		context.Background(),
 		[]uint16{objectio.SEQNUM_COMMITTS},
 		nil,
 		blk.rt.Fs.Service,
 		location,
 		nil,
+		fileservice.SkipMemory,
 	)
 	if err != nil {
 		return

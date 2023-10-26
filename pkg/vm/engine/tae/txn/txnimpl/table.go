@@ -20,6 +20,7 @@ import (
 	"runtime/trace"
 	"time"
 
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 
 	"github.com/RoaringBitmap/roaring"
@@ -641,13 +642,14 @@ func (tbl *txnTable) AddBlksWithMetaLoc(ctx context.Context, metaLocs []objectio
 		if dedupType == txnif.FullDedup {
 			//TODO::parallel load pk.
 			for _, loc := range metaLocs {
-				bat, err := blockio.LoadColumns(
+				bat, _, err := blockio.LoadColumns(
 					ctx,
 					[]uint16{uint16(tbl.schema.GetSingleSortKeyIdx())},
 					nil,
 					tbl.store.rt.Fs.Service,
 					loc,
 					nil,
+					fileservice.SkipMemory,
 				)
 				if err != nil {
 					return err
@@ -1159,13 +1161,14 @@ func (tbl *txnTable) DedupSnapByMetaLocs(ctx context.Context, metaLocs []objecti
 			//TODO::laod zm index first, then load pk column if necessary.
 			_, ok := loaded[i]
 			if !ok {
-				bat, err := blockio.LoadColumns(
+				bat, _, err := blockio.LoadColumns(
 					ctx,
 					[]uint16{uint16(tbl.schema.GetSingleSortKeyIdx())},
 					nil,
 					tbl.store.rt.Fs.Service,
 					loc,
 					nil,
+					fileservice.SkipMemory,
 				)
 				if err != nil {
 					return err

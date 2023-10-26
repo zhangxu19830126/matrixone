@@ -20,8 +20,10 @@ import (
 	"sync/atomic"
 
 	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
+	"github.com/matrixorigin/mocache"
 
 	"github.com/RoaringBitmap/roaring"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
@@ -254,25 +256,37 @@ func (node *DeleteNode) setPersistedRows() {
 	if node.nt != NT_Persisted {
 		panic("unsupport")
 	}
-	bat, err := blockio.LoadTombstoneColumns(
+	bat, datas, err := blockio.LoadTombstoneColumns(
 		node.Txn.GetContext(),
 		[]uint16{0},
 		nil,
 		node.chain.Load().mvcc.meta.GetBlockData().GetFs().Service,
 		node.deltaloc,
 		nil,
+		fileservice.SkipMemory,
 	)
+	defer func() {
+		for i := range datas {
+			datas[i].Release()
+		}
+	}()
 	if err != nil {
+		var deleteDatas []mocache.CacheData
+
 		for {
 			logutil.Warnf(fmt.Sprintf("load deletes failed, deltaloc: %s, err: %v", node.deltaloc.String(), err))
-			bat, err = blockio.LoadTombstoneColumns(
+			bat, deleteDatas, err = blockio.LoadTombstoneColumns(
 				node.Txn.GetContext(),
 				[]uint16{0},
 				nil,
 				node.chain.Load().mvcc.meta.GetBlockData().GetFs().Service,
 				node.deltaloc,
 				nil,
+				fileservice.SkipMemory,
 			)
+			for i := range deleteDatas {
+				deleteDatas[i].Release()
+			}
 			if err == nil {
 				break
 			}

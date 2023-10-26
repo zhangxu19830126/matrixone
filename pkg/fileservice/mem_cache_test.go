@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	"github.com/matrixorigin/mocache"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,9 +51,9 @@ func TestMemCacheLeak(t *testing.T) {
 		Entries: []IOEntry{
 			{
 				Size: 3,
-				ToCacheData: func(reader io.Reader, data []byte, allocator CacheDataAllocator) (CacheData, error) {
+				ToCacheData: func(reader io.Reader, data []byte, _ string, _ uint64, allocator CacheDataAllocator) (mocache.CacheData, error) {
 					cacheData := allocator.Alloc(1)
-					cacheData.Bytes()[0] = 42
+					cacheData.Get()[0] = 42
 					return cacheData, nil
 				},
 			},
@@ -74,9 +75,9 @@ func TestMemCacheLeak(t *testing.T) {
 		Entries: []IOEntry{
 			{
 				Size: 3,
-				ToCacheData: func(reader io.Reader, data []byte, allocator CacheDataAllocator) (CacheData, error) {
+				ToCacheData: func(reader io.Reader, data []byte, _ string, _ uint64, allocator CacheDataAllocator) (mocache.CacheData, error) {
 					cacheData := allocator.Alloc(1)
-					cacheData.Bytes()[0] = 42
+					cacheData.Get()[0] = 42
 					return cacheData, nil
 				},
 			},

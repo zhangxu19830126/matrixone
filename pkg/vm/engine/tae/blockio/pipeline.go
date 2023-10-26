@@ -153,7 +153,7 @@ func prefetchJob(ctx context.Context, params PrefetchParams) *tasks.Job {
 			// TODO
 			res = &tasks.JobResult{}
 			ioVectors, err := reader.ReadMultiBlocks(ctx,
-				params.ids, nil)
+				params.ids, nil, fileservice.DefaultCachePolicy)
 			if err != nil {
 				res.Err = err
 				return
@@ -193,7 +193,7 @@ type FetchFunc = func(ctx context.Context, params fetchParams) (any, error)
 type PrefetchFunc = func(params PrefetchParams) error
 
 func readColumns(ctx context.Context, params fetchParams) (any, error) {
-	return params.reader.ReadOneBlock(ctx, params.idxes, params.typs, params.blk, nil)
+	return params.reader.ReadOneBlock(ctx, params.idxes, params.typs, params.blk, nil, fileservice.SkipMemory)
 }
 
 func noopPrefetch(params PrefetchParams) error {

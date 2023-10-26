@@ -351,6 +351,7 @@ func (r *blockReader) Read(
 		r.filterState.colTypes,
 		filter,
 		r.fs, mp, vp,
+		fileservice.DefaultCachePolicy,
 	)
 	if err != nil {
 		return nil, err

@@ -16,7 +16,9 @@ package tables
 
 import (
 	"context"
+
 	"github.com/matrixorigin/matrixone/pkg/container/types"
+	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/db/dbutils"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/index/indexwrapper"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/model"
@@ -38,12 +40,12 @@ func LoadPersistedColumnData(
 	if def.IsPhyAddr() {
 		return model.PreparePhyAddrData(&id.BlockID, 0, location.Rows(), rt.VectorPool.Transient)
 	}
-	bat, err := blockio.LoadColumns(
+	bat, _, err := blockio.LoadColumns(
 		ctx, []uint16{uint16(def.SeqNum)},
 		[]types.Type{def.Type},
 		rt.Fs.Service,
 		location,
-		nil)
+		nil, fileservice.SkipMemory)
 	if err != nil {
 		return
 	}
@@ -79,12 +81,12 @@ func LoadPersistedColumnDatas(
 	if len(cols) == 0 {
 		return vectors, nil
 	}
-	bat, err := blockio.LoadColumns(
+	bat, _, err := blockio.LoadColumns(
 		ctx, cols,
 		typs,
 		rt.Fs.Service,
 		location,
-		nil)
+		nil, fileservice.SkipMemory)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +111,7 @@ func LoadPersistedDeletes(
 	//location objectio.Location) (bat *containers.Batch, err error) {
 	//movbat, err := blockio.LoadTombstoneColumns(ctx, []uint16{0, 1, 2, 3}, nil, fs.Service, location, nil)
 	location objectio.Location) (bat *containers.Batch, isPersistedByCN bool, err error) {
-	movbat, isPersistedByCN, err := blockio.ReadBlockDelete(ctx, location, fs.Service)
+	movbat, _, isPersistedByCN, err := blockio.ReadBlockDelete(ctx, location, fs.Service, fileservice.SkipMemory)
 	if err != nil {
 		return
 	}

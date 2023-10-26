@@ -37,6 +37,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	"github.com/matrixorigin/mocache"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -669,14 +670,14 @@ func testFileService(
 			Entries: []IOEntry{
 				{
 					Size: int64(len(data)),
-					ToCacheData: func(r io.Reader, data []byte, allocator CacheDataAllocator) (CacheData, error) {
+					ToCacheData: func(r io.Reader, data []byte, _ string, _ uint64, allocator CacheDataAllocator) (mocache.CacheData, error) {
 						bs, err := io.ReadAll(r)
 						assert.Nil(t, err)
 						if len(data) > 0 {
 							assert.Equal(t, bs, data)
 						}
 						cacheData := allocator.Alloc(len(bs))
-						copy(cacheData.Bytes(), bs)
+						copy(cacheData.Get(), bs)
 						return cacheData, nil
 					},
 				},
@@ -687,9 +688,9 @@ func testFileService(
 
 		cachedData := vec.Entries[0].CachedData
 		assert.NotNil(t, cachedData)
-		assert.Equal(t, data, cachedData.Bytes())
+		assert.Equal(t, data, cachedData.Get())
 
-		err = m.Unmarshal(vec.Entries[0].CachedData.Bytes())
+		err = m.Unmarshal(vec.Entries[0].CachedData.Get())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(m.M))
 		assert.Equal(t, int64(42), m.M[42])
@@ -706,7 +707,7 @@ func testFileService(
 		err = fs.ReadCache(ctx, vec)
 		assert.Nil(t, err)
 		if vec.Entries[0].CachedData != nil {
-			assert.Equal(t, data, vec.Entries[0].CachedData.Bytes())
+			assert.Equal(t, data, vec.Entries[0].CachedData.Get())
 		}
 
 	})

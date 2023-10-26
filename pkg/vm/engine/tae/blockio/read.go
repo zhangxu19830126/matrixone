@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
+	"github.com/matrixorigin/mocache"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
@@ -47,11 +48,17 @@ func ReadByFilter(
 	filter ReadFilter,
 	fs fileservice.FileService,
 	mp *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (sels []int32, err error) {
-	bat, err := LoadColumns(ctx, columns, colTypes, fs, info.MetaLocation(), mp)
+	bat, datas, err := LoadColumns(ctx, columns, colTypes, fs, info.MetaLocation(), mp, cachePolicy)
 	if err != nil {
 		return
 	}
+	defer func() {
+		for i := range datas {
+			datas[i].Release()
+		}
+	}()
 	var deleteMask *nulls.Nulls
 
 	// merge persisted deletes
@@ -59,10 +66,16 @@ func ReadByFilter(
 		now := time.Now()
 		var persistedDeletes *batch.Batch
 		var persistedByCN bool
+		var deleteDatas []mocache.CacheData
 		// load from storage
-		if persistedDeletes, persistedByCN, err = ReadBlockDelete(ctx, info.DeltaLocation(), fs); err != nil {
+		if persistedDeletes, deleteDatas, persistedByCN, err = ReadBlockDelete(ctx, info.DeltaLocation(), fs, cachePolicy); err != nil {
 			return
 		}
+		defer func() {
+			for i := range deleteDatas {
+				deleteDatas[i].Release()
+			}
+		}()
 		readcost := time.Since(now)
 		var rows *nulls.Nulls
 		var bisect time.Duration
@@ -118,6 +131,7 @@ func BlockRead(
 	fs fileservice.FileService,
 	mp *mpool.MPool,
 	vp engine.VectorPool,
+	cachePolicy fileservice.CachePolicy,
 ) (*batch.Batch, error) {
 	if logutil.GetSkip1Logger().Core().Enabled(zap.DebugLevel) {
 		logutil.Debugf("read block %s, columns %v, types %v", info.BlockID.String(), columns, colTypes)
@@ -131,7 +145,7 @@ func BlockRead(
 	if filter != nil && info.Sorted {
 		if sels, err = ReadByFilter(
 			ctx, info, inputDeletes, filterSeqnums, filterColTypes,
-			types.TimestampToTS(ts), filter, fs, mp,
+			types.TimestampToTS(ts), filter, fs, mp, cachePolicy,
 		); err != nil {
 			return nil, err
 		}
@@ -157,6 +171,7 @@ func BlockRead(
 	columnBatch, err := BlockReadInner(
 		ctx, info, inputDeletes, columns, colTypes,
 		types.TimestampToTS(ts), sels, fs, mp, vp,
+		cachePolicy,
 	)
 	if err != nil {
 		return nil, err
@@ -174,15 +189,18 @@ func BlockCompactionRead(
 	colTypes []types.Type,
 	fs fileservice.FileService,
 	mp *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (*batch.Batch, error) {
 
-	loaded, err := LoadColumns(ctx, seqnums, colTypes, fs, location, mp)
+	loaded, datas, err := LoadColumns(ctx, seqnums, colTypes, fs, location, mp, cachePolicy)
 	if err != nil {
 		return nil, err
 	}
-	if len(deletes) == 0 {
-		return loaded, nil
-	}
+	defer func() {
+		for i := range datas {
+			datas[i].Release()
+		}
+	}()
 	result := batch.NewWithSize(len(loaded.Vecs))
 	for i, col := range loaded.Vecs {
 		typ := *col.GetType()
@@ -216,20 +234,27 @@ func BlockReadInner(
 	fs fileservice.FileService,
 	mp *mpool.MPool,
 	vp engine.VectorPool,
+	cachePolicy fileservice.CachePolicy,
 ) (result *batch.Batch, err error) {
 	var (
 		rowidPos    int
 		deletedRows []int64
 		deleteMask  nulls.Bitmap
 		loaded      *batch.Batch
+		datas       []mocache.CacheData
 	)
 
 	// read block data from storage specified by meta location
-	if loaded, rowidPos, deleteMask, err = readBlockData(
-		ctx, columns, colTypes, info, ts, fs, mp, vp,
+	if loaded, datas, rowidPos, deleteMask, err = readBlockData(
+		ctx, columns, colTypes, info, ts, fs, mp, vp, cachePolicy,
 	); err != nil {
 		return
 	}
+	defer func() {
+		for i := range datas {
+			datas[i].Release()
+		}
+	}()
 
 	// assemble result batch for return
 	result = batch.NewWithSize(len(loaded.Vecs))
@@ -277,11 +302,18 @@ func BlockReadInner(
 	if !info.DeltaLocation().IsEmpty() {
 		var deletes *batch.Batch
 		var persistedByCN bool
+		var deleteDatas []mocache.CacheData
+
 		now := time.Now()
 		// load from storage
-		if deletes, persistedByCN, err = ReadBlockDelete(ctx, info.DeltaLocation(), fs); err != nil {
+		if deletes, deleteDatas, persistedByCN, err = ReadBlockDelete(ctx, info.DeltaLocation(), fs, cachePolicy); err != nil {
 			return
 		}
+		defer func() {
+			for i := range deleteDatas {
+				deleteDatas[i].Release()
+			}
+		}()
 		readcost := time.Since(now)
 
 		// eval delete rows by timestamp
@@ -436,9 +468,10 @@ func readBlockData(
 	fs fileservice.FileService,
 	m *mpool.MPool,
 	vp engine.VectorPool,
-) (bat *batch.Batch, rowidPos int, deleteMask nulls.Bitmap, err error) {
-	rowidPos, idxes, typs := getRowsIdIndex(colIndexes, colTypes)
+	cachePolicy fileservice.CachePolicy,
+) (bat *batch.Batch, datas []mocache.CacheData, rowidPos int, deleteMask nulls.Bitmap, err error) {
 
+	rowidPos, idxes, typs := getRowsIdIndex(colIndexes, colTypes)
 	readColumns := func(cols []uint16) (result *batch.Batch, loaded *batch.Batch, err error) {
 		if len(cols) == 0 && rowidPos >= 0 {
 			// only read rowid column on non appendable block, return early
@@ -447,7 +480,7 @@ func readBlockData(
 			return
 		}
 
-		if loaded, err = LoadColumns(ctx, cols, typs, fs, info.MetaLocation(), m); err != nil {
+		if loaded, datas, err = LoadColumns(ctx, cols, typs, fs, info.MetaLocation(), m, cachePolicy); err != nil {
 			return
 		}
 
@@ -494,19 +527,20 @@ func readBlockData(
 
 	return
 }
-func ReadBlockDelete(ctx context.Context, deltaloc objectio.Location, fs fileservice.FileService) (bat *batch.Batch, isPersistedByCN bool, err error) {
+
+func ReadBlockDelete(ctx context.Context, deltaloc objectio.Location, fs fileservice.FileService, cachePolicy fileservice.CachePolicy) (bat *batch.Batch, datas []mocache.CacheData, isPersistedByCN bool, err error) {
 	isPersistedByCN, err = persistedByCN(ctx, deltaloc, fs)
 	if err != nil {
 		return
 	}
 	if isPersistedByCN {
-		bat, err = LoadTombstoneColumns(ctx, []uint16{0, 1}, nil, fs, deltaloc, nil)
+		bat, datas, err = LoadTombstoneColumns(ctx, []uint16{0, 1}, nil, fs, deltaloc, nil, cachePolicy)
 		if err != nil {
 			return
 		}
 		return
 	} else {
-		bat, err = LoadTombstoneColumns(ctx, []uint16{0, 1, 2, 3}, nil, fs, deltaloc, nil)
+		bat, datas, err = LoadTombstoneColumns(ctx, []uint16{0, 1, 2, 3}, nil, fs, deltaloc, nil, cachePolicy)
 		if err != nil {
 			return
 		}

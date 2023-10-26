@@ -186,7 +186,8 @@ func HandleRemoteRead(
 	for i, k := range req.RemoteReadRequest.RequestCacheKey {
 		var data []byte
 		if ioVec.Entries[i].CachedData != nil {
-			data = ioVec.Entries[i].CachedData.Bytes()
+			data = ioVec.Entries[i].CachedData.Get()
+			defer ioVec.Entries[i].CachedData.Release()
 		}
 		respData[i] = &pb.ResponseCacheData{
 			Index: k.Index,

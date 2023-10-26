@@ -34,7 +34,7 @@ type LRU[K comparable, V BytesLike] struct {
 }
 
 type BytesLike interface {
-	Bytes() []byte
+	Get() []byte
 }
 
 type Bytes []byte
@@ -43,7 +43,7 @@ func (b Bytes) Size() int64 {
 	return int64(len(b))
 }
 
-func (b Bytes) Bytes() []byte {
+func (b Bytes) Get() []byte {
 	return b
 }
 
@@ -82,7 +82,7 @@ func (l *LRU[K, V]) Set(ctx context.Context, key K, value V) {
 		// replace
 		item := elem.Value.(*lruItem[K, V])
 		l.size -= item.Size
-		size := int64(len(value.Bytes()))
+		size := int64(len(value.Get()))
 		l.size += size
 		item.Size = size
 		item.Key = key
@@ -93,7 +93,7 @@ func (l *LRU[K, V]) Set(ctx context.Context, key K, value V) {
 
 	} else {
 		// insert
-		size := int64(len(value.Bytes()))
+		size := int64(len(value.Get()))
 		item := &lruItem[K, V]{
 			Key:   key,
 			Value: value,

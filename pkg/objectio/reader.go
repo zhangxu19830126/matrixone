@@ -158,13 +158,14 @@ func (r *objectReaderV1) ReadOneBlock(
 	typs []types.Type,
 	blk uint16,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (ioVec *fileservice.IOVector, err error) {
 	var metaHeader ObjectMeta
 	if metaHeader, err = r.ReadMeta(ctx, m); err != nil {
 		return
 	}
 	meta, _ := metaHeader.DataMeta()
-	return ReadOneBlockWithMeta(ctx, &meta, r.name, blk, idxs, typs, m, r.fs, constructorFactory)
+	return ReadOneBlockWithMeta(ctx, &meta, r.name, blk, idxs, typs, m, cachePolicy, r.fs, constructorFactory)
 }
 
 func (r *objectReaderV1) ReadSubBlock(
@@ -173,6 +174,7 @@ func (r *objectReaderV1) ReadSubBlock(
 	typs []types.Type,
 	blk uint16,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (ioVecs []*fileservice.IOVector, err error) {
 	var metaHeader ObjectMeta
 	if metaHeader, err = r.ReadMeta(ctx, m); err != nil {
@@ -182,7 +184,7 @@ func (r *objectReaderV1) ReadSubBlock(
 	ioVecs = make([]*fileservice.IOVector, 0)
 	for i := uint32(0); i < meta.BlockCount(); i++ {
 		var ioVec *fileservice.IOVector
-		ioVec, err = ReadOneBlockWithMeta(ctx, &meta, r.name, meta.BlockHeader().StartID()+uint16(i), idxs, typs, m, r.fs, constructorFactory)
+		ioVec, err = ReadOneBlockWithMeta(ctx, &meta, r.name, meta.BlockHeader().StartID()+uint16(i), idxs, typs, m, cachePolicy, r.fs, constructorFactory)
 		if err != nil {
 			return
 		}
@@ -198,13 +200,14 @@ func (r *objectReaderV1) ReadOneSubBlock(
 	dataType uint16,
 	blk uint16,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (ioVec *fileservice.IOVector, err error) {
 	var metaHeader ObjectMeta
 	if metaHeader, err = r.ReadMeta(ctx, m); err != nil {
 		return
 	}
 	meta, _ := metaHeader.SubMeta(dataType)
-	ioVec, err = ReadOneBlockWithMeta(ctx, &meta, r.name, blk, idxs, typs, m, r.fs, constructorFactory)
+	ioVec, err = ReadOneBlockWithMeta(ctx, &meta, r.name, blk, idxs, typs, m, cachePolicy, r.fs, constructorFactory)
 	if err != nil {
 		return
 	}
@@ -293,6 +296,7 @@ func (r *objectReaderV1) ReadMultiBlocks(
 	ctx context.Context,
 	opts map[uint16]*ReadBlockOptions,
 	m *mpool.MPool,
+	cachePolicy fileservice.CachePolicy,
 ) (ioVec *fileservice.IOVector, err error) {
 	var objectMeta ObjectMeta
 	if objectMeta, err = r.ReadMeta(ctx, m); err != nil {
@@ -303,6 +307,7 @@ func (r *objectReaderV1) ReadMultiBlocks(
 		r.name,
 		objectMeta,
 		opts,
+		cachePolicy,
 		r.fs,
 		constructorFactory)
 }

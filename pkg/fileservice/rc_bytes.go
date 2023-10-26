@@ -14,6 +14,8 @@
 
 package fileservice
 
+import "github.com/matrixorigin/mocache"
+
 // RCBytes represents a reference counting []byte from a pool
 // newly created RCBytes' ref count is 1
 // owner should call Release to give it back to the pool
@@ -22,11 +24,15 @@ type RCBytes struct {
 	*RCPoolItem[[]byte]
 }
 
-func (r RCBytes) Bytes() []byte {
+func (r RCBytes) Get() []byte {
 	return r.Value
 }
 
-func (r RCBytes) Slice(length int) CacheData {
+func (r RCBytes) GetValue() *mocache.Value {
+	return nil
+}
+
+func (r RCBytes) Truncate(length int) mocache.CacheData {
 	r.Value = r.Value[:length]
 	return r
 }
@@ -100,6 +106,10 @@ func (r *rcBytesPool) GetAndCopy(from []byte) RCBytes {
 
 var _ CacheDataAllocator = new(rcBytesPool)
 
-func (r *rcBytesPool) Alloc(size int) CacheData {
+func (r *rcBytesPool) Alloc(size int) mocache.CacheData {
+	return r.Get(size)
+}
+
+func (r *rcBytesPool) AllocWithKey(_ string, _ uint64, size int) mocache.CacheData {
 	return r.Get(size)
 }
