@@ -586,6 +586,11 @@ func (r *syncLogTailTimestamp) getTimestamp() timestamp.Timestamp {
 }
 
 func (r *syncLogTailTimestamp) updateTimestamp(index int, newTimestamp timestamp.Timestamp) {
+	start := time.Now()
+	defer func() {
+		v2.LogTailNotifyDurationHistogram.Observe(time.Since(start).Seconds())
+	}()
+
 	r.tList[index].Store(&newTimestamp)
 	if r.ready.Load() {
 		ts := r.getTimestamp()

@@ -30,6 +30,8 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		"Logtail Metrics",
 		c.withRowOptions(
 			c.initLogtailQueueRow(),
+			c.initLogtailApplyRow(),
+			c.initTxnCNWaitCommitLogtailResponseRow(),
 			c.initLogtailLoadCheckpointRow(),
 			c.initLogtailBytesRow(),
 			c.initLogtailAppendRow(),
@@ -78,18 +80,23 @@ func (c *DashboardCreator) initLogtailQueueRow() dashboard.Option {
 		"Logtail Queue Status",
 		c.withGraph(
 			"Sending Queue",
-			4,
+			3,
 			`sum(`+c.getMetricWithFilter("mo_logtail_queue_size", `type="send"`)+`) by (`+c.by+`)`,
 			"{{ "+c.by+" }}"),
 		c.withGraph(
 			"Receiving Queue",
-			4,
+			3,
 			`sum(`+c.getMetricWithFilter("mo_logtail_queue_size", `type="receive"`)+`) by (`+c.by+`)`,
+			"{{ "+c.by+" }}"),
+		c.withGraph(
+			"Apply Queue",
+			3,
+			`sum(`+c.getMetricWithFilter("mo_logtail_queue_size", `type="apply"`)+`) by (`+c.by+`)`,
 			"{{ "+c.by+" }}"),
 
 		c.withGraph(
 			"Checkpoint logtail",
-			4,
+			3,
 			`sum(rate(`+c.getMetricWithFilter("mo_logtail_load_checkpoint_total", "")+`[$interval])) by (`+c.by+`)`,
 			"{{ "+c.by+" }}"),
 	)
