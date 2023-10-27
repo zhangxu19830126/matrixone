@@ -61,9 +61,9 @@ func (tw *timestampWaiter) GetTimestamp(ctx context.Context, ts timestamp.Timest
 		return latest.Next(), nil
 	}
 
+	start := time.Now()
 	w := tw.addToWait(ts)
 	if w != nil {
-		start := time.Now()
 		defer func() {
 			w.close()
 			v2.TxnWaiterAddedDurationHistogram.Observe(time.Since(start).Seconds())
