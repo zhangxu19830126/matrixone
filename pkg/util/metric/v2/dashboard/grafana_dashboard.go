@@ -169,6 +169,24 @@ func (c *DashboardCreator) getBytesHistogram(
 	return options
 }
 
+func (c *DashboardCreator) getCountHistogram(
+	metric string,
+	percents []float64,
+	columns []float32) []row.Option {
+	var options []row.Option
+
+	for i := 0; i < len(percents); i++ {
+		percent := percents[i]
+		options = append(options, c.withGraph(
+			fmt.Sprintf("P%f time", percent*100),
+			columns[i],
+			fmt.Sprintf("histogram_quantile(%f, sum(rate(%s[$interval])) by (le, "+c.by+"))", percent, metric),
+			"{{ "+c.by+" }}",
+			axis.Min(0)))
+	}
+	return options
+}
+
 func (c *DashboardCreator) withRowOptions(rows ...dashboard.Option) []dashboard.Option {
 	return append(rows,
 		dashboard.AutoRefresh("30s"),

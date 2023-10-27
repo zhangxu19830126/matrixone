@@ -76,6 +76,7 @@ func initTxnMetrics() {
 
 	registry.MustRegister(txnQueueSizeGauge)
 
+	registry.MustRegister(TxnLifeCycleStatementsTotalHistogram)
 	registry.MustRegister(txnCommitDurationHistogram)
 	registry.MustRegister(TxnLifeCycleDurationHistogram)
 	registry.MustRegister(txnCreateDurationHistogram)

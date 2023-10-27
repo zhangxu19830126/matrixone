@@ -31,6 +31,7 @@ func (c *DashboardCreator) initTxnDashboard() error {
 		c.withRowOptions(
 			c.initTxnOverviewRow(),
 			c.initTxnLifeRow(),
+			c.initTxnLifeStatementsRow(),
 			c.initTxnCreateRow(),
 			c.initTxnDetermineSnapshotRow(),
 			c.initTxnWaitActiveRow(),
@@ -60,31 +61,31 @@ func (c *DashboardCreator) initTxnOverviewRow() dashboard.Option {
 		"Txn overview",
 		c.withGraph(
 			"Txn requests",
-			2.4,
+			3,
 			`sum(rate(`+c.getMetricWithFilter("mo_txn_total", "")+`[$interval])) by (`+c.by+`, type)`,
 			"{{ "+c.by+"-type }}"),
 
 		c.withGraph(
-			"Statement requests",
-			2.4,
-			`sum(rate(`+c.getMetricWithFilter("mo_txn_statement_total", "")+`[$interval])) by (`+c.by+`, type)`,
-			"{{ "+c.by+"-type }}"),
-
-		c.withGraph(
 			"Commit requests",
-			2.4,
+			3,
 			`sum(rate(`+c.getMetricWithFilter("mo_txn_commit_total", "")+`[$interval])) by (`+c.by+`, type)`,
 			"{{ "+c.by+"-type }}"),
 
 		c.withGraph(
 			"Rollback requests",
-			2.4,
+			2,
 			`sum(rate(`+c.getMetricWithFilter("mo_txn_rollback_total", "")+`[$interval])) by (`+c.by+`)`,
 			"{{ "+c.by+" }}"),
 
 		c.withGraph(
+			"Statement requests",
+			2,
+			`sum(rate(`+c.getMetricWithFilter("mo_txn_statement_total", "")+`[$interval])) by (`+c.by+`, type)`,
+			"{{ "+c.by+"-type }}"),
+
+		c.withGraph(
 			"Lock requests",
-			2.4,
+			2,
 			`sum(rate(`+c.getMetricWithFilter("mo_txn_lock_total", "")+`[$interval])) by (`+c.by+`, type)`,
 			"{{ "+c.by+"-type }}"),
 	)
@@ -155,6 +156,16 @@ func (c *DashboardCreator) initTxnLifeRow() dashboard.Option {
 		"Txn life",
 		c.getHistogram(
 			c.getMetricWithFilter(`mo_txn_life_duration_seconds_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
+func (c *DashboardCreator) initTxnLifeStatementsRow() dashboard.Option {
+	return dashboard.Row(
+		"Txn life statements",
+		c.getCountHistogram(
+			c.getMetricWithFilter(`mo_txn_life_statements_total_bucket`, ``),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			[]float32{3, 3, 3, 3})...,
 	)

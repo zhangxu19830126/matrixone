@@ -947,7 +947,9 @@ func (tc *txnOperator) trimResponses(result *rpc.SendResult, err error) (*rpc.Se
 }
 
 func (tc *txnOperator) unlock(ctx context.Context) {
-	v2.TxnCNCommitResponseDurationHistogram.Observe(float64(time.Since(tc.commitAt).Seconds()))
+	if !tc.commitAt.IsZero() {
+		v2.TxnCNCommitResponseDurationHistogram.Observe(float64(time.Since(tc.commitAt).Seconds()))
+	}
 
 	// rc mode need to see the committed value, so wait logtail applied
 	if tc.mu.txn.IsRCIsolation() &&

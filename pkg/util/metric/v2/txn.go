@@ -107,6 +107,15 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		})
 
+	TxnLifeCycleStatementsTotalHistogram = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "txn",
+			Name:      "life_statements_total",
+			Help:      "Bucketed histogram of statement total in a txn.",
+			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 10),
+		})
+
 	txnCreateDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "mo",
