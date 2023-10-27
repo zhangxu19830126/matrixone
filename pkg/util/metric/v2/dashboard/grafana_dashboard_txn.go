@@ -141,6 +141,16 @@ func (c *DashboardCreator) initTxnCNWaitCommitLogtailResponseRow() dashboard.Opt
 	)
 }
 
+func (c *DashboardCreator) initTxnCNWaiterAddedRow() dashboard.Option {
+	return dashboard.Row(
+		"Txn CN waiter added",
+		c.getHistogram(
+			c.getMetricWithFilter(`mo_txn_commit_duration_seconds_bucket`, `type="waiter-added"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
 func (c *DashboardCreator) initTxnTNCommitRow() dashboard.Option {
 	return dashboard.Row(
 		"Txn TN commit",

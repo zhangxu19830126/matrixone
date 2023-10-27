@@ -19,10 +19,12 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
 	"github.com/matrixorigin/matrixone/pkg/txn/util"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 )
 
 const (
@@ -61,7 +63,11 @@ func (tw *timestampWaiter) GetTimestamp(ctx context.Context, ts timestamp.Timest
 
 	w := tw.addToWait(ts)
 	if w != nil {
-		defer w.close()
+		start := time.Now()
+		defer func() {
+			w.close()
+			v2.TxnWaiterAddedDurationHistogram.Observe(time.Since(start).Seconds())
+		}()
 		if err := w.wait(ctx); err != nil {
 			return timestamp.Timestamp{}, err
 		}

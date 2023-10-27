@@ -31,7 +31,9 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		c.withRowOptions(
 			c.initLogtailQueueRow(),
 			c.initLogtailApplyRow(),
+			c.initLogtailNotifyRow(),
 			c.initTxnCNWaitCommitLogtailResponseRow(),
+			c.initTxnCNWaiterAddedRow(),
 			c.initLogtailLoadCheckpointRow(),
 			c.initLogtailBytesRow(),
 			c.initLogtailAppendRow(),
@@ -127,6 +129,16 @@ func (c *DashboardCreator) initLogtailApplyRow() dashboard.Option {
 		"Logtail apply",
 		c.getHistogram(
 			c.getMetricWithFilter(`mo_logtail_apply_duration_seconds_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
+func (c *DashboardCreator) initLogtailNotifyRow() dashboard.Option {
+	return dashboard.Row(
+		"Logtail notify",
+		c.getHistogram(
+			c.getMetricWithFilter(`mo_logtail_notify_duration_seconds_bucket`, ``),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			[]float32{3, 3, 3, 3})...,
 	)

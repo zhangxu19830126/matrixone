@@ -127,6 +127,7 @@ var (
 	TxnCreateTotalDurationHistogram       = txnCreateDurationHistogram.WithLabelValues("total")
 	TxnDetermineSnapshotDurationHistogram = txnCreateDurationHistogram.WithLabelValues("determine-snapshot")
 	TxnWaitActiveDurationHistogram        = txnCreateDurationHistogram.WithLabelValues("wait-active")
+	TxnWaiterAddedDurationHistogram       = txnCreateDurationHistogram.WithLabelValues("waiter-added")
 
 	txnStatementDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
