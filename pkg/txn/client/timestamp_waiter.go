@@ -64,9 +64,9 @@ func (tw *timestampWaiter) GetTimestamp(ctx context.Context, ts timestamp.Timest
 	start := time.Now()
 	w := tw.addToWait(ts)
 	if w != nil {
+		v2.TxnWaiterAddedDurationHistogram.Observe(time.Since(start).Seconds())
 		defer func() {
 			w.close()
-			v2.TxnWaiterAddedDurationHistogram.Observe(time.Since(start).Seconds())
 		}()
 		if err := w.wait(ctx); err != nil {
 			return timestamp.Timestamp{}, err
@@ -77,7 +77,7 @@ func (tw *timestampWaiter) GetTimestamp(ctx context.Context, ts timestamp.Timest
 }
 
 func (tw *timestampWaiter) NotifyLatestCommitTS(ts timestamp.Timestamp) {
-	util.LogTxnPushedTimestampUpdated(ts)
+	// util.LogTxnPushedTimestampUpdated(ts)
 	tw.notifiedC <- ts
 }
 
