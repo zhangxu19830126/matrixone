@@ -17,6 +17,7 @@ package disttae
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,7 +41,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/logtail/service"
 )
 
-const (
+var (
 	// reconnection related constants.
 	// maxTimeToWaitServerResponse : max time to wait for server response. if time exceed, do reconnection.
 	// retryReconnect : if reconnect tn failed. push client will retry after time retryReconnect.
@@ -71,7 +72,7 @@ const (
 
 	// log tail consumer related constants.
 	// if buffer is almost full (percent > consumerWarningPercent, we will send a message to log.
-	consumerNumber         = 4
+	consumerNumber         = uint64(runtime.NumCPU())
 	consumerBufferLength   = 8192
 	consumerWarningPercent = 0.9
 )
@@ -794,7 +795,7 @@ func distributeSubscribeResponse(
 		recRoutines[routineIndex].sendSubscribeResponse(ctx, response)
 	}
 	// no matter how we consume the response, should update all timestamp.
-	e.pClient.receivedLogTailTime.updateTimestamp(consumerNumber, *lt.Ts)
+	e.pClient.receivedLogTailTime.updateTimestamp(int(consumerNumber), *lt.Ts)
 	for _, rc := range recRoutines {
 		rc.updateTimeFromT(*lt.Ts)
 	}
@@ -809,32 +810,19 @@ func distributeUpdateResponse(
 	list := response.GetLogtailList()
 
 	// loops for mo_database, mo_tables, mo_columns.
-	for i := 0; i < len(list); i++ {
+	n := len(list)
+	for i := 0; i < n; i++ {
 		table := list[i].Table
-		if table.TbId == catalog.MO_DATABASE_ID {
-			if err := e.consumeUpdateLogTail(ctx, list[i], false); err != nil {
-				return err
-			}
-		}
-	}
-	for i := 0; i < len(list); i++ {
-		table := list[i].Table
-		if table.TbId == catalog.MO_TABLES_ID {
-			if err := e.consumeUpdateLogTail(ctx, list[i], false); err != nil {
-				return err
-			}
-		}
-	}
-	for i := 0; i < len(list); i++ {
-		table := list[i].Table
-		if table.TbId == catalog.MO_COLUMNS_ID {
+		if table.TbId == catalog.MO_DATABASE_ID ||
+			table.TbId == catalog.MO_TABLES_ID ||
+			table.TbId == catalog.MO_COLUMNS_ID {
 			if err := e.consumeUpdateLogTail(ctx, list[i], false); err != nil {
 				return err
 			}
 		}
 	}
 
-	for index := 0; index < len(list); index++ {
+	for index := 0; index < n; index++ {
 		table := list[index].Table
 		if ifShouldNotDistribute(table.DbId, table.TbId) {
 			continue
@@ -843,11 +831,11 @@ func distributeUpdateResponse(
 		recRoutines[recIndex].sendTableLogTail(list[index])
 	}
 	// should update all the timestamp.
-	e.pClient.receivedLogTailTime.updateTimestamp(consumerNumber, *response.To)
+	e.pClient.receivedLogTailTime.updateTimestamp(int(consumerNumber), *response.To)
 	for _, rc := range recRoutines {
 		rc.updateTimeFromT(*response.To)
 	}
-	n := 0
+	n = 0
 	for _, c := range recRoutines {
 		n += len(c.signalChan)
 	}
