@@ -66,6 +66,7 @@ func initLogtailMetrics() {
 	registry.MustRegister(LogTailCollectDurationHistogram)
 	registry.MustRegister(LogTailSubscriptionCounter)
 	registry.MustRegister(TxnPrePrepareDurationHistogram)
+	registry.MustRegister(LogTailNotifyLatencyDurationHistogram)
 }
 
 func initTxnMetrics() {

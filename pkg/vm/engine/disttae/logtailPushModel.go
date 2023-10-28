@@ -894,7 +894,7 @@ func (rc *routineController) updateTimeFromT(t timestamp.Timestamp) {
 		logutil.Infof("[log-tail-push-client] consume-routine %d signalChan len is %d, maybe consume is too slow", rc.routineId, l)
 	}
 
-	rc.signalChan <- cmdToUpdateTime{time: t}
+	rc.signalChan <- cmdToUpdateTime{time: t, createAt: time.Now()}
 }
 
 func (rc *routineController) sendUnSubscribeResponse(r *logtail.UnSubscribeResponse) {
@@ -958,7 +958,10 @@ type routineControlCmd interface {
 
 type cmdToConsumeSub struct{ log *logtail.SubscribeResponse }
 type cmdToConsumeLog struct{ log logtail.TableLogtail }
-type cmdToUpdateTime struct{ time timestamp.Timestamp }
+type cmdToUpdateTime struct {
+	time     timestamp.Timestamp
+	createAt time.Time
+}
 type cmdToConsumeUnSub struct{ log *logtail.UnSubscribeResponse }
 
 func (cmd cmdToConsumeSub) action(ctx context.Context, e *Engine, ctrl *routineController) error {
@@ -981,6 +984,7 @@ func (cmd cmdToConsumeLog) action(ctx context.Context, e *Engine, ctrl *routineC
 }
 
 func (cmd cmdToUpdateTime) action(ctx context.Context, e *Engine, ctrl *routineController) error {
+	v2.LogTailNotifyLatencyDurationHistogram.Observe(time.Since(cmd.createAt).Seconds())
 	e.pClient.receivedLogTailTime.updateTimestamp(ctrl.routineId, cmd.time)
 	return nil
 }
