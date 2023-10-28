@@ -30,8 +30,10 @@ func (c *DashboardCreator) initLogTailDashboard() error {
 		"Logtail Metrics",
 		c.withRowOptions(
 			c.initLogtailQueueRow(),
+			c.initLogtailPartitionCopyRow(),
 			c.initLogtailApplyRow(),
 			c.initLogtailNotifyRow(),
+			c.initLogtailNotifyLatencyRow(),
 			c.initTxnCNWaitCommitLogtailResponseRow(),
 			c.initTxnCNWaiterAddedRow(),
 			c.initLogtailLoadCheckpointRow(),
@@ -139,6 +141,26 @@ func (c *DashboardCreator) initLogtailNotifyRow() dashboard.Option {
 		"Logtail notify",
 		c.getHistogram(
 			c.getMetricWithFilter(`mo_logtail_notify_duration_seconds_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
+func (c *DashboardCreator) initLogtailNotifyLatencyRow() dashboard.Option {
+	return dashboard.Row(
+		"Logtail notify latency",
+		c.getHistogram(
+			c.getMetricWithFilter(`mo_logtail_notify_latency_duration_seconds_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
+func (c *DashboardCreator) initLogtailPartitionCopyRow() dashboard.Option {
+	return dashboard.Row(
+		"Logtail partition copy",
+		c.getHistogram(
+			c.getMetricWithFilter(`mo_logtail_copy_partition_duration_seconds_bucket`, ``),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			[]float32{3, 3, 3, 3})...,
 	)

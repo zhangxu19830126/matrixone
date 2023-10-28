@@ -62,6 +62,7 @@ func initLogtailMetrics() {
 	registry.MustRegister(LogTailAppendDurationHistogram)
 	registry.MustRegister(logTailSendDurationHistogram)
 	registry.MustRegister(LogTailLoadCheckpointDurationHistogram)
+	registry.MustRegister(LogTailCopyPartitionDurationHistogram)
 
 	registry.MustRegister(LogTailCollectDurationHistogram)
 	registry.MustRegister(LogTailSubscriptionCounter)

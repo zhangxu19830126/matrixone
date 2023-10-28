@@ -35,6 +35,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/objectio"
 	"github.com/matrixorigin/matrixone/pkg/pb/api"
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"github.com/tidwall/btree"
 )
 
@@ -207,6 +208,11 @@ func NewPartitionState(noData bool) *PartitionState {
 }
 
 func (p *PartitionState) Copy() *PartitionState {
+	start := time.Now()
+	defer func() {
+		v2.LogTailCopyPartitionDurationHistogram.Observe(time.Since(start).Seconds())
+	}()
+
 	state := PartitionState{
 		rows:           p.rows.Copy(),
 		blocks:         p.blocks.Copy(),

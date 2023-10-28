@@ -78,6 +78,15 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		})
 
+	LogTailCopyPartitionDurationHistogram = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "logtail",
+			Name:      "copy_partition_duration_seconds",
+			Help:      "Bucketed histogram of notify log tail latency duration.",
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
+		})
+
 	LogTailAppendDurationHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "mo",
