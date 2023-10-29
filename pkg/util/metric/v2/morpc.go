@@ -19,6 +19,14 @@ import (
 )
 
 var (
+	RPCClientTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "client_total",
+			Help:      "Total number of morpc clients.",
+		}, []string{"name"})
+
 	rpcMessageCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "mo",

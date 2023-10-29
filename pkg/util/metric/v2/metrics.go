@@ -99,6 +99,7 @@ func initRPCMetrics() {
 	registry.MustRegister(rpcSendingQueueSizeGauge)
 	registry.MustRegister(rpcSendingBatchSizeGauge)
 	registry.MustRegister(rpcServerSessionSizeGauge)
+	registry.MustRegister(RPCClientTotal)
 
 	registry.MustRegister(rpcBackendConnectDurationHistogram)
 	registry.MustRegister(rpcWriteDurationHistogram)
