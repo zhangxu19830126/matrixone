@@ -46,10 +46,12 @@ var (
 			Name:      "commit_total",
 			Help:      "Total number of txn commit handled.",
 		}, []string{"type"})
-	TxnCNCommitCounter        = txnCommitCounter.WithLabelValues("cn")
-	TxnCNSendCommitCounter    = txnCommitCounter.WithLabelValues("cn-send")
-	TxnTNReceiveCommitCounter = txnCommitCounter.WithLabelValues("tn-receive")
-	TxnTNCommitHandledCounter = txnCommitCounter.WithLabelValues("tn-handle")
+	TxnCNCommitCounter                = txnCommitCounter.WithLabelValues("cn")
+	TxnCNCommitBeforeWorkspaceCounter = txnCommitCounter.WithLabelValues("cn-before-workspace")
+	TxnCNCommitAfterWorkspaceCounter  = txnCommitCounter.WithLabelValues("cn-after-workspace")
+	TxnCNSendCommitCounter            = txnCommitCounter.WithLabelValues("cn-send")
+	TxnTNReceiveCommitCounter         = txnCommitCounter.WithLabelValues("tn-receive")
+	TxnTNCommitHandledCounter         = txnCommitCounter.WithLabelValues("tn-handle")
 
 	TxnRollbackCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{

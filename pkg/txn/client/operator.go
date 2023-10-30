@@ -583,7 +583,9 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	var payload []txn.TxnRequest
 	if commit {
 		if tc.workspace != nil {
+			v2.TxnCNCommitBeforeWorkspaceCounter.Inc()
 			reqs, err := tc.workspace.Commit(ctx)
+			v2.TxnCNCommitAfterWorkspaceCounter.Inc()
 			if err != nil {
 				return nil, errors.Join(err, tc.Rollback(ctx))
 			}
