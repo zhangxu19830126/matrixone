@@ -50,6 +50,7 @@ var (
 	TxnCNCommit1Counter       = txnCommitCounter.WithLabelValues("cn-1")
 	TxnCNCommit2Counter       = txnCommitCounter.WithLabelValues("cn-2")
 	TxnCNCommit3Counter       = txnCommitCounter.WithLabelValues("cn-3")
+	TxnCNCommit4Counter       = txnCommitCounter.WithLabelValues("cn-4")
 	TxnCNSendCommitCounter    = txnCommitCounter.WithLabelValues("cn-send")
 	TxnTNReceiveCommitCounter = txnCommitCounter.WithLabelValues("tn-receive")
 	TxnTNCommitHandledCounter = txnCommitCounter.WithLabelValues("tn-handle")
