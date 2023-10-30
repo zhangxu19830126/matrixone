@@ -581,16 +581,13 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 		util.GetLogger().Fatal("can not write on ready only transaction")
 	}
 
-	if commit {
-		tc.mu.Lock()
-		defer func() {
-			tc.closeLocked()
-			tc.mu.Unlock()
-		}()
-	}
-
 	if err := tc.validate(ctx, commit); err != nil {
 		return nil, err
+	}
+
+	// delayWrites enabled, no responses
+	if !commit && tc.maybeCacheWrites(requests, commit) {
+		return nil, nil
 	}
 
 	var payload []txn.TxnRequest
@@ -601,11 +598,17 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 				return nil, errors.Join(err, tc.Rollback(ctx))
 			}
 			payload = reqs
-			if len(payload) > 0 {
-				tc.updateWritePartitions(payload, commit)
-			}
 		}
 		v2.TxnCNCommit1Counter.Inc()
+
+		tc.mu.Lock()
+		defer func() {
+			tc.closeLocked()
+			tc.mu.Unlock()
+		}()
+		if tc.mu.closed {
+			return nil, moerr.NewTxnClosedNoCtx(tc.txnID)
+		}
 
 		if tc.needUnlockLocked() {
 			tc.mu.txn.LockTables = tc.mu.lockTables
@@ -619,6 +622,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			return nil, nil
 		}
 
+		requests = tc.maybeInsertCachedWrites(ctx, requests, true)
 		requests = append(requests, txn.TxnRequest{
 			Method: txn.TxnMethod_Commit,
 			Flag:   txn.SkipResponseFlag,
