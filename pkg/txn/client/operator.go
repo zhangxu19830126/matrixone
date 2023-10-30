@@ -583,9 +583,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	var payload []txn.TxnRequest
 	if commit {
 		if tc.workspace != nil {
-			v2.TxnCNCommitBeforeWorkspaceCounter.Inc()
 			reqs, err := tc.workspace.Commit(ctx)
-			v2.TxnCNCommitAfterWorkspaceCounter.Inc()
 			if err != nil {
 				return nil, errors.Join(err, tc.Rollback(ctx))
 			}
@@ -631,7 +629,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			tc.mu.txn.Status = txn.TxnStatus_Committed
 			return nil, nil
 		}
-
+		v2.TxnCNCommit2Counter.Inc()
 		requests = tc.maybeInsertCachedWrites(ctx, requests, true)
 		requests = append(requests, txn.TxnRequest{
 			Method: txn.TxnMethod_Commit,
@@ -640,6 +638,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 				Payload:       txnReqs,
 				Disable1PCOpt: tc.option.disable1PCOpt,
 			}})
+		v2.TxnCNCommit3Counter.Inc()
 	}
 	return tc.trimResponses(tc.handleError(tc.doSend(ctx, requests, commit)))
 }
