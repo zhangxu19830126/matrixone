@@ -167,6 +167,7 @@ func (s *sender) doSend(ctx context.Context, request txn.TxnRequest) (txn.TxnRes
 	}
 
 	start := time.Now()
+	v2.TxnCNSendCommitCounter.Inc()
 	f, err := s.client.Send(ctx, tn.Address, &request)
 	if err != nil {
 		return txn.TxnResponse{}, err
