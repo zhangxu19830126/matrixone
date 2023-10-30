@@ -580,16 +580,6 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	if tc.option.readyOnly {
 		util.GetLogger().Fatal("can not write on ready only transaction")
 	}
-
-	if err := tc.validate(ctx, commit); err != nil {
-		return nil, err
-	}
-
-	// delayWrites enabled, no responses
-	if !commit && tc.maybeCacheWrites(requests, commit) {
-		return nil, nil
-	}
-
 	var payload []txn.TxnRequest
 	if commit {
 		if tc.workspace != nil {
@@ -599,7 +589,6 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			}
 			payload = reqs
 		}
-		v2.TxnCNCommit1Counter.Inc()
 
 		tc.mu.Lock()
 		defer func() {
@@ -615,8 +604,28 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			defer tc.unlock(ctx)
 		}
 
-		tc.updateWritePartitions(requests, commit)
+		if payload != nil {
+			v2.TxnCNCommit1Counter.Inc()
+			for i := range payload {
+				payload[i].Txn = tc.mu.txn
+			}
+			v2.TxnCNCommit2Counter.Inc()
+		}
 
+		tc.updateWritePartitions(requests, commit)
+		v2.TxnCNCommit3Counter.Inc()
+	}
+
+	if err := tc.validate(ctx, commit); err != nil {
+		return nil, err
+	}
+
+	// delayWrites enabled, no responses
+	if !commit && tc.maybeCacheWrites(requests, commit) {
+		return nil, nil
+	}
+
+	if commit {
 		if len(tc.mu.txn.TNShards) == 0 { // commit no write handled txn
 			tc.mu.txn.Status = txn.TxnStatus_Committed
 			return nil, nil
@@ -630,7 +639,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 				Payload:       payload,
 				Disable1PCOpt: tc.option.disable1PCOpt,
 			}})
-		v2.TxnCNCommit2Counter.Inc()
+		v2.TxnCNCommit4Counter.Inc()
 	}
 	return tc.trimResponses(tc.handleError(tc.doSend(ctx, requests, commit)))
 }
