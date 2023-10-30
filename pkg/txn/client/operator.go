@@ -599,28 +599,26 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			return nil, moerr.NewTxnClosedNoCtx(tc.txnID)
 		}
 
-		v2.TxnCNCommit1Counter.Inc()
 		if tc.needUnlockLocked() {
 			tc.mu.txn.LockTables = tc.mu.lockTables
 			defer tc.unlock(ctx)
 		}
+
+		if payload != nil {
+			v2.TxnCNCommit1Counter.Inc()
+			for i := range payload {
+				payload[i].Txn = tc.mu.txn
+			}
+			v2.TxnCNCommit2Counter.Inc()
+		}
+
+		tc.updateWritePartitions(requests, commit)
+		v2.TxnCNCommit3Counter.Inc()
 	}
 
 	if err := tc.validate(ctx, commit); err != nil {
 		return nil, err
 	}
-	v2.TxnCNCommit2Counter.Inc()
-	var txnReqs []*txn.TxnRequest
-	if payload != nil {
-		for i := range payload {
-			payload[i].Txn = tc.getTxnMeta(true)
-			txnReqs = append(txnReqs, &payload[i])
-		}
-		tc.updateWritePartitions(payload, commit)
-		v2.TxnCNCommit3Counter.Inc()
-	}
-
-	tc.updateWritePartitions(requests, commit)
 
 	// delayWrites enabled, no responses
 	if !commit && tc.maybeCacheWrites(requests, commit) {
@@ -638,7 +636,7 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			Method: txn.TxnMethod_Commit,
 			Flag:   txn.SkipResponseFlag,
 			CommitRequest: &txn.TxnCommitRequest{
-				Payload:       txnReqs,
+				Payload:       payload,
 				Disable1PCOpt: tc.option.disable1PCOpt,
 			}})
 		v2.TxnCNCommit4Counter.Inc()

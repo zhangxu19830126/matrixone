@@ -269,7 +269,7 @@ message TxnResponse {
 
 // TxnCommitRequest CN sent the commit request to coordinator TN.
 message TxnCommitRequest {
-    repeated TxnRequest       Payload = 1;
+    repeated TxnRequest       Payload = 1 [(gogoproto.nullable) = false];
     bool                      Disable1PCOpt = 2;
 }
 

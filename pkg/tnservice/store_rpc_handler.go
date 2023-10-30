@@ -16,8 +16,9 @@ package tnservice
 
 import (
 	"context"
-	"github.com/matrixorigin/matrixone/pkg/util/trace"
 	"time"
+
+	"github.com/matrixorigin/matrixone/pkg/util/trace"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
@@ -112,8 +113,8 @@ func (s *store) handleCommit(ctx context.Context, request *txn.TxnRequest, respo
 	if request.CommitRequest != nil {
 		for _, req := range request.CommitRequest.Payload {
 			//response is shared by all requests
-			prepareResponse(req, response)
-			err := s.handleWrite(ctx, req, response)
+			prepareResponse(&req, response)
+			err := s.handleWrite(ctx, &req, response)
 			if err != nil {
 				return err
 			}
