@@ -26,7 +26,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/metadata"
 	"github.com/matrixorigin/matrixone/pkg/pb/txn"
 	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
-	"github.com/matrixorigin/matrixone/pkg/util/trace"
 )
 
 // WithSenderLocalDispatch set options for dispatch request to local to avoid rpc call
@@ -158,8 +157,6 @@ func (s *sender) Send(ctx context.Context, requests []txn.TxnRequest) (*SendResu
 }
 
 func (s *sender) doSend(ctx context.Context, request txn.TxnRequest) (txn.TxnResponse, error) {
-	ctx, span := trace.Debug(ctx, "sender.doSend")
-	defer span.End()
 	tn := request.GetTargetTN()
 	if s.options.localDispatch != nil {
 		if handle := s.options.localDispatch(tn); handle != nil {
