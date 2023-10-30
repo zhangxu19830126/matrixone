@@ -112,8 +112,10 @@ func (s *store) handleCommit(ctx context.Context, request *txn.TxnRequest, respo
 	r.waitStarted()
 	if request.CommitRequest != nil {
 		for _, req := range request.CommitRequest.Payload {
+			v := &req
+			v.Txn = request.Txn
 			//response is shared by all requests
-			prepareResponse(&req, response)
+			prepareResponse(v, response)
 			err := s.handleWrite(ctx, &req, response)
 			if err != nil {
 				return err
