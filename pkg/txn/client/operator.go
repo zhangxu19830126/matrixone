@@ -441,8 +441,6 @@ func (tc *txnOperator) WriteAndCommit(ctx context.Context, requests []txn.TxnReq
 }
 
 func (tc *txnOperator) Commit(ctx context.Context) error {
-	v2.TxnCNCommitCounter.Inc()
-
 	tc.commitAt = time.Now()
 	defer func() {
 		v2.TxnCNCommitDurationHistogram.Observe(time.Since(tc.commitAt).Seconds())
@@ -599,7 +597,6 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 			return nil, moerr.NewTxnClosedNoCtx(tc.txnID)
 		}
 
-		v2.TxnCNCommit1Counter.Inc()
 		if tc.needUnlockLocked() {
 			tc.mu.txn.LockTables = tc.mu.lockTables
 			defer tc.unlock(ctx)
@@ -609,15 +606,14 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 	if err := tc.validate(ctx, commit); err != nil {
 		return nil, err
 	}
-	v2.TxnCNCommit2Counter.Inc()
 	var txnReqs []*txn.TxnRequest
 	if payload != nil {
+		v2.TxnCNCommitCounter.Inc()
 		for i := range payload {
 			payload[i].Txn = tc.getTxnMeta(true)
 			txnReqs = append(txnReqs, &payload[i])
 		}
 		tc.updateWritePartitions(payload, commit)
-		v2.TxnCNCommit3Counter.Inc()
 	}
 
 	tc.updateWritePartitions(requests, commit)
@@ -641,7 +637,6 @@ func (tc *txnOperator) doWrite(ctx context.Context, requests []txn.TxnRequest, c
 				Payload:       txnReqs,
 				Disable1PCOpt: tc.option.disable1PCOpt,
 			}})
-		v2.TxnCNCommit4Counter.Inc()
 	}
 	return tc.trimResponses(tc.handleError(tc.doSend(ctx, requests, commit)))
 }
