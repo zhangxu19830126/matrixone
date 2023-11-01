@@ -50,6 +50,7 @@ func testCachingFileService(
 				Data: data,
 			},
 		},
+		CachePolicy: SkipAll,
 	})
 	assert.Nil(t, err)
 
