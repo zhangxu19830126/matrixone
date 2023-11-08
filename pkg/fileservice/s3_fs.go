@@ -31,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/perfcounter"
 	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"github.com/matrixorigin/matrixone/pkg/util/trace"
+	"github.com/matrixorigin/mocache"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +41,7 @@ type S3FS struct {
 	storage   ObjectStorage
 	keyPrefix string
 
-	memCache    *MemCache
+	memCache    *mocache.Cache
 	diskCache   *DiskCache
 	remoteCache *RemoteCache
 	asyncUpdate bool
@@ -131,10 +132,8 @@ func (s *S3FS) initCaches(ctx context.Context, config CacheConfig) error {
 
 	// memory cache
 	if *config.MemoryCapacity > DisableCacheCapacity {
-		s.memCache = NewMemCache(
-			NewLRUCache(int64(*config.MemoryCapacity), true, &config.CacheCallbacks),
-			s.perfCounterSets,
-		)
+		s.memCache = mocache.New(int64(*config.MemoryCapacity), config.CacheCallbacks.RemotePostSet,
+			config.CacheCallbacks.RemotePostEvict)
 		logutil.Info("fileservice: memory cache initialized",
 			zap.Any("fs-name", s.name),
 			zap.Any("capacity", config.MemoryCapacity),
@@ -360,16 +359,31 @@ func (s *S3FS) Read(ctx context.Context, vector *IOVector) (err error) {
 		wait()
 	}
 
-	if s.memCache != nil {
-		if err := s.memCache.Read(ctx, vector); err != nil {
-			return err
-		}
+	if s.memCache != nil && !vector.CachePolicy.Any(SkipMemoryReads) {
+		var numHit, numRead int64
+
 		defer func() {
-			if err != nil {
-				return
-			}
-			err = s.memCache.Update(ctx, vector, s.asyncUpdate)
+			perfcounter.Update(ctx, func(c *perfcounter.CounterSet) {
+				c.FileService.Cache.Read.Add(numRead)
+				c.FileService.Cache.Hit.Add(numHit)
+				c.FileService.Cache.Memory.Read.Add(numRead)
+				c.FileService.Cache.Memory.Hit.Add(numHit)
+			}, s.perfCounterSets...)
 		}()
+		for i, entry := range vector.Entries {
+			path, err := ParsePath(vector.FilePath)
+			if err != nil {
+				return err
+			}
+			h := s.memCache.Get(path.File, uint64(entry.Offset))
+			numRead++
+			if len(h.Get()) > 0 {
+				numHit++
+				vector.Entries[i].done = true
+				vector.Entries[i].CachedData = h
+				vector.Entries[i].fromCache = &defaultMemCache
+			}
+		}
 	}
 
 	if s.diskCache != nil {
@@ -408,8 +422,19 @@ func (s *S3FS) ReadCache(ctx context.Context, vector *IOVector) (err error) {
 	}
 
 	if s.memCache != nil {
-		if err := s.memCache.Read(ctx, vector); err != nil {
-			return err
+		if !vector.CachePolicy.Any(SkipMemoryReads) {
+			for i, entry := range vector.Entries {
+				path, err := ParsePath(vector.FilePath)
+				if err != nil {
+					return err
+				}
+				h := s.memCache.Get(path.File, uint64(entry.Offset))
+				if len(h.Get()) > 0 {
+					vector.Entries[i].done = true
+					vector.Entries[i].CachedData = h
+					vector.Entries[i].fromCache = &defaultMemCache
+				}
+			}
 		}
 	}
 
@@ -422,6 +447,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector, bytesCounter *atomic.
 		return nil
 	}
 
+	skipMemWrite := vector.CachePolicy.Any(SkipMemoryWrites)
 	path, err := ParsePathAtService(vector.FilePath, s.name)
 	if err != nil {
 		return err
@@ -628,7 +654,7 @@ func (s *S3FS) read(ctx context.Context, vector *IOVector, bytesCounter *atomic.
 			}
 		}
 
-		if err = entry.setCachedData(); err != nil {
+		if err := entry.set(path.File, uint64(entry.Offset), s.memCache, skipMemWrite); err != nil {
 			return err
 		}
 
@@ -671,9 +697,6 @@ func (*S3FS) ETLCompatible() {}
 var _ CachingFileService = new(S3FS)
 
 func (s *S3FS) FlushCache() {
-	if s.memCache != nil {
-		s.memCache.Flush()
-	}
 }
 
 func (s *S3FS) SetAsyncUpdate(b bool) {

@@ -115,7 +115,8 @@ func (l *LocalFS) initCaches(ctx context.Context, config CacheConfig) error {
 	}
 
 	if *config.MemoryCapacity > DisableCacheCapacity { // 1 means disable
-		l.memCache = mocache.New(int64(*config.MemoryCapacity))
+		l.memCache = mocache.New(int64(*config.MemoryCapacity), config.CacheCallbacks.RemotePostSet,
+			config.CacheCallbacks.RemotePostEvict)
 		logutil.Info("fileservice: memory cache initialized",
 			zap.Any("fs-name", l.name),
 			zap.Any("config", config),

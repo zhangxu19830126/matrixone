@@ -48,10 +48,14 @@ func (e *IOEntry) read(r io.Reader, path string, offset uint64,
 			return moerr.NewUnexpectedEOFNoCtx(path)
 		}
 	}
+	return e.set(path, offset, c, skipMemWrite)
+}
+
+func (e *IOEntry) set(path string, offset uint64, c *mocache.Cache, skipMemWrite bool) error {
 	if c == nil || skipMemWrite {
 		return e.setCachedDataWithKey(path, offset, DefaultCacheDataAllocator)
 	}
-	if err = e.setCachedDataWithKey(path, offset, c); err != nil {
+	if err := e.setCachedDataWithKey(path, offset, c); err != nil {
 		if e.CachedData != nil {
 			mocache.Free(e.CachedData.GetValue())
 		}

@@ -46,9 +46,11 @@ type CacheConfig struct {
 }
 
 type CacheCallbacks struct {
-	PostGet   []CacheCallbackFunc
-	PostSet   []CacheCallbackFunc
-	PostEvict []CacheCallbackFunc
+	PostGet         []CacheCallbackFunc
+	PostSet         []CacheCallbackFunc
+	PostEvict       []CacheCallbackFunc
+	RemotePostSet   func(string, uint64)
+	RemotePostEvict func(string, uint64)
 }
 
 type CacheCallbackFunc = func(CacheKey, mocache.CacheData)
@@ -79,28 +81,24 @@ func (c *CacheConfig) SetRemoteCacheCallback() {
 		return
 	}
 	c.InitKeyRouter = &sync.Once{}
-	c.CacheCallbacks.PostSet = append(c.CacheCallbacks.PostSet,
-		func(key CacheKey, data mocache.CacheData) {
-			c.InitKeyRouter.Do(func() {
-				c.KeyRouter = c.KeyRouterFactory()
-			})
-			if c.KeyRouter == nil {
-				return
-			}
-			c.KeyRouter.AddItem(key, gossip.Operation_Set)
-		},
-	)
-	c.CacheCallbacks.PostEvict = append(c.CacheCallbacks.PostEvict,
-		func(key CacheKey, data mocache.CacheData) {
-			c.InitKeyRouter.Do(func() {
-				c.KeyRouter = c.KeyRouterFactory()
-			})
-			if c.KeyRouter == nil {
-				return
-			}
-			c.KeyRouter.AddItem(key, gossip.Operation_Delete)
-		},
-	)
+	c.CacheCallbacks.RemotePostSet = func(path string, offset uint64) {
+		c.InitKeyRouter.Do(func() {
+			c.KeyRouter = c.KeyRouterFactory()
+		})
+		if c.KeyRouter == nil {
+			return
+		}
+		c.KeyRouter.AddItem(CacheKey{Path: path, Offset: int64(offset)}, gossip.Operation_Set)
+	}
+	c.CacheCallbacks.RemotePostEvict = func(path string, offset uint64) {
+		c.InitKeyRouter.Do(func() {
+			c.KeyRouter = c.KeyRouterFactory()
+		})
+		if c.KeyRouter == nil {
+			return
+		}
+		c.KeyRouter.AddItem(CacheKey{Path: path, Offset: int64(offset)}, gossip.Operation_Delete)
+	}
 }
 
 var DisabledCacheConfig = CacheConfig{
