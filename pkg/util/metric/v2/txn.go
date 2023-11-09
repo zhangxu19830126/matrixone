@@ -89,6 +89,7 @@ var (
 	TxnCommitQueueSizeGauge     = txnQueueSizeGauge.WithLabelValues("commit")
 	TxnWaitActiveQueueSizeGauge = txnQueueSizeGauge.WithLabelValues("wait-active")
 	TxnActiveQueueSizeGauge     = txnQueueSizeGauge.WithLabelValues("active")
+	TxnRemoteLockQueueSizeGauge = txnQueueSizeGauge.WithLabelValues("remote-lock")
 )
 
 var (

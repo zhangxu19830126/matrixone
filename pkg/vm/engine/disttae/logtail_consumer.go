@@ -343,6 +343,7 @@ func (c *pushClient) receiveOneLogtail(ctx context.Context, e *Engine) error {
 	}
 
 	receiveAt := time.Now()
+	v2.LogtailReceivedCounter.Inc()
 	if res := resp.response.GetSubscribeResponse(); res != nil { // consume subscribe response
 		if err := dispatchSubscribeResponse(ctx, e, res, c.receiver, receiveAt); err != nil {
 			logutil.Errorf("%s dispatch subscribe response failed, err: %s", logTag, err)

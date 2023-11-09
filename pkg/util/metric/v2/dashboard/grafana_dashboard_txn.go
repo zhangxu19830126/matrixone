@@ -105,11 +105,13 @@ func (c *DashboardCreator) initTxnOverviewRow() dashboard.Option {
 				`sum(` + c.getMetricWithFilter("mo_txn_queue_size", `type="active"`) + `)`,
 				`sum(` + c.getMetricWithFilter("mo_txn_queue_size", `type="wait-active"`) + `)`,
 				`sum(` + c.getMetricWithFilter("mo_txn_queue_size", `type="commit"`) + `)`,
+				`sum(` + c.getMetricWithFilter("mo_txn_queue_size", `type="remote-lock"`) + `)`,
 			},
 			[]string{
 				"active",
 				"wait-active",
 				"commit",
+				"remote-lock",
 			}),
 	)
 }

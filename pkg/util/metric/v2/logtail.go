@@ -26,6 +26,14 @@ var (
 			Name:      "load_checkpoint_total",
 			Help:      "Total number of load checkpoint handled.",
 		})
+
+	LogtailReceivedCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "mo",
+			Subsystem: "logtail",
+			Name:      "received_total",
+			Help:      "Total number of received logtail.",
+		})
 )
 
 var (

@@ -58,6 +58,7 @@ func initFileServiceMetrics() {
 
 func initLogtailMetrics() {
 	registry.MustRegister(LogtailLoadCheckpointCounter)
+	registry.MustRegister(LogtailReceivedCounter)
 
 	registry.MustRegister(logTailQueueSizeGauge)
 

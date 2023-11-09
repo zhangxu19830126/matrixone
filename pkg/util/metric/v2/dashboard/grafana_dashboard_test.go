@@ -29,3 +29,13 @@ func TestCreateCloudDashboard(t *testing.T) {
 	c := NewCloudDashboardCreator("http://127.0.0.1", "admin", "admin", "Prometheus")
 	require.NoError(t, c.Create())
 }
+
+func TestCreateLocalDashboard(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
+	c := NewLocalDashboardCreator("http://127.0.0.1", "admin", "admin", "Prometheus")
+	require.NoError(t, c.Create())
+}

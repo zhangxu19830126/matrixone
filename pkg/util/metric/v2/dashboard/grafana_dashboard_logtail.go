@@ -75,10 +75,16 @@ func (c *DashboardCreator) initLogtailSubscriptionRow() dashboard.Option {
 
 func (c *DashboardCreator) initLogtailQueueRow() dashboard.Option {
 	return dashboard.Row(
-		"Logtail Queue Status",
+		"Logtail Status",
+		c.withGraph(
+			"Received logtail responses",
+			4,
+			`sum(rate(`+c.getMetricWithFilter("mo_logtail_received_total", "")+`[$interval])) by (`+c.by+`)`,
+			"{{ "+c.by+" }}"),
+
 		c.withMultiGraph(
 			"Sending Queue",
-			6,
+			4,
 			[]string{
 				`sum(` + c.getMetricWithFilter("mo_logtail_queue_size", `type="send"`) + `)`,
 				`sum(` + c.getMetricWithFilter("mo_logtail_queue_size", `type="receive"`) + `)`,
@@ -89,9 +95,10 @@ func (c *DashboardCreator) initLogtailQueueRow() dashboard.Option {
 				"receive",
 				"apply",
 			}),
+
 		c.withGraph(
 			"Checkpoint logtail",
-			6,
+			4,
 			`sum(rate(`+c.getMetricWithFilter("mo_logtail_load_checkpoint_total", "")+`[$interval])) by (`+c.by+`)`,
 			"{{ "+c.by+" }}"),
 	)
