@@ -119,6 +119,7 @@ func NewMessageCodec(messageFactory func() Message, options ...CodecOption) Code
 	}
 	c.AddHeaderCodec(&deadlineContextCodec{})
 	c.AddHeaderCodec(&traceCodec{})
+	c.AddHeaderCodec(&timeCodec{})
 
 	for _, opt := range options {
 		opt(c)

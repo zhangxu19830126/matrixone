@@ -130,6 +130,15 @@ var (
 			Help:      "Bucketed histogram of request done duration.",
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		}, []string{"name"})
+
+	rpcNetworkDurationHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "network_duration_seconds",
+			Help:      "Bucketed histogram of network transport duration.",
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
+		}, []string{"name"})
 )
 
 func NewRPCMessageSendCounterByName(name string) prometheus.Counter {
@@ -202,4 +211,8 @@ func NewRPCBackendDoneDurationHistogramByName(name string) prometheus.Observer {
 
 func NewRPCServerSessionSizeGaugeByName(name string) prometheus.Gauge {
 	return rpcServerSessionSizeGauge.WithLabelValues(name)
+}
+
+func NewRPCNetworkDurationHistogram(name string) prometheus.Observer {
+	return rpcNetworkDurationHistogram.WithLabelValues(name)
 }

@@ -113,3 +113,24 @@ func (hc *hlcCodec) Decode(msg *RPCMessage, data []byte) (int, error) {
 	hc.clock.Update(ts)
 	return 12, nil
 }
+
+type timeCodec struct {
+}
+
+func (hc *timeCodec) Encode(msg *RPCMessage, out *buf.ByteBuf) (int, error) {
+	if msg.Ctx == nil {
+		return 0, nil
+	}
+
+	out.WriteInt64(int64(time.Now().UnixNano()))
+	return 8, nil
+}
+
+func (hc *timeCodec) Decode(msg *RPCMessage, data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, io.ErrShortBuffer
+	}
+
+	msg.sentAt = time.Unix(0, buf.Byte2Int64(data))
+	return 8, nil
+}

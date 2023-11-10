@@ -566,6 +566,7 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 				return
 			}
 			rb.metrics.receiveCounter.Inc()
+			rb.metrics.rpcNetworkDurationHistogram.Observe(time.Since(msg.(RPCMessage).sentAt).Seconds())
 
 			rb.active()
 

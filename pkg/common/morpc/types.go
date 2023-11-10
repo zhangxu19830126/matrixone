@@ -72,6 +72,7 @@ type RPCMessage struct {
 	stream         bool
 	streamSequence uint32
 	createAt       time.Time
+	sentAt         time.Time
 }
 
 // InternalMessage returns true means the rpc message is the internal message in morpc.

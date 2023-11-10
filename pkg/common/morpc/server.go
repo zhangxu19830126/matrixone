@@ -205,6 +205,7 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 			zap.Uint64("request-id", request.Message.GetID()),
 			zap.String("request", request.Message.DebugString()))
 	}
+	s.metrics.rpcNetworkDurationHistogram.Observe(time.Since(request.sentAt).Seconds())
 
 	// Can't be sure that the Context is properly consumed if disableAutoCancelContext is set to
 	// true. So we use the pessimistic wait for the context to time out automatically be canceled
