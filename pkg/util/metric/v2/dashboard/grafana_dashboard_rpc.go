@@ -31,6 +31,7 @@ func (c *DashboardCreator) initRPCDashboard() error {
 		"RPC Metrics",
 		c.withRowOptions(
 			c.initRPCOverviewRow(),
+			c.initRPCNetworkDurationRow(),
 			c.initRPCConnectionRow(),
 			c.initRPCConnectDurationRow(),
 			c.initRPCWriteDurationRow(),
@@ -168,6 +169,20 @@ func (c *DashboardCreator) initRPCRequestDoneDurationRow() dashboard.Option {
 		c.getHistogramWithExtraBy(
 			"Request done Duration",
 			c.getMetricWithFilter(`mo_rpc_backend_done_duration_seconds_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			12,
+			"name",
+			axis.Unit("s"),
+			axis.Min(0)),
+	)
+}
+
+func (c *DashboardCreator) initRPCNetworkDurationRow() dashboard.Option {
+	return dashboard.Row(
+		"RPC network Duration",
+		c.getHistogramWithExtraBy(
+			"Network Duration",
+			c.getMetricWithFilter(`mo_rpc_network_duration_seconds_bucket`, ``),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			12,
 			"name",

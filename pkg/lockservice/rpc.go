@@ -62,6 +62,7 @@ func NewClient(cfg morpc.Config) (Client, error) {
 	// due to tcp disconnected.
 	c.cfg.BackendOptions = append(c.cfg.BackendOptions,
 		morpc.WithBackendReadTimeout(defaultRPCTimeout))
+	c.cfg.CodecOptions = append(c.cfg.CodecOptions, morpc.WithCalcNetworkCost())
 
 	client, err := c.cfg.NewClient(
 		"lock-client",
@@ -197,6 +198,7 @@ func NewServer(
 		opt(s)
 	}
 
+	s.cfg.CodecOptions = append(s.cfg.CodecOptions, morpc.WithCalcNetworkCost())
 	rpc, err := s.cfg.NewServer(
 		"lock-server",
 		address,

@@ -91,6 +91,13 @@ func WithCodecEnableCompress(pool *mpool.MPool) CodecOption {
 	}
 }
 
+// WithCalcNetworkCost enable network cost
+func WithCalcNetworkCost() CodecOption {
+	return func(c *messageCodec) {
+		c.AddHeaderCodec(&timeCodec{})
+	}
+}
+
 type messageCodec struct {
 	codec codec.Codec
 	bc    *baseCodec
@@ -119,7 +126,6 @@ func NewMessageCodec(messageFactory func() Message, options ...CodecOption) Code
 	}
 	c.AddHeaderCodec(&deadlineContextCodec{})
 	c.AddHeaderCodec(&traceCodec{})
-	c.AddHeaderCodec(&timeCodec{})
 
 	for _, opt := range options {
 		opt(c)
