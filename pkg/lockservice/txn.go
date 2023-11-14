@@ -18,10 +18,12 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/common/util"
 	pb "github.com/matrixorigin/matrixone/pkg/pb/lock"
 	"github.com/matrixorigin/matrixone/pkg/pb/timestamp"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 )
 
 var (
@@ -118,6 +120,8 @@ func (txn *activeTxn) close(
 	txn.cancelBlocks()
 
 	// TODO(fagongzi): parallel unlock
+	v2.TxnUnlockTableTotalHistogram.Observe(float64(len(txn.holdLocks)))
+	start := time.Now()
 	for table, cs := range txn.holdLocks {
 		l, err := lockTableFunc(table)
 		if err != nil {
@@ -136,6 +140,7 @@ func (txn *activeTxn) close(
 			serviceID,
 			txn,
 			table)
+		v2.TxnUnlockLatencyDurationHistogram.Observe(time.Since(start).Seconds())
 		l.unlock(txn, cs, commitTS)
 		logTxnUnlockTableCompleted(
 			serviceID,

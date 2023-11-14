@@ -125,6 +125,15 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 10),
 		})
 
+	TxnUnlockTableTotalHistogram = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "txn",
+			Name:      "unlock_table_total",
+			Help:      "Size of txn unlock lock tables count.",
+			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 4),
+		})
+
 	txnCreateDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "mo",
@@ -171,6 +180,7 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		}, []string{"type"})
 	TxnUnlockDurationHistogram             = txnUnlockDurationHistogram.WithLabelValues("total")
+	TxnUnlockLatencyDurationHistogram      = txnUnlockDurationHistogram.WithLabelValues("latency")
 	TxnUnlockBtreeGetLockDurationHistogram = txnUnlockDurationHistogram.WithLabelValues("btree-get-lock")
 	TxnUnlockBtreeTotalDurationHistogram   = txnUnlockDurationHistogram.WithLabelValues("btree-total")
 

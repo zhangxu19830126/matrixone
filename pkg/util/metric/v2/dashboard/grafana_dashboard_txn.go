@@ -35,6 +35,7 @@ func (c *DashboardCreator) initTxnDashboard() error {
 			c.initTxnCommitDurationRow(),
 			c.initTxnLockWaitersRow(),
 			c.initTxnLockDurationRow(),
+			c.initTxnUnlockTablesRow(),
 			c.initTxnStatementDurationRow(),
 			c.initTxnStatementsCountRow(),
 			c.initTxnTableRangesRow(),
@@ -307,6 +308,7 @@ func (c *DashboardCreator) initTxnLockDurationRow() dashboard.Option {
 				c.getMetricWithFilter(`mo_txn_unlock_duration_seconds_bucket`, `type="total"`),
 				c.getMetricWithFilter(`mo_txn_unlock_duration_seconds_bucket`, `type="btree-get-lock"`),
 				c.getMetricWithFilter(`mo_txn_unlock_duration_seconds_bucket`, `type="btree-total"`),
+				c.getMetricWithFilter(`mo_txn_unlock_duration_seconds_bucket`, `type="latency"`),
 			},
 			[]string{
 				"lock-total",
@@ -314,6 +316,7 @@ func (c *DashboardCreator) initTxnLockDurationRow() dashboard.Option {
 				"unlock-total",
 				"unlock-btree-get-lock",
 				"unlock-btree-total",
+				"unlock-latency",
 			},
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			[]float32{3, 3, 3, 3},
@@ -331,6 +334,21 @@ func (c *DashboardCreator) initTxnLockWaitersRow() dashboard.Option {
 			},
 			[]string{
 				"waiters",
+			},
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			[]float32{3, 3, 3, 3})...,
+	)
+}
+
+func (c *DashboardCreator) initTxnUnlockTablesRow() dashboard.Option {
+	return dashboard.Row(
+		"Txn unlock tables",
+		c.getMultiHistogram(
+			[]string{
+				c.getMetricWithFilter(`mo_txn_unlock_table_total_bucket`, ``),
+			},
+			[]string{
+				"tables",
 			},
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			[]float32{3, 3, 3, 3})...,
