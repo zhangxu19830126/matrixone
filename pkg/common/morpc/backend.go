@@ -471,6 +471,8 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 				}
 			}
 
+			rb.metrics.writeCodecDurationHistogram.Observe(time.Since(start).Seconds())
+
 			if len(written) > 0 {
 				start := time.Now()
 				rb.metrics.writeBytesHistogram.Observe(float64(rb.conn.OutBuf().Readable()))
@@ -485,9 +487,11 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 						f.messageSent(err)
 					}
 				} else {
+					start := time.Now()
 					for _, f := range written {
 						f.messageSent(nil)
 					}
+					rb.metrics.writeNotifyDurationHistogram.Observe(time.Since(start).Seconds())
 				}
 			}
 

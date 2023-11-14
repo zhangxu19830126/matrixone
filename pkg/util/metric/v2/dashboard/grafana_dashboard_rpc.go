@@ -135,12 +135,39 @@ func (c *DashboardCreator) initRPCWriteDurationRow() dashboard.Option {
 			axis.Min(0)),
 
 		c.getHistogramWithExtraBy(
+			"Client-side Write codec Duration",
+			c.getMetricWithFilter(`mo_rpc_write_codec_duration_seconds_bucket`, `side="client"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"Client-side Write notify Duration",
+			c.getMetricWithFilter(`mo_rpc_write_notify_duration_seconds_bucket`, `side="client"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
 			"Client-side Write To Network Flush Duration",
 			c.getMetricWithFilter(`mo_rpc_write_flush_duration_seconds_bucket`, `side="client"`),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			4,
 			"name",
 			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"Client-side Write bytes",
+			c.getMetricWithFilter(`mo_rpc_write_bytes_bucket`, `side="client"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("bytes"),
 			axis.Min(0)),
 
 		c.getHistogramWithExtraBy(
@@ -162,12 +189,39 @@ func (c *DashboardCreator) initRPCWriteDurationRow() dashboard.Option {
 			axis.Min(0)),
 
 		c.getHistogramWithExtraBy(
+			"Server-side Write codec Duration",
+			c.getMetricWithFilter(`mo_rpc_write_codec_duration_seconds_bucket`, `side="server"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"Server-side Write notify Duration",
+			c.getMetricWithFilter(`mo_rpc_write_notify_duration_seconds_bucket`, `side="server"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
 			"Server-side Write To Network Flush Duration",
 			c.getMetricWithFilter(`mo_rpc_write_flush_duration_seconds_bucket`, `side="server"`),
 			[]float64{0.50, 0.8, 0.90, 0.99},
 			4,
 			"name",
 			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"Server-side Write bytes",
+			c.getMetricWithFilter(`mo_rpc_write_bytes_bucket`, `side="server"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("bytes"),
 			axis.Min(0)),
 
 		c.getHistogramWithExtraBy(

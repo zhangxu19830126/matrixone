@@ -113,6 +113,24 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		}, []string{"name", "side"})
 
+	rpcWriteCodecDurationHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "write_codec_duration_seconds",
+			Help:      "Bucketed histogram of write data codec duration.",
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
+		}, []string{"name", "side"})
+
+	rpcWriteNotifyDurationHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "write_codec_duration_seconds",
+			Help:      "Bucketed histogram of write data notify duration.",
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
+		}, []string{"name", "side"})
+
 	rpcWriteFlushDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "mo",
@@ -209,6 +227,22 @@ func NewRPCBackendWriteDurationHistogramByName(name string) prometheus.Observer 
 
 func NewRPCServerWriteDurationHistogramByName(name string) prometheus.Observer {
 	return rpcWriteDurationHistogram.WithLabelValues(name, "server")
+}
+
+func NewRPCBackendWriteCodecDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteCodecDurationHistogram.WithLabelValues(name, "client")
+}
+
+func NewRPCServerWriteCodecDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteCodecDurationHistogram.WithLabelValues(name, "server")
+}
+
+func NewRPCBackendWriteNotifyDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteNotifyDurationHistogram.WithLabelValues(name, "client")
+}
+
+func NewRPCServerWriteNotifyDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteNotifyDurationHistogram.WithLabelValues(name, "server")
 }
 
 func NewRPCBackendWriteFlushDurationHistogramByName(name string) prometheus.Observer {

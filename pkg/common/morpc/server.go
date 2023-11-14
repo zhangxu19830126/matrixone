@@ -365,6 +365,8 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 						written++
 					}
 
+					s.metrics.writeCodecDurationHistogram.Observe(time.Since(start).Seconds())
+
 					if written > 0 {
 						start := time.Now()
 						s.metrics.writeBytesHistogram.Observe(float64(cs.conn.OutBuf().Readable()))
@@ -393,9 +395,11 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 						}
 					}
 
+					v := time.Now()
 					for _, f := range responses {
 						f.messageSent(nil)
 					}
+					s.metrics.writeNotifyDurationHistogram.Observe(time.Since(v).Seconds())
 
 					s.metrics.writeDurationHistogram.Observe(time.Since(start).Seconds())
 				}

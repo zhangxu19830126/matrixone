@@ -31,6 +31,8 @@ type metrics struct {
 	poolSizeGauge                 prometheus.Gauge
 	writeLatencyDurationHistogram prometheus.Observer
 	writeDurationHistogram        prometheus.Observer
+	writeCodecDurationHistogram   prometheus.Observer
+	writeNotifyDurationHistogram  prometheus.Observer
 	writeFlushDurationHistogram   prometheus.Observer
 	writeBytesHistogram           prometheus.Observer
 	connectDurationHistogram      prometheus.Observer
@@ -50,6 +52,8 @@ func newMetrics(name string) *metrics {
 		sendingQueueSizeGauge:         v2.NewRPCBackendSendingQueueSizeGaugeByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCBackendSendingBatchSizeGaugeByName(name),
 		writeDurationHistogram:        v2.NewRPCBackendWriteDurationHistogramByName(name),
+		writeCodecDurationHistogram:   v2.NewRPCBackendWriteCodecDurationHistogramByName(name),
+		writeNotifyDurationHistogram:  v2.NewRPCBackendWriteNotifyDurationHistogramByName(name),
 		writeBytesHistogram:           v2.NewRPCBackendWriteBytesDurationHistogramByName(name),
 		writeFlushDurationHistogram:   v2.NewRPCBackendWriteFlushDurationHistogramByName(name),
 		connectDurationHistogram:      v2.NewRPCBackendConnectDurationHistogramByName(name),
@@ -66,6 +70,8 @@ type serverMetrics struct {
 	sessionSizeGauge              prometheus.Gauge
 	sendingBatchSizeGauge         prometheus.Gauge
 	writeDurationHistogram        prometheus.Observer
+	writeCodecDurationHistogram   prometheus.Observer
+	writeNotifyDurationHistogram  prometheus.Observer
 	writeBytesHistogram           prometheus.Observer
 	writeFlushDurationHistogram   prometheus.Observer
 	writeLatencyDurationHistogram prometheus.Observer
@@ -77,6 +83,8 @@ func newServerMetrics(name string) *serverMetrics {
 		sendCounter:                   v2.NewRPCMessageSendCounterByName(name),
 		receiveCounter:                v2.NewRPCMessageReceiveCounterByName(name),
 		writeDurationHistogram:        v2.NewRPCServerWriteDurationHistogramByName(name),
+		writeCodecDurationHistogram:   v2.NewRPCServerWriteCodecDurationHistogramByName(name),
+		writeNotifyDurationHistogram:  v2.NewRPCServerWriteNotifyDurationHistogramByName(name),
 		writeFlushDurationHistogram:   v2.NewRPCServerWriteFlushDurationHistogramByName(name),
 		writeBytesHistogram:           v2.NewRPCServerWriteBytesDurationHistogramByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCServerSendingBatchSizeGaugeByName(name),
