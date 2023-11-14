@@ -167,9 +167,12 @@ var (
 			Help:      "Bucketed histogram of acquire lock duration.",
 			Buckets:   prometheus.ExponentialBuckets(0.00001, 2.0, 20),
 		}, []string{"type"})
-	TxnAcquireLockDurationHistogram     = txnLockDurationHistogram.WithLabelValues("acquire")
-	TxnAcquireLockWaitDurationHistogram = txnLockDurationHistogram.WithLabelValues("acquire-wait")
-	TxnHoldLockDurationHistogram        = txnLockDurationHistogram.WithLabelValues("hold")
+	TxnAcquireLockDurationHistogram         = txnLockDurationHistogram.WithLabelValues("acquire")
+	TxnAcquireLockWaitDurationHistogram     = txnLockDurationHistogram.WithLabelValues("acquire-wait")
+	TxnAcquireLockLocalDurationHistogram    = txnLockDurationHistogram.WithLabelValues("acquire-local")
+	TxnAcquireLockRemoteCBDurationHistogram = txnLockDurationHistogram.WithLabelValues("acquire-remote-cb")
+	TxnAcquireLockLocalCBDurationHistogram  = txnLockDurationHistogram.WithLabelValues("acquire-local-cb")
+	TxnHoldLockDurationHistogram            = txnLockDurationHistogram.WithLabelValues("hold")
 
 	txnUnlockDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{

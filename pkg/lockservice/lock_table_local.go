@@ -111,7 +111,9 @@ func (l *localLockTable) doLock(
 			}
 			// no waiter, all locks are added
 			if c.w == nil {
-				v2.TxnAcquireLockWaitDurationHistogram.Observe(time.Since(c.createAt).Seconds())
+				if old != nil {
+					v2.TxnAcquireLockWaitDurationHistogram.Observe(time.Since(c.createAt).Seconds())
+				}
 				c.txn.clearBlocked(old)
 				logLocalLockAdded(c.txn, l.bind.Table, c.rows, c.opts)
 				if c.result.Timestamp.IsEmpty() {
