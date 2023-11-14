@@ -140,23 +140,25 @@ func (txn *activeTxn) close(
 			continue
 		}
 
-		fn := func() {
-			logTxnUnlockTable(
-				serviceID,
-				txn,
-				table)
-			v2.TxnUnlockLatencyDurationHistogram.Observe(time.Since(start).Seconds())
-			l.unlock(txn, cs, commitTS)
-			if n > 1 {
-				wg.Done()
+		fn := func(table uint64, cs *cowSlice) func() {
+			return func() {
+				logTxnUnlockTable(
+					serviceID,
+					txn,
+					table)
+				v2.TxnUnlockLatencyDurationHistogram.Observe(time.Since(start).Seconds())
+				l.unlock(txn, cs, commitTS)
+				if n > 1 {
+					wg.Done()
+				}
 			}
 		}
 
 		if n > 1 {
 			wg.Add(1)
-			ants.Submit(fn)
+			ants.Submit(fn(table, cs))
 		} else {
-			fn()
+			fn(table, cs)()
 			logTxnUnlockTableCompleted(
 				serviceID,
 				txn,
