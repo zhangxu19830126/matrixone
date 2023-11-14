@@ -473,6 +473,7 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 
 			if len(written) > 0 {
 				start := time.Now()
+				rb.metrics.writeBytesHistogram.Observe(float64(rb.conn.OutBuf().Readable()))
 				err := rb.conn.Flush(writeTimeout)
 				rb.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
 				if err != nil {

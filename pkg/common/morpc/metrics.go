@@ -32,6 +32,7 @@ type metrics struct {
 	writeLatencyDurationHistogram prometheus.Observer
 	writeDurationHistogram        prometheus.Observer
 	writeFlushDurationHistogram   prometheus.Observer
+	writeBytesHistogram           prometheus.Observer
 	connectDurationHistogram      prometheus.Observer
 	doneDurationHistogram         prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
@@ -49,6 +50,7 @@ func newMetrics(name string) *metrics {
 		sendingQueueSizeGauge:         v2.NewRPCBackendSendingQueueSizeGaugeByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCBackendSendingBatchSizeGaugeByName(name),
 		writeDurationHistogram:        v2.NewRPCBackendWriteDurationHistogramByName(name),
+		writeBytesHistogram:           v2.NewRPCBackendWriteBytesDurationHistogramByName(name),
 		writeFlushDurationHistogram:   v2.NewRPCBackendWriteFlushDurationHistogramByName(name),
 		connectDurationHistogram:      v2.NewRPCBackendConnectDurationHistogramByName(name),
 		doneDurationHistogram:         v2.NewRPCBackendDoneDurationHistogramByName(name),
@@ -64,6 +66,7 @@ type serverMetrics struct {
 	sessionSizeGauge              prometheus.Gauge
 	sendingBatchSizeGauge         prometheus.Gauge
 	writeDurationHistogram        prometheus.Observer
+	writeBytesHistogram           prometheus.Observer
 	writeFlushDurationHistogram   prometheus.Observer
 	writeLatencyDurationHistogram prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
@@ -74,7 +77,8 @@ func newServerMetrics(name string) *serverMetrics {
 		sendCounter:                   v2.NewRPCMessageSendCounterByName(name),
 		receiveCounter:                v2.NewRPCMessageReceiveCounterByName(name),
 		writeDurationHistogram:        v2.NewRPCServerWriteDurationHistogramByName(name),
-		writeFlushDurationHistogram:   v2.NewRPCBackendWriteFlushDurationHistogramByName(name),
+		writeFlushDurationHistogram:   v2.NewRPCServerWriteFlushDurationHistogramByName(name),
+		writeBytesHistogram:           v2.NewRPCServerWriteBytesDurationHistogramByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCServerSendingBatchSizeGaugeByName(name),
 		sendingQueueSizeGauge:         v2.NewRPCServerSendingQueueSizeGaugeByName(name),
 		writeLatencyDurationHistogram: v2.NewRPCServerWriteLatencyDurationHistogramByName(name),

@@ -367,6 +367,7 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 
 					if written > 0 {
 						start := time.Now()
+						s.metrics.writeBytesHistogram.Observe(float64(cs.conn.OutBuf().Readable()))
 						err := cs.conn.Flush(timeout)
 						s.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
 

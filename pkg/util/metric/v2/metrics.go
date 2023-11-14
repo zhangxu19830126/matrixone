@@ -118,4 +118,5 @@ func initRPCMetrics() {
 	registry.MustRegister(rpcWriteLatencyDurationHistogram)
 	registry.MustRegister(rpcBackendDoneDurationHistogram)
 	registry.MustRegister(rpcNetworkDurationHistogram)
+	registry.MustRegister(rpcWriteBytesHistogram)
 }
