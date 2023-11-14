@@ -31,6 +31,7 @@ type metrics struct {
 	poolSizeGauge                 prometheus.Gauge
 	writeLatencyDurationHistogram prometheus.Observer
 	writeDurationHistogram        prometheus.Observer
+	writeFlushDurationHistogram   prometheus.Observer
 	connectDurationHistogram      prometheus.Observer
 	doneDurationHistogram         prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
@@ -48,6 +49,7 @@ func newMetrics(name string) *metrics {
 		sendingQueueSizeGauge:         v2.NewRPCBackendSendingQueueSizeGaugeByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCBackendSendingBatchSizeGaugeByName(name),
 		writeDurationHistogram:        v2.NewRPCBackendWriteDurationHistogramByName(name),
+		writeFlushDurationHistogram:   v2.NewRPCBackendWriteFlushDurationHistogramByName(name),
 		connectDurationHistogram:      v2.NewRPCBackendConnectDurationHistogramByName(name),
 		doneDurationHistogram:         v2.NewRPCBackendDoneDurationHistogramByName(name),
 		writeLatencyDurationHistogram: v2.NewRPCBackendWriteLatencyDurationHistogramByName(name),
@@ -62,6 +64,7 @@ type serverMetrics struct {
 	sessionSizeGauge              prometheus.Gauge
 	sendingBatchSizeGauge         prometheus.Gauge
 	writeDurationHistogram        prometheus.Observer
+	writeFlushDurationHistogram   prometheus.Observer
 	writeLatencyDurationHistogram prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
 }
@@ -71,6 +74,7 @@ func newServerMetrics(name string) *serverMetrics {
 		sendCounter:                   v2.NewRPCMessageSendCounterByName(name),
 		receiveCounter:                v2.NewRPCMessageReceiveCounterByName(name),
 		writeDurationHistogram:        v2.NewRPCServerWriteDurationHistogramByName(name),
+		writeFlushDurationHistogram:   v2.NewRPCBackendWriteFlushDurationHistogramByName(name),
 		sendingBatchSizeGauge:         v2.NewRPCServerSendingBatchSizeGaugeByName(name),
 		sendingQueueSizeGauge:         v2.NewRPCServerSendingQueueSizeGaugeByName(name),
 		writeLatencyDurationHistogram: v2.NewRPCServerWriteLatencyDurationHistogramByName(name),

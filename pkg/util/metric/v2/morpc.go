@@ -113,6 +113,15 @@ var (
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		}, []string{"name", "side"})
 
+	rpcWriteFlushDurationHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "write_flush_duration_seconds",
+			Help:      "Bucketed histogram of write data into socket duration.",
+			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
+		}, []string{"name", "side"})
+
 	rpcWriteLatencyDurationHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "mo",
@@ -191,6 +200,14 @@ func NewRPCBackendWriteDurationHistogramByName(name string) prometheus.Observer 
 
 func NewRPCServerWriteDurationHistogramByName(name string) prometheus.Observer {
 	return rpcWriteDurationHistogram.WithLabelValues(name, "server")
+}
+
+func NewRPCBackendWriteFlushDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteFlushDurationHistogram.WithLabelValues(name, "client")
+}
+
+func NewRPCServerWriteFlushDurationHistogramByName(name string) prometheus.Observer {
+	return rpcWriteFlushDurationHistogram.WithLabelValues(name, "server")
 }
 
 func NewRPCBackendWriteLatencyDurationHistogramByName(name string) prometheus.Observer {

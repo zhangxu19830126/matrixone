@@ -366,7 +366,10 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 					}
 
 					if written > 0 {
+						start := time.Now()
 						err := cs.conn.Flush(timeout)
+						s.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
+
 						if err != nil {
 							if ce != nil {
 								fields = append(fields, zap.Error(err))

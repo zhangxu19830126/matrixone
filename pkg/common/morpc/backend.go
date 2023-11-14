@@ -472,7 +472,10 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 			}
 
 			if len(written) > 0 {
-				if err := rb.conn.Flush(writeTimeout); err != nil {
+				start := time.Now()
+				err := rb.conn.Flush(writeTimeout)
+				rb.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
+				if err != nil {
 					for _, f := range written {
 						id := f.getSendMessageID()
 						rb.logger.Error("write request failed",
