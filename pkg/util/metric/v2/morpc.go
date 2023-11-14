@@ -126,7 +126,7 @@ var (
 		prometheus.HistogramOpts{
 			Namespace: "mo",
 			Subsystem: "rpc",
-			Name:      "write_codec_duration_seconds",
+			Name:      "write_notify_duration_seconds",
 			Help:      "Bucketed histogram of write data notify duration.",
 			Buckets:   prometheus.ExponentialBuckets(0.0005, 2.0, 20),
 		}, []string{"name", "side"})
