@@ -74,8 +74,8 @@ func (c *lockContext) done(err error) {
 	if c.opts.async {
 		v2.TxnAcquireLockRemoteCBDurationHistogram.Observe(time.Since(start).Seconds())
 	}
-	c.release()
 	v2.TxnAcquireLockDoDurationHistogram.Observe(time.Since(c.createAt).Seconds())
+	c.release()
 }
 
 func (c *lockContext) release() {
