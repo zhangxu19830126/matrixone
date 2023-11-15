@@ -69,16 +69,13 @@ func (l *localLockTable) newLockContext(
 }
 
 func (c *lockContext) done(err error) {
-	v2.TxnAcquireLockLocalDurationHistogram.Observe(time.Since(c.createAt).Seconds())
 	start := time.Now()
 	c.cb(c.result, err)
 	if c.opts.async {
 		v2.TxnAcquireLockRemoteCBDurationHistogram.Observe(time.Since(start).Seconds())
-	} else {
-		v2.TxnAcquireLockLocalCBDurationHistogram.Observe(time.Since(start).Seconds())
 	}
-
 	c.release()
+	v2.TxnAcquireLockDoDurationHistogram.Observe(time.Since(c.createAt).Seconds())
 }
 
 func (c *lockContext) release() {

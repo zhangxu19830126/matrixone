@@ -127,6 +127,14 @@ func (s *service) Lock(
 	}
 
 	var result pb.Result
+	v := time.Now()
+	defer func() {
+		if l.getBind().ServiceID == s.serviceID {
+			v2.TxnAcquireLockLocalDurationHistogram.Observe(time.Since(v).Seconds())
+		} else {
+			v2.TxnAcquireLockRemoteDurationHistogram.Observe(time.Since(v).Seconds())
+		}
+	}()
 	l.lock(
 		ctx,
 		txn,

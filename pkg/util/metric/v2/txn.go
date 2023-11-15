@@ -169,9 +169,10 @@ var (
 		}, []string{"type"})
 	TxnAcquireLockDurationHistogram         = txnLockDurationHistogram.WithLabelValues("acquire")
 	TxnAcquireLockWaitDurationHistogram     = txnLockDurationHistogram.WithLabelValues("acquire-wait")
+	TxnAcquireLockDoDurationHistogram       = txnLockDurationHistogram.WithLabelValues("acquire-do")
 	TxnAcquireLockLocalDurationHistogram    = txnLockDurationHistogram.WithLabelValues("acquire-local")
+	TxnAcquireLockRemoteDurationHistogram   = txnLockDurationHistogram.WithLabelValues("acquire-remote")
 	TxnAcquireLockRemoteCBDurationHistogram = txnLockDurationHistogram.WithLabelValues("acquire-remote-cb")
-	TxnAcquireLockLocalCBDurationHistogram  = txnLockDurationHistogram.WithLabelValues("acquire-local-cb")
 	TxnHoldLockDurationHistogram            = txnLockDurationHistogram.WithLabelValues("hold")
 
 	txnUnlockDurationHistogram = prometheus.NewHistogramVec(
