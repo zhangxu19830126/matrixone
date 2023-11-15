@@ -76,11 +76,23 @@ func (c *DashboardCreator) initLogtailSubscriptionRow() dashboard.Option {
 func (c *DashboardCreator) initLogtailQueueRow() dashboard.Option {
 	return dashboard.Row(
 		"Logtail Status",
-		c.withGraph(
+		c.withMultiGraph(
 			"Received logtail responses",
 			4,
-			`sum(rate(`+c.getMetricWithFilter("mo_logtail_received_total", "")+`[$interval])) by (`+c.by+`)`,
-			"{{ "+c.by+" }}"),
+			[]string{
+				`sum(rate(` + c.getMetricWithFilter("mo_logtail_received_total", `type="total"`) + `[$interval])) by (` + c.by + `)`,
+				`sum(rate(` + c.getMetricWithFilter("mo_logtail_received_total", `type="subscribe"`) + `[$interval])) by (` + c.by + `)`,
+				`sum(rate(` + c.getMetricWithFilter("mo_logtail_received_total", `type="unsubscribe"`) + `[$interval])) by (` + c.by + `)`,
+				`sum(rate(` + c.getMetricWithFilter("mo_logtail_received_total", `type="update"`) + `[$interval])) by (` + c.by + `)`,
+				`sum(rate(` + c.getMetricWithFilter("mo_logtail_received_total", `type="heartbeat"`) + `[$interval])) by (` + c.by + `)`,
+			},
+			[]string{
+				"{{ " + c.by + " }}: total",
+				"{{ " + c.by + " }}: subscribe",
+				"{{ " + c.by + " }}: unsubscribe",
+				"{{ " + c.by + " }}: update",
+				"{{ " + c.by + " }}: heartbeat",
+			}),
 
 		c.withMultiGraph(
 			"Sending Queue",
