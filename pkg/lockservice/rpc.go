@@ -43,7 +43,7 @@ var (
 	}
 
 	defaultRPCTimeout    = time.Second * 10
-	defaultHandleWorkers = 1
+	defaultHandleWorkers = 4
 )
 
 type client struct {
