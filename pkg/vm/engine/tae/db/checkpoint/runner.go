@@ -18,13 +18,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 
 	"github.com/matrixorigin/matrixone/pkg/util/fault"
 
@@ -353,12 +354,12 @@ func (r *runner) gcCheckpointEntries(ts types.TS) {
 	for _, incremental := range incrementals {
 		if incremental.LessEq(ts) {
 			err := incremental.GCEntry(r.rt.Fs)
-			if err != nil {
+			if err != nil && !moerr.IsMoErrCode(err, moerr.ErrFileNotFound) {
 				logutil.Warnf("gc %v failed: %v", incremental.String(), err)
 				panic(err)
 			}
 			err = incremental.GCMetadata(r.rt.Fs)
-			if err != nil {
+			if err != nil && !moerr.IsMoErrCode(err, moerr.ErrFileNotFound) {
 				panic(err)
 			}
 			r.DeleteIncrementalEntry(incremental)
@@ -368,11 +369,11 @@ func (r *runner) gcCheckpointEntries(ts types.TS) {
 	for _, global := range globals {
 		if global.LessEq(ts) {
 			err := global.GCEntry(r.rt.Fs)
-			if err != nil {
+			if err != nil && !moerr.IsMoErrCode(err, moerr.ErrFileNotFound) {
 				panic(err)
 			}
 			err = global.GCMetadata(r.rt.Fs)
-			if err != nil {
+			if err != nil && !moerr.IsMoErrCode(err, moerr.ErrFileNotFound) {
 				panic(err)
 			}
 			r.DeleteGlobalEntry(global)
@@ -487,6 +488,7 @@ func (r *runner) FlushTable(ctx context.Context, dbID, tableID uint64, ts types.
 
 func (r *runner) saveCheckpoint(start, end types.TS, ckpLSN, truncateLSN uint64) (err error) {
 	bat := r.collectCheckpointMetadata(start, end, ckpLSN, truncateLSN)
+	defer bat.Close()
 	name := blockio.EncodeCheckpointMetadataFileName(CheckpointDir, PrefixMetadata, start, end)
 	writer, err := objectio.NewObjectWriterSpecial(objectio.WriterCheckpoint, name, r.rt.Fs.Service)
 	if err != nil {
@@ -502,7 +504,7 @@ func (r *runner) saveCheckpoint(start, end types.TS, ckpLSN, truncateLSN uint64)
 }
 
 func (r *runner) doIncrementalCheckpoint(entry *CheckpointEntry) (err error) {
-	factory := logtail.IncrementalCheckpointDataFactory(entry.start, entry.end)
+	factory := logtail.IncrementalCheckpointDataFactory(entry.start, entry.end, r.rt.Fs.Service, true)
 	data, err := factory(r.catalog)
 	if err != nil {
 		return
@@ -520,11 +522,23 @@ func (r *runner) doIncrementalCheckpoint(entry *CheckpointEntry) (err error) {
 	return
 }
 
+func checkpointMetaInfoFactory(entries []*CheckpointEntry) []*logtail.CkpLocVers {
+	ret := make([]*logtail.CkpLocVers, 0)
+	for idx := range entries {
+		ret = append(ret, &logtail.CkpLocVers{
+			Location: entries[idx].GetLocation(),
+			Version:  entries[idx].GetVersion(),
+		})
+	}
+	return ret
+}
+
 func (r *runner) doGlobalCheckpoint(end types.TS, ckpLSN, truncateLSN uint64, interval time.Duration) (entry *CheckpointEntry, err error) {
 	entry = NewCheckpointEntry(types.TS{}, end.Next(), ET_Global)
 	entry.ckpLSN = ckpLSN
 	entry.truncateLSN = truncateLSN
-	factory := logtail.GlobalCheckpointDataFactory(entry.end, interval)
+	factory := logtail.GlobalCheckpointDataFactory(entry.end, interval,
+		r.rt.Fs.Service, checkpointMetaInfoFactory(r.GetAllCheckpoints()))
 	data, err := factory(r.catalog)
 	if err != nil {
 		return

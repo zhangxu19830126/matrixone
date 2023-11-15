@@ -193,7 +193,7 @@ type FetchFunc = func(ctx context.Context, params fetchParams) (any, error)
 type PrefetchFunc = func(params PrefetchParams) error
 
 func readColumns(ctx context.Context, params fetchParams) (any, error) {
-	return params.reader.ReadOneBlock(ctx, params.idxes, params.typs, params.blk, nil, fileservice.SkipMemory)
+	return params.reader.ReadOneBlock(ctx, params.idxes, params.typs, params.blk, nil, fileservice.SkipMemoryCache)
 }
 
 func noopPrefetch(params PrefetchParams) error {
@@ -466,11 +466,11 @@ func (p *IoPipeline) onWait(jobs ...any) {
 func (p *IoPipeline) crontask(ctx context.Context) {
 	hb := w.NewHeartBeaterWithFunc(time.Second*10, func() {
 		logutil.Info(p.stats.selectivityStats.ExportString())
-		logutil.Info(p.sensors.prefetchDepth.String())
-		wdrops := p.stats.prefetchDropStats.SwapW(0)
-		if wdrops > 0 {
-			logutil.Infof("PrefetchDropStats: %d", wdrops)
-		}
+		// logutil.Info(p.sensors.prefetchDepth.String())
+		// wdrops := p.stats.prefetchDropStats.SwapW(0)
+		// if wdrops > 0 {
+		// 	logutil.Infof("PrefetchDropStats: %d", wdrops)
+		// }
 		logutil.Info(objectio.ExportCacheStats())
 	}, nil)
 	hb.Start()

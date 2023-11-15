@@ -42,6 +42,7 @@ import (
 
 func testFileService(
 	t *testing.T,
+	policy Policy,
 	newFS func(name string) FileService,
 ) {
 
@@ -76,6 +77,7 @@ func testFileService(
 					ReaderForWrite: bytes.NewReader([]byte("9ab")),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -121,6 +123,7 @@ func testFileService(
 					Size:   -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -152,6 +155,7 @@ func testFileService(
 					Size:   1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -167,6 +171,7 @@ func testFileService(
 					Data:   []byte("1"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -185,6 +190,7 @@ func testFileService(
 					Data:   []byte("1234"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -198,6 +204,7 @@ func testFileService(
 					WriterForRead: buf,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -213,6 +220,7 @@ func testFileService(
 					WriterForRead: buf,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -232,6 +240,7 @@ func testFileService(
 					Data:   []byte("1234"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -246,6 +255,7 @@ func testFileService(
 					ReadCloserForRead: &r,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -264,6 +274,7 @@ func testFileService(
 					ReadCloserForRead: &r,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -282,6 +293,7 @@ func testFileService(
 					ReadCloserForRead: &r,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -309,6 +321,7 @@ func testFileService(
 			// write
 			writeVector := IOVector{
 				FilePath: filePath,
+				Policy:   policy,
 			}
 			offset := int64(0)
 			for _, part := range parts {
@@ -325,6 +338,7 @@ func testFileService(
 			// read, align to write vector
 			readVector := &IOVector{
 				FilePath: filePath,
+				Policy:   policy,
 			}
 			for _, entry := range writeVector.Entries {
 				readVector.Entries = append(readVector.Entries, IOEntry{
@@ -439,6 +453,7 @@ func testFileService(
 							Data: []byte(strings.Repeat(fmt.Sprintf("%d", i), int(i))),
 						},
 					},
+					Policy: policy,
 				})
 				assert.Nil(t, err)
 			}
@@ -544,6 +559,7 @@ func testFileService(
 
 		err := fs.Read(ctx, &IOVector{
 			FilePath: "foo",
+			Policy:   policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrEmptyVector))
 
@@ -554,6 +570,7 @@ func testFileService(
 					Size: -1,
 				},
 			},
+			Policy: policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrFileNotFound))
 
@@ -565,10 +582,12 @@ func testFileService(
 					Data: []byte("ab"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 		err = fs.Write(ctx, IOVector{
 			FilePath: "foo",
+			Policy:   policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrFileAlreadyExists))
 
@@ -580,6 +599,7 @@ func testFileService(
 					Size:   3,
 				},
 			},
+			Policy: policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(moerr.ConvertGoError(ctx, err), moerr.ErrUnexpectedEOF))
 
@@ -591,6 +611,7 @@ func testFileService(
 					Size:   0,
 				},
 			},
+			Policy: policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrEmptyRange))
 
@@ -601,6 +622,7 @@ func testFileService(
 					Size: 1,
 				},
 			},
+			Policy: policy,
 		})
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrSizeNotMatch))
 
@@ -611,6 +633,7 @@ func testFileService(
 					ReaderForWrite: iotest.ErrReader(io.ErrNoProgress),
 				},
 			},
+			Policy: policy,
 		})
 		// fs leaking io error, but I don't know what this test really tests.
 		// assert.True(t, err == io.ErrNoProgress)
@@ -622,6 +645,7 @@ func testFileService(
 			Entries: []IOEntry{
 				{Size: 1, Data: []byte("a")},
 			},
+			Policy: policy,
 		}
 		err = fs.Write(ctx, vector)
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrInvalidPath))
@@ -654,6 +678,7 @@ func testFileService(
 					Data: data,
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -675,6 +700,7 @@ func testFileService(
 					},
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -696,6 +722,7 @@ func testFileService(
 					Size: int64(len(data)),
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.ReadCache(ctx, vec)
 		assert.Nil(t, err)
@@ -718,6 +745,7 @@ func testFileService(
 					Data: data,
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -732,6 +760,7 @@ func testFileService(
 					Size: int64(len(data)),
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, vec)
 		assert.Nil(t, err)
@@ -754,6 +783,7 @@ func testFileService(
 					Data: []byte("1234"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 
@@ -765,6 +795,7 @@ func testFileService(
 					Size: -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -778,6 +809,7 @@ func testFileService(
 					Size: -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -791,6 +823,7 @@ func testFileService(
 					Size: -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -818,6 +851,7 @@ func testFileService(
 					Data:   []byte("1234"),
 				},
 			},
+			Policy: policy,
 		})
 		assert.Nil(t, err)
 		entries, err := fs.List(ctx, JoinPath(fs.Name(), "/path"))
@@ -861,6 +895,7 @@ func testFileService(
 					Size:           -1, // must set to -1
 				},
 			},
+			Policy: policy,
 		}
 
 		// write
@@ -875,6 +910,7 @@ func testFileService(
 					Size: -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Read(ctx, &vec)
 		assert.Nil(t, err)
@@ -900,6 +936,7 @@ func testFileService(
 					Size:           -1,
 				},
 			},
+			Policy: policy,
 		}
 		err = fs.Write(ctx, vec)
 		assert.True(t, moerr.IsMoErrCode(err, moerr.ErrFileAlreadyExists))
@@ -916,6 +953,7 @@ func testFileService(
 					Size:           -1,
 				},
 			},
+			Policy: policy,
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -938,10 +976,14 @@ func testFileService(
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := fs.Write(ctx, IOVector{})
+		err := fs.Write(ctx, IOVector{
+			Policy: policy,
+		})
 		assert.ErrorIs(t, err, context.Canceled)
 
-		err = fs.Read(ctx, &IOVector{})
+		err = fs.Read(ctx, &IOVector{
+			Policy: policy,
+		})
 		assert.ErrorIs(t, err, context.Canceled)
 
 		_, err = fs.List(ctx, "")

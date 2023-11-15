@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
+	v2 "github.com/matrixorigin/matrixone/pkg/util/metric/v2"
 	"github.com/matrixorigin/mocache"
 	"go.uber.org/zap"
 
@@ -48,7 +49,7 @@ func ReadByFilter(
 	filter ReadFilter,
 	fs fileservice.FileService,
 	mp *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (sels []int32, err error) {
 	bat, datas, err := LoadColumns(ctx, columns, colTypes, fs, info.MetaLocation(), mp, cachePolicy)
 	if err != nil {
@@ -131,7 +132,7 @@ func BlockRead(
 	fs fileservice.FileService,
 	mp *mpool.MPool,
 	vp engine.VectorPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (*batch.Batch, error) {
 	if logutil.GetSkip1Logger().Core().Enabled(zap.DebugLevel) {
 		logutil.Debugf("read block %s, columns %v, types %v", info.BlockID.String(), columns, colTypes)
@@ -149,8 +150,10 @@ func BlockRead(
 		); err != nil {
 			return nil, err
 		}
+		v2.TaskSelReadFilterTotal.Inc()
 		if len(sels) == 0 {
 			RecordReadFilterSelectivity(1, 1)
+			v2.TaskSelReadFilterHit.Inc()
 		} else {
 			RecordReadFilterSelectivity(0, 1)
 		}
@@ -189,7 +192,7 @@ func BlockCompactionRead(
 	colTypes []types.Type,
 	fs fileservice.FileService,
 	mp *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (*batch.Batch, error) {
 
 	loaded, datas, err := LoadColumns(ctx, seqnums, colTypes, fs, location, mp, cachePolicy)
@@ -234,7 +237,7 @@ func BlockReadInner(
 	fs fileservice.FileService,
 	mp *mpool.MPool,
 	vp engine.VectorPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (result *batch.Batch, err error) {
 	var (
 		rowidPos    int
@@ -468,7 +471,7 @@ func readBlockData(
 	fs fileservice.FileService,
 	m *mpool.MPool,
 	vp engine.VectorPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (bat *batch.Batch, datas []mocache.CacheData, rowidPos int, deleteMask nulls.Bitmap, err error) {
 
 	rowidPos, idxes, typs := getRowsIdIndex(colIndexes, colTypes)
@@ -528,7 +531,7 @@ func readBlockData(
 	return
 }
 
-func ReadBlockDelete(ctx context.Context, deltaloc objectio.Location, fs fileservice.FileService, cachePolicy fileservice.CachePolicy) (bat *batch.Batch, datas []mocache.CacheData, isPersistedByCN bool, err error) {
+func ReadBlockDelete(ctx context.Context, deltaloc objectio.Location, fs fileservice.FileService, cachePolicy fileservice.Policy) (bat *batch.Batch, datas []mocache.CacheData, isPersistedByCN bool, err error) {
 	isPersistedByCN, err = persistedByCN(ctx, deltaloc, fs)
 	if err != nil {
 		return

@@ -30,14 +30,14 @@ func ReadExtent(
 	ctx context.Context,
 	name string,
 	extent *Extent,
-	cachePolicy fileservice.CachePolicy,
+	policy fileservice.Policy,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (v []byte, err error) {
 	ioVec := &fileservice.IOVector{
-		FilePath:    name,
-		Entries:     make([]fileservice.IOEntry, 1),
-		CachePolicy: cachePolicy | fileservice.SkipMemory,
+		FilePath: name,
+		Entries:  make([]fileservice.IOEntry, 1),
+		Policy:   policy | fileservice.SkipMemoryCache,
 	}
 
 	ioVec.Entries[0] = fileservice.IOEntry{
@@ -57,7 +57,7 @@ func ReadBloomFilter(
 	ctx context.Context,
 	name string,
 	extent *Extent,
-	cachePolicy fileservice.CachePolicy,
+	policy fileservice.Policy,
 	fs fileservice.FileService,
 ) (filters BloomFilter, err error) {
 	var v []byte
@@ -65,7 +65,7 @@ func ReadBloomFilter(
 		ctx,
 		name,
 		extent,
-		cachePolicy,
+		policy,
 		fs,
 		constructorFactory); err != nil {
 		return
@@ -85,11 +85,11 @@ func ReadObjectMeta(
 	ctx context.Context,
 	name string,
 	extent *Extent,
-	cachePolicy fileservice.CachePolicy,
+	policy fileservice.Policy,
 	fs fileservice.FileService,
 ) (meta ObjectMeta, err error) {
 	var v []byte
-	if v, err = ReadExtent(ctx, name, extent, cachePolicy, fs, constructorFactory); err != nil {
+	if v, err = ReadExtent(ctx, name, extent, policy, fs, constructorFactory); err != nil {
 		return
 	}
 
@@ -111,7 +111,7 @@ func ReadOneBlock(
 	seqnums []uint16,
 	typs []types.Type,
 	m *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 	fs fileservice.FileService,
 ) (ioVec *fileservice.IOVector, err error) {
 	return ReadOneBlockWithMeta(ctx, meta, name, blk, seqnums, typs, m, cachePolicy, fs, constructorFactory)
@@ -125,14 +125,14 @@ func ReadOneBlockWithMeta(
 	seqnums []uint16,
 	typs []types.Type,
 	m *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (ioVec *fileservice.IOVector, err error) {
 	ioVec = &fileservice.IOVector{
-		FilePath:    name,
-		Entries:     make([]fileservice.IOEntry, 0),
-		CachePolicy: cachePolicy,
+		FilePath: name,
+		Entries:  make([]fileservice.IOEntry, 0),
+		Policy:   cachePolicy,
 	}
 	var filledEntries []fileservice.IOEntry
 	blkmeta := meta.GetBlockMeta(uint32(blk))
@@ -223,14 +223,14 @@ func ReadMultiBlocksWithMeta(
 	name string,
 	meta ObjectMeta,
 	options map[uint16]*ReadBlockOptions,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (ioVec *fileservice.IOVector, err error) {
 	ioVec = &fileservice.IOVector{
-		FilePath:    name,
-		Entries:     make([]fileservice.IOEntry, 0),
-		CachePolicy: cachePolicy,
+		FilePath: name,
+		Entries:  make([]fileservice.IOEntry, 0),
+		Policy:   cachePolicy,
 	}
 	var dataMeta ObjectDataMeta
 	for _, opt := range options {
@@ -267,15 +267,15 @@ func ReadAllBlocksWithMeta(
 	meta *ObjectDataMeta,
 	name string,
 	cols []uint16,
-	cachePolicy fileservice.CachePolicy,
+	policy fileservice.Policy,
 	m *mpool.MPool,
 	fs fileservice.FileService,
 	factory CacheConstructorFactory,
 ) (ioVec *fileservice.IOVector, err error) {
 	ioVec = &fileservice.IOVector{
-		FilePath:    name,
-		Entries:     make([]fileservice.IOEntry, 0, len(cols)*int(meta.BlockCount())),
-		CachePolicy: cachePolicy,
+		FilePath: name,
+		Entries:  make([]fileservice.IOEntry, 0, len(cols)*int(meta.BlockCount())),
+		Policy:   policy,
 	}
 	for blk := uint32(0); blk < meta.BlockCount(); blk++ {
 		for _, seqnum := range cols {

@@ -60,7 +60,7 @@ func NewObjectReader(
 			&name,
 			&metaExt,
 			service,
-			objectio.WithMetaCachePolicyOption(fileservice.SkipMemory))
+			objectio.WithMetaCachePolicyOption(fileservice.SkipMemoryCache|fileservice.SkipFullFilePreloads))
 	} else {
 		reader, err = objectio.NewObjectReader(&name, &metaExt, service, opts...)
 	}
@@ -77,8 +77,7 @@ func NewFileReader(service fileservice.FileService, name string) (*BlockReader, 
 	reader, err := objectio.NewObjectReaderWithStr(
 		name,
 		service,
-		objectio.WithMetaCachePolicyOption(fileservice.SkipMemory),
-		objectio.WithDataCachePolicyOption(fileservice.SkipMemory))
+		objectio.WithMetaCachePolicyOption(fileservice.SkipMemoryCache|fileservice.SkipFullFilePreloads))
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +91,8 @@ func NewFileReaderNoCache(service fileservice.FileService, name string) (*BlockR
 	reader, err := objectio.NewObjectReaderWithStr(
 		name,
 		service,
-		objectio.WithDataCachePolicyOption(fileservice.SkipAll),
-		objectio.WithMetaCachePolicyOption(fileservice.SkipAll))
+		objectio.WithDataCachePolicyOption(fileservice.SkipAllCache),
+		objectio.WithMetaCachePolicyOption(fileservice.SkipAllCache))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +128,7 @@ func (r *BlockReader) LoadColumns(
 		}
 		ioVectors = v.(*fileservice.IOVector)
 	} else {
-		ioVectors, err = r.reader.ReadOneBlock(ctx, cols, typs, blk, m, fileservice.SkipMemory)
+		ioVectors, err = r.reader.ReadOneBlock(ctx, cols, typs, blk, m, fileservice.SkipMemoryCache)
 		if err != nil {
 			return
 		}
@@ -160,7 +159,7 @@ func (r *BlockReader) LoadSubColumns(
 		return
 	}
 	var ioVectors []*fileservice.IOVector
-	ioVectors, err = r.reader.ReadSubBlock(ctx, cols, typs, blk, m, fileservice.SkipMemory)
+	ioVectors, err = r.reader.ReadSubBlock(ctx, cols, typs, blk, m, fileservice.SkipMemoryCache)
 	if err != nil {
 		return
 	}
@@ -195,7 +194,7 @@ func (r *BlockReader) LoadOneSubColumns(
 		return
 	}
 	var ioVector *fileservice.IOVector
-	ioVector, err = r.reader.ReadOneSubBlock(ctx, cols, typs, dataType, blk, m, fileservice.SkipMemory)
+	ioVector, err = r.reader.ReadOneSubBlock(ctx, cols, typs, dataType, blk, m, fileservice.SkipMemoryCache)
 	if err != nil {
 		return
 	}

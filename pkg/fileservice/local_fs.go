@@ -299,7 +299,7 @@ func (l *LocalFS) Read(ctx context.Context, vector *IOVector) (err error) {
 		wait()
 	}
 
-	if l.memCache != nil && !vector.CachePolicy.Any(SkipMemoryReads) {
+	if l.memCache != nil && !vector.Policy.Any(SkipMemoryCacheReads) {
 		var numHit, numRead int64
 
 		defer func() {
@@ -374,7 +374,7 @@ func (l *LocalFS) ReadCache(ctx context.Context, vector *IOVector) (err error) {
 	}
 
 	if l.memCache != nil {
-		if !vector.CachePolicy.Any(SkipMemoryReads) {
+		if !vector.Policy.Any(SkipMemoryCacheReads) {
 			for i, entry := range vector.Entries {
 				path, err := ParsePath(vector.FilePath)
 				if err != nil {
@@ -398,7 +398,7 @@ func (l *LocalFS) read(ctx context.Context, vector *IOVector, bytesCounter *atom
 		// all cache hit
 		return nil
 	}
-	skipMemWrite := vector.CachePolicy.Any(SkipMemoryWrites)
+	skipMemWrite := vector.Policy.Any(SkipMemoryCacheWrites)
 
 	t0 := time.Now()
 	defer func() {

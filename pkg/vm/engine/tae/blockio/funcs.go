@@ -23,7 +23,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/model"
 	"github.com/matrixorigin/mocache"
 )
 
@@ -35,7 +34,7 @@ func LoadColumnsData(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (bat *batch.Batch, datas []mocache.CacheData, err error) {
 	name := location.Name()
 	var meta objectio.ObjectMeta
@@ -69,7 +68,7 @@ func LoadColumns(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (bat *batch.Batch, datas []mocache.CacheData, err error) {
 	return LoadColumnsData(ctx, objectio.SchemaData, cols, typs, fs, location, m, cachePolicy)
 }
@@ -81,32 +80,7 @@ func LoadTombstoneColumns(
 	fs fileservice.FileService,
 	location objectio.Location,
 	m *mpool.MPool,
-	cachePolicy fileservice.CachePolicy,
+	cachePolicy fileservice.Policy,
 ) (bat *batch.Batch, datas []mocache.CacheData, err error) {
 	return LoadColumnsData(ctx, objectio.SchemaTombstone, cols, typs, fs, location, m, cachePolicy)
-}
-
-func LoadBF(
-	ctx context.Context,
-	loc objectio.Location,
-	cache model.LRUCache,
-	fs fileservice.FileService,
-	noLoad bool,
-) (bf objectio.BloomFilter, err error) {
-	v, ok := cache.Get(ctx, *loc.ShortName())
-	if ok {
-		bf = objectio.BloomFilter(v)
-		return
-	}
-	if noLoad {
-		return
-	}
-	r, _ := NewObjectReader(fs, loc)
-	v, _, err = r.LoadAllBF(ctx)
-	if err != nil {
-		return
-	}
-	cache.Set(ctx, *loc.ShortName(), v)
-	bf = objectio.BloomFilter(v)
-	return
 }
