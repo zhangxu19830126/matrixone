@@ -754,8 +754,8 @@ func (rb *remoteBackend) requestDone(ctx context.Context, id uint64, msg RPCMess
 		rb.mu.Unlock()
 		if err == nil {
 			if msg.cost > 0 {
-				network := float64(msg.receivedAt.Sub(f.send.sendAt)-msg.cost) / 2
-				rb.metrics.rpcNetworkDurationHistogram.Observe(network)
+				network := (msg.receivedAt.Sub(f.send.sendAt) - msg.cost) / 2
+				rb.metrics.rpcNetworkDurationHistogram.Observe(network.Seconds())
 			}
 			f.done(response, cb)
 		} else {
