@@ -17,6 +17,7 @@ package morpc
 import (
 	"io"
 	"sync"
+	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/fagongzi/goetty/v2/buf"
@@ -199,6 +200,7 @@ func (c *baseCodec) Decode(in *buf.ByteBuf) (any, bool, error) {
 
 	in.SetReadIndex(in.GetMarkIndex())
 	in.ClearMark()
+	msg.receivedAt = time.Now()
 	return msg, true, nil
 }
 

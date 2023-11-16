@@ -256,16 +256,8 @@ func (c *DashboardCreator) initRPCNetworkDurationRow() dashboard.Option {
 		c.getHistogramWithExtraBy(
 			"Network Duration",
 			c.getMetricWithFilter(`mo_rpc_network_duration_seconds_bucket`, `name=~"lock-client"`),
-			[]float64{0.50, 0.8, 0.90, 0.95, 0.99},
-			6,
-			"name",
-			axis.Unit("s"),
-			axis.Min(0)),
-		c.getHistogramWithExtraBy(
-			"Network Duration",
-			c.getMetricWithFilter(`mo_rpc_network_duration_seconds_bucket`, `name=~"lock-server"`),
-			[]float64{0.50, 0.8, 0.90, 0.95, 0.99},
-			6,
+			[]float64{0.8, 0.90, 0.95, 0.99},
+			12,
 			"name",
 			axis.Unit("s"),
 			axis.Min(0)),

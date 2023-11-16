@@ -118,11 +118,7 @@ type timeCodec struct {
 }
 
 func (hc *timeCodec) Encode(msg *RPCMessage, out *buf.ByteBuf) (int, error) {
-	if msg.Ctx == nil {
-		return 0, nil
-	}
-
-	out.WriteInt64(int64(time.Now().UnixNano()))
+	out.WriteInt64(int64(msg.cost))
 	return 8, nil
 }
 
@@ -131,6 +127,6 @@ func (hc *timeCodec) Decode(msg *RPCMessage, data []byte) (int, error) {
 		return 0, io.ErrShortBuffer
 	}
 
-	msg.sentAt = time.Unix(0, buf.Byte2Int64(data))
+	msg.cost = time.Duration(buf.Byte2Int64(data))
 	return 8, nil
 }

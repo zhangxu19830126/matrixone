@@ -476,6 +476,9 @@ func (rb *remoteBackend) writeLoop(ctx context.Context) {
 			if len(written) > 0 {
 				start := time.Now()
 				rb.metrics.writeBytesHistogram.Observe(float64(rb.conn.OutBuf().Readable()))
+				for _, f := range written {
+					f.send.sendAt = start
+				}
 				err := rb.conn.Flush(writeTimeout)
 				rb.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
 				if err != nil {
@@ -565,7 +568,7 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 			rb.clean()
 			return
 		default:
-			msg, err := rb.conn.Read(goetty.ReadOptions{Timeout: rb.options.readTimeout})
+			v, err := rb.conn.Read(goetty.ReadOptions{Timeout: rb.options.readTimeout})
 			if err != nil {
 				rb.logger.Error("read from backend failed", zap.Error(err))
 				rb.inactiveReadLoop()
@@ -573,8 +576,9 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 				rb.scheduleResetConn()
 				return
 			}
+			msg := v.(RPCMessage)
+
 			rb.metrics.receiveCounter.Inc()
-			rb.metrics.rpcNetworkDurationHistogram.Observe(time.Since(msg.(RPCMessage).sentAt).Seconds())
 			rb.metrics.rpcReadBufferBytesHistogram.Observe(float64(rb.conn.(goetty.BufferedIOSession).InBuf().Readable()))
 
 			rb.active()
@@ -582,10 +586,10 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 			if rb.options.hasPayloadResponse {
 				wg.Add(1)
 			}
-			resp := msg.(RPCMessage).Message
+			resp := msg.Message
 			rb.metrics.rpcMessageBytesHistogram.Observe(float64(resp.Size()))
 
-			rb.requestDone(ctx, resp.GetID(), msg.(RPCMessage), nil, cb)
+			rb.requestDone(ctx, resp.GetID(), msg, nil, cb)
 			if rb.options.hasPayloadResponse {
 				wg.Wait()
 			}
@@ -749,6 +753,10 @@ func (rb *remoteBackend) requestDone(ctx context.Context, id uint64, msg RPCMess
 		delete(rb.mu.futures, id)
 		rb.mu.Unlock()
 		if err == nil {
+			if msg.cost > 0 {
+				network := float64(msg.receivedAt.Sub(f.send.sendAt)-msg.cost) / 2
+				rb.metrics.rpcNetworkDurationHistogram.Observe(network)
+			}
 			f.done(response, cb)
 		} else {
 			errutil.ReportError(ctx, err)

@@ -206,7 +206,6 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 			zap.Uint64("request-id", request.Message.GetID()),
 			zap.String("request", request.Message.DebugString()))
 	}
-	s.metrics.rpcNetworkDurationHistogram.Observe(time.Since(request.sentAt).Seconds())
 	s.metrics.rpcMessageBytesHistogram.Observe(float64(request.Message.Size()))
 
 	// Can't be sure that the Context is properly consumed if disableAutoCancelContext is set to
@@ -248,6 +247,7 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 		}
 	}
 
+	cs.addReceivedAt(request)
 	if err := s.handler(request.Ctx, request, sequence, cs); err != nil {
 		s.logger.Error("handle request failed",
 			zap.Uint64("sequence", sequence),
@@ -372,6 +372,13 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 					if written > 0 {
 						start := time.Now()
 						s.metrics.writeBytesHistogram.Observe(float64(cs.conn.OutBuf().Readable()))
+						for _, f := range responses {
+							id := f.getSendMessageID()
+							if v, ok := cs.receivedAt.Load(id); ok {
+								cs.receivedAt.Delete(id)
+								f.send.cost = v.(time.Time).Sub(start)
+							}
+						}
 						err := cs.conn.Flush(timeout)
 						s.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
 
@@ -494,6 +501,7 @@ type clientSession struct {
 	ctx                   context.Context
 	checkTimeoutCacheOnce sync.Once
 	closedC               chan struct{}
+	receivedAt            sync.Map // uint64 -> time.Time
 	mu                    struct {
 		sync.RWMutex
 		closed bool
@@ -699,6 +707,10 @@ func (cs *clientSession) GetCache(cacheID uint64) (MessageCache, error) {
 		return c.cache, nil
 	}
 	return nil, nil
+}
+
+func (cs *clientSession) addReceivedAt(msg RPCMessage) {
+	cs.receivedAt.Store(msg.Message.GetID(), msg.receivedAt)
 }
 
 type cacheWithContext struct {
