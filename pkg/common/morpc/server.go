@@ -357,6 +357,13 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 							fields = append(fields, zap.String("response",
 								f.send.Message.DebugString()))
 						}
+
+						id := f.getSendMessageID()
+						if v, ok := cs.receivedAt.Load(id); ok {
+							cs.receivedAt.Delete(id)
+							f.send.cost = start.Sub(v.(time.Time))
+						}
+
 						if err := cs.conn.Write(f.send, goetty.WriteOptions{}); err != nil {
 							s.logger.Error("write response failed",
 								zap.Uint64("request-id", f.send.Message.GetID()),
@@ -372,13 +379,6 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 					if written > 0 {
 						start := time.Now()
 						s.metrics.writeBytesHistogram.Observe(float64(cs.conn.OutBuf().Readable()))
-						for _, f := range responses {
-							id := f.getSendMessageID()
-							if v, ok := cs.receivedAt.Load(id); ok {
-								cs.receivedAt.Delete(id)
-								f.send.cost = v.(time.Time).Sub(start)
-							}
-						}
 						err := cs.conn.Flush(timeout)
 						s.metrics.writeFlushDurationHistogram.Observe(time.Since(start).Seconds())
 
