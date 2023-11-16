@@ -31,6 +31,7 @@ func (c *DashboardCreator) initTxnDashboard() error {
 		"Txn Metrics",
 		c.withRowOptions(
 			c.initTxnOverviewRow(),
+			c.initRuntimeDurationRow(),
 			c.initTxnDurationRow(),
 			c.initTxnCommitDurationRow(),
 			c.initTxnLockWaitersRow(),
@@ -401,5 +402,26 @@ func (c *DashboardCreator) initTxnMpoolRow() dashboard.Option {
 			[]float32{3, 3, 3, 3},
 			axis.Unit("s"),
 			axis.Min(0))...,
+	)
+}
+
+func (c *DashboardCreator) initRuntimeDurationRow() dashboard.Option {
+	return dashboard.Row(
+		"Go Runtime",
+		c.getHistogram(
+			"GC Stop the world duration",
+			c.getMetricWithFilter(`go_gc_pauses_seconds_bucket`, ``),
+			[]float64{0.8, 0.90, 0.95, 0.99},
+			6,
+			axis.Unit("s"),
+			axis.Min(0)),
+
+		c.getHistogram(
+			"Goroutine schedule duration",
+			c.getMetricWithFilter(`go_sched_latencies_seconds_bucket`, ``),
+			[]float64{0.8, 0.90, 0.95, 0.99},
+			6,
+			axis.Unit("s"),
+			axis.Min(0)),
 	)
 }
