@@ -20,10 +20,23 @@ import (
 )
 
 var (
-	registry = prometheus.DefaultRegisterer
+	registry = prometheus.NewRegistry()
 )
 
+func GetPrometheusRegistry() prometheus.Registerer {
+	return registry
+}
+
+func GetPrometheusGatherer() prometheus.Gatherer {
+	return registry
+}
+
 func init() {
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	registry.MustRegister(collectors.NewGoCollector(
+		collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll),
+	))
+
 	initFileServiceMetrics()
 	initLogtailMetrics()
 	initTxnMetrics()
@@ -34,10 +47,6 @@ func init() {
 	registry.MustRegister(HeartbeatFailureCounter)
 	registry.MustRegister(HeartbeatRecvHistogram)
 	registry.MustRegister(HeartbeatRecvFailureCounter)
-
-	registry.MustRegister(collectors.NewGoCollector(
-		collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll),
-	))
 }
 
 func initTaskMetrics() {
