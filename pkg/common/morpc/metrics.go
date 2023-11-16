@@ -38,6 +38,8 @@ type metrics struct {
 	connectDurationHistogram      prometheus.Observer
 	doneDurationHistogram         prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
+	rpcReadBufferBytesHistogram   prometheus.Observer
+	rpcMessageBytesHistogram      prometheus.Observer
 }
 
 func newMetrics(name string) *metrics {
@@ -60,6 +62,8 @@ func newMetrics(name string) *metrics {
 		doneDurationHistogram:         v2.NewRPCBackendDoneDurationHistogramByName(name),
 		writeLatencyDurationHistogram: v2.NewRPCBackendWriteLatencyDurationHistogramByName(name),
 		rpcNetworkDurationHistogram:   v2.NewRPCNetworkDurationHistogram(name),
+		rpcReadBufferBytesHistogram:   v2.NewRPCBackendReadBufferBytesHistogramByName(name),
+		rpcMessageBytesHistogram:      v2.NewRPCMessageBytesHistogramByName(name),
 	}
 }
 
@@ -76,6 +80,8 @@ type serverMetrics struct {
 	writeFlushDurationHistogram   prometheus.Observer
 	writeLatencyDurationHistogram prometheus.Observer
 	rpcNetworkDurationHistogram   prometheus.Observer
+	rpcReadBufferBytesHistogram   prometheus.Observer
+	rpcMessageBytesHistogram      prometheus.Observer
 }
 
 func newServerMetrics(name string) *serverMetrics {
@@ -92,5 +98,7 @@ func newServerMetrics(name string) *serverMetrics {
 		writeLatencyDurationHistogram: v2.NewRPCServerWriteLatencyDurationHistogramByName(name),
 		sessionSizeGauge:              v2.NewRPCServerSessionSizeGaugeByName(name),
 		rpcNetworkDurationHistogram:   v2.NewRPCNetworkDurationHistogram(name),
+		rpcReadBufferBytesHistogram:   v2.NewRPCServerReadBufferBytesHistogramByName(name),
+		rpcMessageBytesHistogram:      v2.NewRPCMessageBytesHistogramByName(name),
 	}
 }

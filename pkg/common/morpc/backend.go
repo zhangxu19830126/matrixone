@@ -575,6 +575,7 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 			}
 			rb.metrics.receiveCounter.Inc()
 			rb.metrics.rpcNetworkDurationHistogram.Observe(time.Since(msg.(RPCMessage).sentAt).Seconds())
+			rb.metrics.rpcReadBufferBytesHistogram.Observe(float64(rb.conn.(goetty.BufferedIOSession).InBuf().Readable()))
 
 			rb.active()
 
@@ -582,6 +583,8 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 				wg.Add(1)
 			}
 			resp := msg.(RPCMessage).Message
+			rb.metrics.rpcMessageBytesHistogram.Observe(float64(resp.Size()))
+
 			rb.requestDone(ctx, resp.GetID(), msg.(RPCMessage), nil, cb)
 			if rb.options.hasPayloadResponse {
 				wg.Wait()

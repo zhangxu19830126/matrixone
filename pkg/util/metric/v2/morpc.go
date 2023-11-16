@@ -145,7 +145,25 @@ var (
 			Namespace: "mo",
 			Subsystem: "rpc",
 			Name:      "write_bytes",
-			Help:      "Bucketed histogram of write data into socket duration.",
+			Help:      "Bucketed histogram of write data into socket bytes.",
+			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 20),
+		}, []string{"name", "side"})
+
+	rpcMessageBytesHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "message_bytes",
+			Help:      "Bucketed histogram of message rpc size.",
+			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 20),
+		}, []string{"name"})
+
+	rpcReadBufferBytesHistogram = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "mo",
+			Subsystem: "rpc",
+			Name:      "read_buffer_bytes",
+			Help:      "Bucketed histogram of read input buffer bytes.",
 			Buckets:   prometheus.ExponentialBuckets(1, 2.0, 20),
 		}, []string{"name", "side"})
 
@@ -283,4 +301,16 @@ func NewRPCBackendWriteBytesDurationHistogramByName(name string) prometheus.Obse
 
 func NewRPCServerWriteBytesDurationHistogramByName(name string) prometheus.Observer {
 	return rpcWriteBytesHistogram.WithLabelValues(name, "server")
+}
+
+func NewRPCBackendReadBufferBytesHistogramByName(name string) prometheus.Observer {
+	return rpcWriteBytesHistogram.WithLabelValues(name, "client")
+}
+
+func NewRPCServerReadBufferBytesHistogramByName(name string) prometheus.Observer {
+	return rpcWriteBytesHistogram.WithLabelValues(name, "server")
+}
+
+func NewRPCMessageBytesHistogramByName(name string) prometheus.Observer {
+	return rpcMessageBytesHistogram.WithLabelValues(name)
 }

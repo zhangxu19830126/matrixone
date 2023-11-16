@@ -122,4 +122,6 @@ func initRPCMetrics() {
 	registry.MustRegister(rpcWriteBytesHistogram)
 	registry.MustRegister(rpcWriteCodecDurationHistogram)
 	registry.MustRegister(rpcWriteNotifyDurationHistogram)
+	registry.MustRegister(rpcReadBufferBytesHistogram)
+	registry.MustRegister(rpcMessageBytesHistogram)
 }

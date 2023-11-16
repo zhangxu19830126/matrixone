@@ -193,6 +193,7 @@ func (s *server) adjust() {
 
 func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) error {
 	s.metrics.receiveCounter.Inc()
+	s.metrics.rpcReadBufferBytesHistogram.Observe(float64(rs.(goetty.BufferedIOSession).InBuf().Readable()))
 
 	cs, err := s.getSession(rs)
 	if err != nil {
@@ -206,6 +207,7 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 			zap.String("request", request.Message.DebugString()))
 	}
 	s.metrics.rpcNetworkDurationHistogram.Observe(time.Since(request.sentAt).Seconds())
+	s.metrics.rpcMessageBytesHistogram.Observe(float64(request.Message.Size()))
 
 	// Can't be sure that the Context is properly consumed if disableAutoCancelContext is set to
 	// true. So we use the pessimistic wait for the context to time out automatically be canceled

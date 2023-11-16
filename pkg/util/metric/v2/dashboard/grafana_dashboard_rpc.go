@@ -35,6 +35,7 @@ func (c *DashboardCreator) initRPCDashboard() error {
 			c.initRPCConnectionRow(),
 			c.initRPCConnectDurationRow(),
 			c.initRPCWriteDurationRow(),
+			c.initRPCBytesRow(),
 			c.initRPCRequestDoneDurationRow(),
 		)...)
 	if err != nil {
@@ -267,6 +268,38 @@ func (c *DashboardCreator) initRPCNetworkDurationRow() dashboard.Option {
 			6,
 			"name",
 			axis.Unit("s"),
+			axis.Min(0)),
+	)
+}
+
+func (c *DashboardCreator) initRPCBytesRow() dashboard.Option {
+	return dashboard.Row(
+		"RPC bytes",
+		c.getHistogramWithExtraBy(
+			"Client-side read buffer bytes",
+			c.getMetricWithFilter(`mo_rpc_read_buffer_bytes_bucket`, `side="client"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("bytes"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"Server-side read buffer bytes",
+			c.getMetricWithFilter(`mo_rpc_read_buffer_bytes_bucket`, `side="server"`),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("bytes"),
+			axis.Min(0)),
+
+		c.getHistogramWithExtraBy(
+			"RPC message bytes",
+			c.getMetricWithFilter(`mo_rpc_message_bytes_bucket`, ``),
+			[]float64{0.50, 0.8, 0.90, 0.99},
+			4,
+			"name",
+			axis.Unit("bytes"),
 			axis.Min(0)),
 	)
 }
