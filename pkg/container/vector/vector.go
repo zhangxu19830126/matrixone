@@ -17,6 +17,7 @@ package vector
 import (
 	"bytes"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -24,6 +25,14 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/nulls"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/vectorize/shuffle"
+)
+
+var (
+	vecPool = sync.Pool{
+		New: func() any {
+			return &Vector{}
+		},
+	}
 )
 
 const (
@@ -234,11 +243,9 @@ func GetArrayAt[T types.RealNumbers](v *Vector, i int) []T {
 }
 
 func NewVec(typ types.Type) *Vector {
-	vec := &Vector{
-		typ:   typ,
-		class: FLAT,
-	}
-
+	vec := vecPool.Get().(*Vector)
+	vec.typ = typ
+	vec.class = FLAT
 	return vec
 }
 
@@ -381,17 +388,10 @@ func (v *Vector) Free(mp *mpool.MPool) {
 	if !v.cantFreeArea {
 		mp.Free(v.area)
 	}
-	v.class = FLAT
-	v.col = nil
-	v.data = nil
-	v.area = nil
-	v.capacity = 0
-	v.length = 0
-	v.cantFreeData = false
-	v.cantFreeArea = false
-
 	v.nsp.Reset()
-	v.sorted = false
+
+	*v = Vector{}
+	vecPool.Put(v)
 }
 
 func (v *Vector) MarshalBinary() ([]byte, error) {
