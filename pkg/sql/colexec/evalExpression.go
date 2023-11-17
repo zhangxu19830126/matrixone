@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
 	"github.com/matrixorigin/matrixone/pkg/common/mpool"
@@ -66,6 +67,92 @@ var (
 	//No need to add T_array here, as Array is cast from varchar.
 )
 
+var (
+	fixedVectorExprPool = sync.Pool{
+		New: func() any {
+			return &FixedVectorExpressionExecutor{}
+		},
+	}
+
+	columnExprPool = sync.Pool{
+		New: func() any {
+			return &ColumnExpressionExecutor{}
+		},
+	}
+
+	paramExprPool = sync.Pool{
+		New: func() any {
+			return &ParamExpressionExecutor{}
+		},
+	}
+
+	varExprPool = sync.Pool{
+		New: func() any {
+			return &VarExpressionExecutor{}
+		},
+	}
+
+	funcExprPool = sync.Pool{
+		New: func() any {
+			return &FunctionExpressionExecutor{}
+		},
+	}
+)
+
+func newFixedVectorExpressionExecutor(
+	mp *mpool.MPool,
+	vec *vector.Vector) *FixedVectorExpressionExecutor {
+	expr := fixedVectorExprPool.Get().(*FixedVectorExpressionExecutor)
+	expr.m = mp
+	expr.resultVector = vec
+	return expr
+}
+
+func newColumnExpressionExecutor(
+	mp *mpool.MPool,
+	relIdx int,
+	colIdx int,
+	typ types.Type) *ColumnExpressionExecutor {
+	v := columnExprPool.Get().(*ColumnExpressionExecutor)
+	v.mp = mp
+	v.relIndex = relIdx
+	v.colIndex = colIdx
+	v.typ = typ
+	return v
+}
+
+func newParamExpressionExecutor(
+	mp *mpool.MPool,
+	vec *vector.Vector,
+	pos int,
+	typ types.Type) *ParamExpressionExecutor {
+	v := paramExprPool.Get().(*ParamExpressionExecutor)
+	v.mp = mp
+	v.vec = vec
+	v.pos = pos
+	v.typ = typ
+	return v
+}
+
+func newVarExpressionExecutor(
+	mp *mpool.MPool,
+	name string,
+	system bool,
+	global bool,
+	typ types.Type) *VarExpressionExecutor {
+	v := varExprPool.Get().(*VarExpressionExecutor)
+	v.mp = mp
+	v.name = name
+	v.system = system
+	v.global = global
+	v.typ = typ
+	return v
+}
+
+func newFunctionExpressionExecutor() *FunctionExpressionExecutor {
+	return funcExprPool.Get().(*FunctionExpressionExecutor)
+}
+
 // ExpressionExecutor
 // generated from plan.Expr, can evaluate the result from vectors directly.
 type ExpressionExecutor interface {
@@ -108,53 +195,26 @@ func NewExpressionExecutor(proc *process.Process, planExpr *plan.Expr) (Expressi
 		if err != nil {
 			return nil, err
 		}
-		return &FixedVectorExpressionExecutor{
-			m:            proc.Mp(),
-			resultVector: vec,
-		}, nil
-
+		return newFixedVectorExpressionExecutor(proc.Mp(), vec), nil
 	case *plan.Expr_T:
 		typ := types.New(types.T(planExpr.Typ.Id), planExpr.Typ.Width, planExpr.Typ.Scale)
 		vec := vector.NewConstNull(typ, 1, proc.Mp())
-		return &FixedVectorExpressionExecutor{
-			m:            proc.Mp(),
-			resultVector: vec,
-		}, nil
-
+		return newFixedVectorExpressionExecutor(proc.Mp(), vec), nil
 	case *plan.Expr_Col:
 		typ := types.New(types.T(planExpr.Typ.Id), planExpr.Typ.Width, planExpr.Typ.Scale)
-		return &ColumnExpressionExecutor{
-			mp:       proc.Mp(),
-			relIndex: int(t.Col.RelPos),
-			colIndex: int(t.Col.ColPos),
-			typ:      typ,
-		}, nil
-
+		return newColumnExpressionExecutor(proc.Mp(), int(t.Col.RelPos), int(t.Col.ColPos), typ), nil
 	case *plan.Expr_P:
-		return &ParamExpressionExecutor{
-			mp:  proc.Mp(),
-			vec: nil,
-			pos: int(t.P.Pos),
-			typ: types.T_text.ToType(),
-		}, nil
-
+		return newParamExpressionExecutor(proc.Mp(), nil, int(t.P.Pos), types.T_text.ToType()), nil
 	case *plan.Expr_V:
 		typ := types.New(types.T(planExpr.Typ.Id), planExpr.Typ.Width, planExpr.Typ.Scale)
-		return &VarExpressionExecutor{
-			mp:     proc.Mp(),
-			name:   t.V.Name,
-			system: t.V.System,
-			global: t.V.Global,
-			typ:    typ,
-		}, nil
-
+		return newVarExpressionExecutor(proc.Mp(), t.V.Name, t.V.System, t.V.Global, typ), nil
 	case *plan.Expr_F:
 		overload, err := function.GetFunctionById(proc.Ctx, t.F.GetFunc().GetObj())
 		if err != nil {
 			return nil, err
 		}
 
-		executor := &FunctionExpressionExecutor{}
+		executor := newFunctionExpressionExecutor()
 		typ := types.New(types.T(planExpr.Typ.Id), planExpr.Typ.Width, planExpr.Typ.Scale)
 		if err = executor.Init(proc, len(t.F.Args), typ, overload.GetExecuteMethod()); err != nil {
 			return nil, err
@@ -382,12 +442,13 @@ func (expr *ParamExpressionExecutor) EvalWithoutResultReusing(proc *process.Proc
 func (expr *ParamExpressionExecutor) Free() {
 	if expr.vec != nil {
 		expr.vec.Free(expr.mp)
-		expr.vec = nil
 	}
 	if expr.null != nil {
 		expr.null.Free(expr.mp)
-		expr.null = nil
 	}
+
+	*expr = ParamExpressionExecutor{}
+	paramExprPool.Put(expr)
 }
 
 func (expr *ParamExpressionExecutor) IsColumnExpr() bool {
@@ -449,12 +510,13 @@ func (expr *VarExpressionExecutor) EvalWithoutResultReusing(proc *process.Proces
 func (expr *VarExpressionExecutor) Free() {
 	if expr.vec != nil {
 		expr.vec.Free(expr.mp)
-		expr.vec = nil
 	}
 	if expr.null != nil {
 		expr.null.Free(expr.mp)
-		expr.null = nil
 	}
+
+	*expr = VarExpressionExecutor{}
+	varExprPool.Put(expr)
 }
 
 func (expr *VarExpressionExecutor) IsColumnExpr() bool {
@@ -513,11 +575,13 @@ func (expr *FunctionExpressionExecutor) EvalWithoutResultReusing(proc *process.P
 func (expr *FunctionExpressionExecutor) Free() {
 	if expr.resultVector != nil {
 		expr.resultVector.Free()
-		expr.resultVector = nil
 	}
 	for _, p := range expr.parameterExecutor {
 		p.Free()
 	}
+
+	*expr = FunctionExpressionExecutor{}
+	funcExprPool.Put(expr)
 }
 
 func (expr *FunctionExpressionExecutor) SetParameter(index int, executor ExpressionExecutor) {
@@ -569,8 +633,10 @@ func (expr *ColumnExpressionExecutor) EvalWithoutResultReusing(proc *process.Pro
 func (expr *ColumnExpressionExecutor) Free() {
 	if expr.nullVecCache != nil {
 		expr.nullVecCache.Free(expr.mp)
-		expr.nullVecCache = nil
 	}
+
+	*expr = ColumnExpressionExecutor{}
+	columnExprPool.Put(expr)
 }
 
 func (expr *ColumnExpressionExecutor) IsColumnExpr() bool {
@@ -593,11 +659,11 @@ func (expr *FixedVectorExpressionExecutor) EvalWithoutResultReusing(proc *proces
 }
 
 func (expr *FixedVectorExpressionExecutor) Free() {
-	if expr.resultVector == nil {
-		return
+	if expr.resultVector != nil {
+		expr.resultVector.Free(expr.m)
 	}
-	expr.resultVector.Free(expr.m)
-	expr.resultVector = nil
+	*expr = FixedVectorExpressionExecutor{}
+	fixedVectorExprPool.Put(expr)
 }
 
 func (expr *FixedVectorExpressionExecutor) IsColumnExpr() bool {
