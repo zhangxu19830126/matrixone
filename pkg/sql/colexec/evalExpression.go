@@ -234,7 +234,7 @@ func NewExpressionExecutor(proc *process.Process, planExpr *plan.Expr) (Expressi
 				vec := proc.GetVector(types.T_any.ToType())
 				err := vec.UnmarshalBinary(vecData.Bin.Data)
 				if err != nil {
-					executor.parameterExecutor[0].Free()
+					executor.reuse.parameterExecutor[0].Free()
 					return nil, err
 				}
 				executor.SetParameter(1, &FixedVectorExpressionExecutor{
@@ -243,16 +243,16 @@ func NewExpressionExecutor(proc *process.Process, planExpr *plan.Expr) (Expressi
 					resultVector: vec,
 				})
 			} else {
-				executor.parameterExecutor[0].Free()
+				executor.reuse.parameterExecutor[0].Free()
 				return nil, moerr.NewInternalError(proc.Ctx, fmt.Sprintf("expect BinaryData but get %v", rightArg))
 			}
 
 		default:
-			for i := range executor.parameterExecutor {
+			for i := range executor.reuse.parameterExecutor {
 				subExecutor, paramErr := NewExpressionExecutor(proc, t.F.Args[i])
 				if paramErr != nil {
 					for j := 0; j < i; j++ {
-						executor.parameterExecutor[j].Free()
+						executor.reuse.parameterExecutor[j].Free()
 					}
 					return nil, paramErr
 				}
@@ -263,11 +263,11 @@ func NewExpressionExecutor(proc *process.Process, planExpr *plan.Expr) (Expressi
 		// IF all parameters here were constant. and this function can be folded.
 		// 	there is a better way to convert it as a FixedVectorExpressionExecutor.
 		if !overload.CannotFold() && !overload.IsRealTimeRelated() && ifAllArgsAreConstant(executor) {
-			for i := range executor.parameterExecutor {
-				fixExe := executor.parameterExecutor[i].(*FixedVectorExpressionExecutor)
-				executor.parameterResults[i] = fixExe.resultVector
+			for i := range executor.reuse.parameterExecutor {
+				fixExe := executor.reuse.parameterExecutor[i].(*FixedVectorExpressionExecutor)
+				executor.reuse.parameterResults[i] = fixExe.resultVector
 				if !fixExe.fixed {
-					executor.parameterResults[i].SetLength(1)
+					executor.reuse.parameterResults[i].SetLength(1)
 				}
 			}
 
@@ -276,7 +276,7 @@ func NewExpressionExecutor(proc *process.Process, planExpr *plan.Expr) (Expressi
 				return nil, err
 			}
 
-			err = executor.evalFn(executor.parameterResults, executor.resultVector, proc, 1)
+			err = executor.evalFn(executor.reuse.parameterResults, executor.resultVector, proc, 1)
 			if err == nil {
 				mp := proc.Mp()
 
@@ -336,7 +336,7 @@ func EvalExpressionOnce(proc *process.Process, planExpr *plan.Expr, batches []*b
 }
 
 func ifAllArgsAreConstant(executor *FunctionExpressionExecutor) bool {
-	for _, paramE := range executor.parameterExecutor {
+	for _, paramE := range executor.reuse.parameterExecutor {
 		if _, ok := paramE.(*FixedVectorExpressionExecutor); !ok {
 			return false
 		}
@@ -359,18 +359,19 @@ type FixedVectorExpressionExecutor struct {
 }
 
 type FunctionExpressionExecutor struct {
-	m *mpool.MPool
-
+	m            *mpool.MPool
 	resultVector vector.FunctionResultWrapper
-	// parameters related
-	parameterResults  []*vector.Vector
-	parameterExecutor []ExpressionExecutor
-
-	evalFn func(
+	evalFn       func(
 		params []*vector.Vector,
 		result vector.FunctionResultWrapper,
 		proc *process.Process,
 		length int) error
+
+	reuse struct {
+		// parameters related
+		parameterResults  []*vector.Vector
+		parameterExecutor []ExpressionExecutor
+	}
 }
 
 type ColumnExpressionExecutor struct {
@@ -536,17 +537,19 @@ func (expr *FunctionExpressionExecutor) Init(
 
 	expr.m = m
 	expr.evalFn = fn
-	expr.parameterResults = make([]*vector.Vector, parameterNum)
-	expr.parameterExecutor = make([]ExpressionExecutor, parameterNum)
-
 	expr.resultVector = vector.NewFunctionResultWrapper(proc.GetVector, proc.PutVector, retType, m)
+
+	for i := 0; i < parameterNum; i++ {
+		expr.reuse.parameterResults = append(expr.reuse.parameterResults, nil)
+		expr.reuse.parameterExecutor = append(expr.reuse.parameterExecutor, nil)
+	}
 	return err
 }
 
 func (expr *FunctionExpressionExecutor) Eval(proc *process.Process, batches []*batch.Batch) (*vector.Vector, error) {
 	var err error
-	for i := range expr.parameterExecutor {
-		expr.parameterResults[i], err = expr.parameterExecutor[i].Eval(proc, batches)
+	for i := range expr.reuse.parameterExecutor {
+		expr.reuse.parameterResults[i], err = expr.reuse.parameterExecutor[i].Eval(proc, batches)
 		if err != nil {
 			return nil, err
 		}
@@ -557,7 +560,7 @@ func (expr *FunctionExpressionExecutor) Eval(proc *process.Process, batches []*b
 	}
 
 	if err = expr.evalFn(
-		expr.parameterResults, expr.resultVector, proc, batches[0].RowCount()); err != nil {
+		expr.reuse.parameterResults, expr.resultVector, proc, batches[0].RowCount()); err != nil {
 		return nil, err
 	}
 	return expr.resultVector.GetResultVector(), nil
@@ -576,16 +579,20 @@ func (expr *FunctionExpressionExecutor) Free() {
 	if expr.resultVector != nil {
 		expr.resultVector.Free()
 	}
-	for _, p := range expr.parameterExecutor {
+	for _, p := range expr.reuse.parameterExecutor {
 		p.Free()
 	}
 
+	reuse := expr.reuse
 	*expr = FunctionExpressionExecutor{}
+	expr.reuse = reuse
+	expr.reuse.parameterExecutor = expr.reuse.parameterExecutor[:0]
+	expr.reuse.parameterResults = expr.reuse.parameterResults[:0]
 	funcExprPool.Put(expr)
 }
 
 func (expr *FunctionExpressionExecutor) SetParameter(index int, executor ExpressionExecutor) {
-	expr.parameterExecutor[index] = executor
+	expr.reuse.parameterExecutor[index] = executor
 }
 
 func (expr *FunctionExpressionExecutor) IsColumnExpr() bool {

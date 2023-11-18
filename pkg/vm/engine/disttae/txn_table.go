@@ -17,6 +17,7 @@ package disttae
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -645,7 +646,11 @@ func (tbl *txnTable) rangesOnePart(
 		tbl.lastTS = tbl.db.txn.op.SnapshotTS()
 	}
 
-	dirtyBlks := make(map[types.Blockid]struct{})
+	dirtyBlks := acquireBlkMap()
+	defer func() {
+		releaseBlkMap(dirtyBlks)
+	}()
+
 	//collect partitionState.dirtyBlocks which may be invisible to this txn into dirtyBlks.
 	{
 		iter := state.NewDirtyBlocksIter()
@@ -727,8 +732,13 @@ func (tbl *txnTable) rangesOnePart(
 
 	columnMap := make(map[int]int)
 	if auxIdCnt > 0 {
-		zms = make([]objectio.ZoneMap, auxIdCnt)
-		vecs = make([]*vector.Vector, auxIdCnt)
+		tmp := acquireTmp(int(auxIdCnt))
+		defer func() {
+			releaseTmp(tmp)
+		}()
+
+		zms = tmp.zms
+		vecs = tmp.vecs
 		plan2.GetColumnMapByExprs(exprs, tableDef, &columnMap)
 	}
 
@@ -2043,4 +2053,53 @@ func (tbl *txnTable) readNewRowid(vec *vector.Vector, row int,
 
 func (tbl *txnTable) newPkFilter(pkExpr, constExpr *plan.Expr) (*plan.Expr, error) {
 	return plan2.BindFuncExprImplByPlanExpr(tbl.proc.Load().Ctx, "=", []*plan.Expr{pkExpr, constExpr})
+}
+
+var (
+	blkMapPool = sync.Pool{
+		New: func() any {
+			return make(map[types.Blockid]struct{})
+		},
+	}
+
+	tmpPool = sync.Pool{
+		New: func() any {
+			return &tmp{}
+		},
+	}
+)
+
+func acquireBlkMap() map[types.Blockid]struct{} {
+	return blkMapPool.Get().(map[types.Blockid]struct{})
+}
+
+func releaseBlkMap(m map[types.Blockid]struct{}) {
+	for k := range m {
+		delete(m, k)
+	}
+	blkMapPool.Put(m)
+}
+
+type tmp struct {
+	zms  []objectio.ZoneMap
+	vecs []*vector.Vector
+}
+
+func acquireTmp(n int) *tmp {
+	t := tmpPool.Get().(*tmp)
+	for i := 0; i < n; i++ {
+		t.zms = append(t.zms, nil)
+		t.vecs = append(t.vecs, nil)
+	}
+	return t
+}
+
+func releaseTmp(t *tmp) {
+	for i := range t.zms {
+		t.zms[i] = nil
+		t.vecs[i] = nil
+	}
+	t.zms = t.zms[:0]
+	t.vecs = t.vecs[:0]
+	tmpPool.Put(t)
 }
