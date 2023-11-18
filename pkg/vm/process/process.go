@@ -306,10 +306,6 @@ func (proc *Process) PutVector(vec *vector.Vector) {
 }
 
 func (proc *Process) GetVector(typ types.Type) *vector.Vector {
-	if vec := proc.vp.getVector(typ); vec != nil {
-		vec.Reset(typ)
-		return vec
-	}
 	return vector.NewVec(typ)
 }
 
