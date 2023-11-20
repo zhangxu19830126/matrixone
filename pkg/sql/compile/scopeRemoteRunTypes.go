@@ -68,6 +68,7 @@ type cnInformation struct {
 // rebuild the process at the remote node.
 type processHelper struct {
 	id               string
+	sql              string
 	lim              process.Limitation
 	unixTime         int64
 	accountId        uint32
@@ -107,16 +108,16 @@ func newMessageSenderOnClient(
 
 // XXX we can set a scope as argument directly next day.
 func (sender *messageSenderOnClient) send(
-	scopeData, procData []byte, messageType uint64) error {
+	scopeData, procData []byte, messageType pipeline.Method) error {
 	sdLen := len(scopeData)
 	if sdLen <= maxMessageSizeToMoRpc {
 		message := cnclient.AcquireMessage()
 		message.SetID(sender.streamSender.ID())
-		message.SetMessageType(pipeline.PipelineMessage)
+		message.SetMessageType(pipeline.Method_PipelineMessage)
 		message.SetData(scopeData)
 		message.SetProcData(procData)
 		message.SetSequence(0)
-		message.SetSid(pipeline.Last)
+		message.SetSid(pipeline.Status_Last)
 		return sender.streamSender.Send(sender.ctx, message)
 	}
 
@@ -127,15 +128,15 @@ func (sender *messageSenderOnClient) send(
 
 		message := cnclient.AcquireMessage()
 		message.SetID(sender.streamSender.ID())
-		message.SetMessageType(pipeline.PipelineMessage)
+		message.SetMessageType(pipeline.Method_PipelineMessage)
 		message.SetSequence(cnt)
 		if end >= sdLen {
 			message.SetData(scopeData[start:sdLen])
 			message.SetProcData(procData)
-			message.SetSid(pipeline.Last)
+			message.SetSid(pipeline.Status_Last)
 		} else {
 			message.SetData(scopeData[start:end])
-			message.SetSid(pipeline.WaitingNext)
+			message.SetSid(pipeline.Status_WaitingNext)
 		}
 
 		if err := sender.streamSender.Send(sender.ctx, message); err != nil {
@@ -174,7 +175,7 @@ func (sender *messageSenderOnClient) close() {
 type messageReceiverOnServer struct {
 	ctx         context.Context
 	messageId   uint64
-	messageTyp  uint64
+	messageTyp  pipeline.Method
 	messageUuid uuid.UUID
 
 	cnInformation cnInformation
@@ -229,7 +230,7 @@ func newMessageReceiverOnServer(
 	}
 
 	switch m.GetCmd() {
-	case pipeline.PrepareDoneNotifyMessage:
+	case pipeline.Method_PrepareDoneNotifyMessage:
 		opUuid, err := uuid.FromBytes(m.GetUuid())
 		if err != nil {
 			logutil.Errorf("decode uuid from pipeline.Message failed, bytes are %v", m.GetUuid())
@@ -237,7 +238,7 @@ func newMessageReceiverOnServer(
 		}
 		receiver.messageUuid = opUuid
 
-	case pipeline.PipelineMessage:
+	case pipeline.Method_PipelineMessage:
 		var err error
 		receiver.procBuildHelper, err = generateProcessHelper(m.GetProcInfoData(), txnClient)
 		if err != nil {
@@ -284,6 +285,7 @@ func (receiver *messageReceiverOnServer) newCompile() *Compile {
 		cnInfo.aicm)
 	proc.UnixTime = pHelper.unixTime
 	proc.Id = pHelper.id
+	proc.Sql = pHelper.sql
 	proc.Lim = pHelper.lim
 	proc.SessionInfo = pHelper.sessionInfo
 	proc.SessionInfo.StorageEngine = cnInfo.storeEngine
@@ -320,7 +322,7 @@ func (receiver *messageReceiverOnServer) sendError(
 		return err
 	}
 	message.SetID(receiver.messageId)
-	message.SetSid(pipeline.MessageEnd)
+	message.SetSid(pipeline.Status_MessageEnd)
 	if errInfo != nil {
 		message.SetMoError(receiver.ctx, errInfo)
 	}
@@ -349,12 +351,12 @@ func (receiver *messageReceiverOnServer) sendBatch(
 		if errA != nil {
 			return errA
 		}
-		m.SetMessageType(pipeline.BatchMessage)
+		m.SetMessageType(pipeline.Method_BatchMessage)
 		m.SetData(data)
 		// XXX too bad.
 		m.SetCheckSum(checksum)
 		m.SetSequence(receiver.sequence)
-		m.SetSid(pipeline.Last)
+		m.SetSid(pipeline.Status_Last)
 		receiver.sequence++
 		return receiver.clientSession.Write(receiver.ctx, m)
 	}
@@ -367,12 +369,12 @@ func (receiver *messageReceiverOnServer) sendBatch(
 		end = start + receiver.maxMessageSize
 		if end >= dataLen {
 			end = dataLen
-			m.SetSid(pipeline.Last)
+			m.SetSid(pipeline.Status_Last)
 			m.SetCheckSum(checksum)
 		} else {
-			m.SetSid(pipeline.WaitingNext)
+			m.SetSid(pipeline.Status_WaitingNext)
 		}
-		m.SetMessageType(pipeline.BatchMessage)
+		m.SetMessageType(pipeline.Method_BatchMessage)
 		m.SetData(data[start:end])
 		m.SetSequence(receiver.sequence)
 		receiver.sequence++
@@ -389,7 +391,7 @@ func (receiver *messageReceiverOnServer) sendEndMessage() error {
 	if err != nil {
 		return err
 	}
-	message.SetSid(pipeline.MessageEnd)
+	message.SetSid(pipeline.Status_MessageEnd)
 	message.SetID(receiver.messageId)
 	message.SetMessageType(receiver.messageTyp)
 
@@ -422,6 +424,7 @@ func generateProcessHelper(data []byte, cli client.TxnClient) (processHelper, er
 
 	result := processHelper{
 		id:               procInfo.Id,
+		sql:              procInfo.Sql,
 		lim:              convertToProcessLimitation(procInfo.Lim),
 		unixTime:         procInfo.UnixTime,
 		accountId:        procInfo.AccountId,

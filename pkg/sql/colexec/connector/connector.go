@@ -16,8 +16,11 @@ package connector
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
+	"github.com/matrixorigin/matrixone/pkg/sql/colexec"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -52,18 +55,22 @@ func (arg *Argument) Call(proc *process.Process) (vm.CallResult, error) {
 
 	// there is no need to log anything here.
 	// because the context is already canceled means the pipeline closed normally.
-	select {
-	case <-proc.Ctx.Done():
-		proc.PutBatch(bat)
-		result.Status = vm.ExecStop
-		return result, nil
+	for {
+		select {
+		case <-proc.Ctx.Done():
+			proc.PutBatch(bat)
+			result.Status = vm.ExecStop
+			return result, nil
 
-	case <-reg.Ctx.Done():
-		proc.PutBatch(bat)
-		result.Status = vm.ExecStop
-		return result, nil
+		case <-reg.Ctx.Done():
+			proc.PutBatch(bat)
+			result.Status = vm.ExecStop
+			return result, nil
 
-	case reg.Ch <- bat:
-		return result, nil
+		case reg.Ch <- bat:
+			return result, nil
+		case <-time.After(colexec.PipelineTimeOut):
+			logutil.Errorf("Cannot send %p to %p for long of '%s'", bat, reg.Ch, proc.Sql)
+		}
 	}
 }

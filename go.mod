@@ -38,7 +38,7 @@ require (
 	github.com/lni/dragonboat/v4 v4.0.0-20220815145555-6f622e8bcbef
 	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4
 	github.com/lni/vfs v0.2.1-0.20220616104132-8852fd867376
-	github.com/matrixorigin/mocache v0.0.0-20231108082912-f479f37bceb6
+	github.com/matrixorigin/mocache v0.0.0-20231120073506-02271e7d8751
 	github.com/matrixorigin/simdcsv v0.0.0-20230210060146-09b8e45209dd
 	github.com/minio/minio-go/v7 v7.0.63
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -48,8 +48,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/plar/go-adaptive-radix-tree v1.0.5
 	github.com/prashantv/gostub v1.1.0
-	github.com/prometheus/client_golang v1.15.1
-	github.com/prometheus/client_model v0.4.0
+	github.com/prometheus/client_golang v1.17.0
+	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
 	github.com/shirou/gopsutil/v3 v3.22.4
@@ -117,7 +117,7 @@ require (
 	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/getsentry/sentry-go v0.12.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.3
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gopherjs/gopherjs v1.12.80 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -139,9 +139,9 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20201029093017-5a7df2af2ac7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
-	github.com/prometheus/common v0.42.0 // indirect
-	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/prometheus/common v0.44.0 // indirect
+	github.com/prometheus/procfs v0.11.1 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smartystreets/assertions v1.13.1 // indirect

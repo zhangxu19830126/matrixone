@@ -15,9 +15,11 @@
 package colexec
 
 import (
-	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"reflect"
 	"sync"
+	"time"
+
+	"github.com/matrixorigin/matrixone/pkg/container/batch"
 
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/container/types"
@@ -26,6 +28,10 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/pb/pipeline"
 	"github.com/matrixorigin/matrixone/pkg/pb/plan"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
+)
+
+const (
+	PipelineTimeOut = time.Minute
 )
 
 type ResultPos struct {

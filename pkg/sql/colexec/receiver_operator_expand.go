@@ -15,20 +15,28 @@
 package colexec
 
 import (
+	"time"
+
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 )
 
 func (r *ReceiverOperator) selectFrom1Reg() (int, *batch.Batch, bool) {
 	idx := 0
 	ok := true
 	var bat *batch.Batch
-	select {
-	case <-r.proc.Ctx.Done():
-		return 0, nil, true
-	case bat, ok = <-r.chs[0]:
-		idx = 1
+	for {
+		select {
+		case <-r.proc.Ctx.Done():
+			return 0, nil, true
+		case bat, ok = <-r.chs[0]:
+			idx = 1
+			return idx, bat, ok
+		case <-time.After(PipelineTimeOut):
+			logutil.Errorf("Cannot recv from %p for log time of '%s'", r.chs[0],
+				r.proc.Sql)
+		}
 	}
-	return idx, bat, ok
 }
 
 func (r *ReceiverOperator) selectFrom2Reg() (int, *batch.Batch, bool) {

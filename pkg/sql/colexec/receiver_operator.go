@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
+	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
@@ -45,14 +46,19 @@ func (r *ReceiverOperator) InitReceiver(proc *process.Process, isMergeType bool)
 func (r *ReceiverOperator) ReceiveFromSingleReg(regIdx int, analyze process.Analyze) (*batch.Batch, bool, error) {
 	start := time.Now()
 	defer analyze.WaitStop(start)
-	select {
-	case <-r.proc.Ctx.Done():
-		return nil, true, nil
-	case bat, ok := <-r.proc.Reg.MergeReceivers[regIdx].Ch:
-		if !ok {
+	for {
+		select {
+		case <-r.proc.Ctx.Done():
 			return nil, true, nil
+		case bat, ok := <-r.proc.Reg.MergeReceivers[regIdx].Ch:
+			if !ok {
+				return nil, true, nil
+			}
+			return bat, false, nil
+		case <-time.After(PipelineTimeOut):
+			logutil.Errorf("Cannot recv from %p for long time of '%v':'%s'",
+				r.proc.Reg.MergeReceivers[regIdx].Ch, r.proc.Reg.MergeReceivers[regIdx].Ctx.Err(), r.proc.Sql)
 		}
-		return bat, false, nil
 	}
 }
 

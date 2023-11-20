@@ -83,6 +83,7 @@ func NewFromProc(p *Process, ctx context.Context, regNumber int) *Process {
 	proc := new(Process)
 	newctx, cancel := context.WithCancel(ctx)
 	proc.Id = p.Id
+	proc.Sql = p.Sql
 	proc.vp = p.vp
 	proc.mp = p.Mp()
 	proc.prepareBatch = p.prepareBatch

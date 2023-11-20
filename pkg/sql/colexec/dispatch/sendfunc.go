@@ -18,7 +18,10 @@ import (
 	"context"
 	"hash/crc32"
 	"sync/atomic"
+	"time"
 
+	"github.com/matrixorigin/matrixone/pkg/logutil"
+	"github.com/matrixorigin/matrixone/pkg/sql/colexec"
 	plan2 "github.com/matrixorigin/matrixone/pkg/sql/plan"
 
 	"github.com/matrixorigin/matrixone/pkg/cnservice/cnclient"
@@ -109,14 +112,19 @@ func sendBatToIndex(ap *Argument, proc *process.Process, bat *batch.Batch, regIn
 		batIndex := uint32(ap.ShuffleRegIdxLocal[i])
 		if regIndex == batIndex {
 			if bat != nil && bat.RowCount() != 0 {
-				select {
-				case <-proc.Ctx.Done():
-					return nil
+				for flg := true; flg; {
+					select {
+					case <-proc.Ctx.Done():
+						return nil
 
-				case <-reg.Ctx.Done():
-					return nil
+					case <-reg.Ctx.Done():
+						return nil
 
-				case reg.Ch <- bat:
+					case reg.Ch <- bat:
+						flg = false
+					case <-time.After(colexec.PipelineTimeOut):
+						logutil.Errorf("Cannot send %p to %p for long time of '%s'", bat, reg.Ch, proc.Sql)
+					}
 				}
 			}
 		}
@@ -209,6 +217,9 @@ func shuffleToAllFunc(bat *batch.Batch, ap *Argument, proc *process.Process) (bo
 			return true, nil
 		}
 	}
+
+	ap.ctr.batchCnt[bat.ShuffleIDX]++
+	ap.ctr.rowCnt[bat.ShuffleIDX] += bat.RowCount()
 	if ap.ShuffleType == plan2.ShuffleToRegIndex {
 		return false, sendBatToIndex(ap, proc, bat, uint32(bat.ShuffleIDX))
 	} else if ap.ShuffleType == plan2.ShuffleToLocalMatchedReg {
@@ -337,8 +348,8 @@ func sendBatchToClientSession(ctx context.Context, encodeBatData []byte, wcs *Wr
 		{
 			msg.Id = wcs.msgId
 			msg.Data = encodeBatData
-			msg.Cmd = pipeline.BatchMessage
-			msg.Sid = pipeline.Last
+			msg.Cmd = pipeline.Method_BatchMessage
+			msg.Sid = pipeline.Status_Last
 			msg.Checksum = checksum
 		}
 		if err := wcs.cs.Write(ctx, msg); err != nil {
@@ -350,17 +361,17 @@ func sendBatchToClientSession(ctx context.Context, encodeBatData []byte, wcs *Wr
 	start := 0
 	for start < len(encodeBatData) {
 		end := start + maxMessageSizeToMoRpc
-		sid := pipeline.WaitingNext
+		sid := pipeline.Status_WaitingNext
 		if end > len(encodeBatData) {
 			end = len(encodeBatData)
-			sid = pipeline.Last
+			sid = pipeline.Status_Last
 		}
 		msg := cnclient.AcquireMessage()
 		{
 			msg.Id = wcs.msgId
 			msg.Data = encodeBatData[start:end]
-			msg.Cmd = pipeline.BatchMessage
-			msg.Sid = uint64(sid)
+			msg.Cmd = pipeline.Method_BatchMessage
+			msg.Sid = sid
 			msg.Checksum = checksum
 		}
 

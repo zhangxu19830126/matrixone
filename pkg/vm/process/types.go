@@ -280,6 +280,7 @@ type Process struct {
 	StmtProfile *StmtProfile
 	// Id, query id.
 	Id  string
+	Sql string
 	Reg Register
 	Lim Limitation
 
