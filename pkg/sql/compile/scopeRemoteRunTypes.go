@@ -155,6 +155,7 @@ func (sender *messageSenderOnClient) receiveMessage() (morpc.Message, error) {
 
 	case val, ok := <-sender.receiveCh:
 		if !ok || val == nil {
+			logutil.Errorf("receiveMessage failed: stream closed")
 			// ch close
 			return nil, moerr.NewStreamClosed(sender.ctx)
 		}
