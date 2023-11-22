@@ -42,6 +42,8 @@ var (
 
 	backendClosed  = moerr.NewBackendClosedNoCtx()
 	messageSkipped = moerr.NewInvalidStateNoCtx("request is skipped")
+
+	defaultHeartbeatInterval = time.Millisecond * 200
 )
 
 // WithBackendLogger set the backend logger
@@ -924,7 +926,7 @@ func (rb *remoteBackend) nextID() uint64 {
 
 func (rb *remoteBackend) getPingTimeout() time.Duration {
 	if rb.options.readTimeout > 0 {
-		return rb.options.readTimeout / 5
+		return defaultHeartbeatInterval
 	}
 	return time.Duration(math.MaxInt64)
 }
