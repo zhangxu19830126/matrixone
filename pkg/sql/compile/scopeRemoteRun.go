@@ -122,8 +122,8 @@ func CnServerMessageHandler(
 			err := moerr.ConvertPanicError(ctx, e)
 			getLogger().Error("panic in cn message handler",
 				zap.String("error", err.Error()))
-			cs.Close()
 		}
+		cs.SafeClose(ctx)
 	}()
 
 	msg, ok := message.(*pipeline.Message)
