@@ -561,7 +561,7 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 			rb.clean()
 			return
 		default:
-			msg, err := rb.conn.Read(goetty.ReadOptions{Timeout: rb.options.readTimeout})
+			v, err := rb.conn.Read(goetty.ReadOptions{Timeout: rb.options.readTimeout})
 			if err != nil {
 				rb.logger.Error("read from backend failed", zap.Error(err))
 				rb.inactiveReadLoop()
@@ -570,14 +570,22 @@ func (rb *remoteBackend) readLoop(ctx context.Context) {
 				return
 			}
 			rb.metrics.receiveCounter.Inc()
-
 			rb.active()
+
+			msg := v.(RPCMessage)
+			if m, ok := msg.Message.(*flagOnlyMessage); ok {
+				switch m.flag {
+				case flagClose:
+					_ = rb.conn.Disconnect()
+					continue
+				}
+			}
 
 			if rb.options.hasPayloadResponse {
 				wg.Add(1)
 			}
-			resp := msg.(RPCMessage).Message
-			rb.requestDone(ctx, resp.GetID(), msg.(RPCMessage), nil, cb)
+			resp := msg.Message
+			rb.requestDone(ctx, resp.GetID(), msg, nil, cb)
 			if rb.options.hasPayloadResponse {
 				wg.Wait()
 			}
