@@ -497,7 +497,7 @@ func TestServerSafeClose(t *testing.T) {
 				for i := 0; i < n; i++ {
 					assert.NoError(t, cs.Write(ctx, request.Message))
 				}
-				cs.SafeClose(ctx)
+				assert.NoError(t, cs.SafeClose(ctx))
 			}()
 			return nil
 		})
@@ -516,7 +516,8 @@ func TestServerSafeClose(t *testing.T) {
 		for i := 0; i < n; i++ {
 			assert.Equal(t, req, <-rc)
 		}
-
 		wg.Wait()
+		v := <-rc
+		assert.Nil(t, v)
 	})
 }

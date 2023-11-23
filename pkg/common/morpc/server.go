@@ -17,6 +17,7 @@ package morpc
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -224,10 +225,6 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 			zap.String("client", rs.RemoteAddress()))
 		cs.cancelWrite()
 		return moerr.NewStreamClosedNoCtx()
-	}
-
-	if cs.markCanClose() {
-		return nil
 	}
 
 	// handle internal message
@@ -487,13 +484,10 @@ type clientSession struct {
 	ctx                   context.Context
 	checkTimeoutCacheOnce sync.Once
 	closedC               chan struct{}
-	canCloseC             chan struct{}
 	mu                    struct {
 		sync.RWMutex
 		closed bool
 		caches map[uint64]cacheWithContext
-
-		waitToClose bool
 	}
 }
 
@@ -506,7 +500,6 @@ func newClientSession(
 	cs := &clientSession{
 		metrics:                 metrics,
 		closedC:                 make(chan struct{}),
-		canCloseC:               make(chan struct{}, 1),
 		codec:                   codec,
 		c:                       make(chan *Future, 32),
 		receivedStreamSequences: make(map[uint64]uint32),
@@ -530,7 +523,6 @@ func (cs *clientSession) Close() error {
 		return nil
 	}
 	close(cs.closedC)
-	close(cs.canCloseC)
 	cs.cleanSend()
 	close(cs.c)
 	cs.mu.closed = true
@@ -700,29 +692,11 @@ func (cs *clientSession) GetCache(cacheID uint64) (MessageCache, error) {
 }
 
 func (cs *clientSession) SafeClose(ctx context.Context) error {
-	cs.mu.Lock()
-	if cs.mu.waitToClose {
-		panic("BUG: call AsyncClose multiple times")
-	}
-	cs.mu.waitToClose = true
-	cs.mu.Unlock()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-cs.canCloseC:
-		return cs.Close()
-	}
-}
-
-func (cs *clientSession) markCanClose() bool {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	if cs.mu.waitToClose {
-		cs.canCloseC <- struct{}{}
-		return true
-	}
-	return false
+	return cs.WriteRPCMessage(RPCMessage{
+		Ctx:      ctx,
+		Message:  &flagOnlyMessage{flag: flagClose, id: math.MaxUint64},
+		internal: true,
+	})
 }
 
 type cacheWithContext struct {
