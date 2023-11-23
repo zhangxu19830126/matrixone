@@ -1444,47 +1444,49 @@ func (builder *QueryBuilder) createQuery() (*Query, error) {
 		builder.removeSimpleProjections(rootID, plan.Node_UNKNOWN, false, make(map[[2]int32]int))
 
 		rewriteFilterListByStats(builder.GetContext(), rootID, builder)
-		ReCalcNodeStats(rootID, builder, true, true)
+		ReCalcNodeStats(rootID, builder, true, true, true)
 		builder.applySwapRuleByStats(rootID, true)
 
 		determineHashOnPK(rootID, builder)
 		tagCnt := make(map[int32]int)
 		rootID = builder.removeEffectlessLeftJoins(rootID, tagCnt)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 
 		rootID = builder.aggPushDown(rootID)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 		rootID = builder.determineJoinOrder(rootID)
 		colMap := make(map[[2]int32]int)
 		colGroup := make([]int, 0)
 		builder.removeRedundantJoinCond(rootID, colMap, colGroup)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 		rootID = builder.applyAssociativeLaw(rootID)
 		builder.applySwapRuleByStats(rootID, true)
 		rootID = builder.aggPullup(rootID, rootID)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 		rootID = builder.pushdownSemiAntiJoins(rootID)
 		builder.optimizeDistinctAgg(rootID)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 		builder.applySwapRuleByStats(rootID, true)
 
 		builder.qry.Steps[i] = rootID
 
 		// XXX: This will be removed soon, after merging implementation of all hash-join operators
 		builder.swapJoinChildren(rootID)
-		ReCalcNodeStats(rootID, builder, true, false)
+		ReCalcNodeStats(rootID, builder, true, false, true)
 
 		builder.partitionPrune(rootID)
-		ReCalcNodeStats(rootID, builder, true, false)
+
+		rootID = builder.autoUseIndices(rootID)
+		ReCalcNodeStats(rootID, builder, true, true, true)
 
 		determineHashOnPK(rootID, builder)
 		determineShuffleMethod(rootID, builder)
 		determineShuffleMethod2(rootID, -1, builder)
-		// after determine shuffle, never call recalc stats again.
-		// new optimize rule should be put before
+		// after determine shuffle, be careful when calling ReCalcNodeStats again.
+		// needResetHashMapStats should always be false from here
 
 		builder.pushdownRuntimeFilters(rootID)
-		rootID = builder.useUniqueSecondaryIndices(rootID)
+		ReCalcNodeStats(rootID, builder, true, false, false)
 
 		builder.rewriteStarApproxCount(rootID)
 
@@ -1922,11 +1924,11 @@ func (builder *QueryBuilder) buildSelect(stmt *tree.Select, ctx *BindContext, is
 				return 0, moerr.NewSyntaxError(builder.GetContext(), "WITH query name %q specified more than once", name)
 			}
 
-			var maskedCTEs map[string]any
+			var maskedCTEs map[string]emptyType
 			if len(maskedNames) > 0 {
-				maskedCTEs = make(map[string]any)
+				maskedCTEs = make(map[string]emptyType)
 				for _, mask := range maskedNames {
-					maskedCTEs[mask] = nil
+					maskedCTEs[mask] = emptyStruct
 				}
 			}
 
@@ -2965,7 +2967,7 @@ func (builder *QueryBuilder) appendNode(node *plan.Node, ctx *BindContext) int32
 	node.NodeId = nodeID
 	builder.qry.Nodes = append(builder.qry.Nodes, node)
 	builder.ctxByNode = append(builder.ctxByNode, ctx)
-	ReCalcNodeStats(nodeID, builder, false, true)
+	ReCalcNodeStats(nodeID, builder, false, true, true)
 	return nodeID
 }
 
@@ -3414,11 +3416,11 @@ func (builder *QueryBuilder) buildTable(stmt tree.TableExpr, ctx *BindContext, p
 				}
 
 				viewName := viewStmt.Name.ObjectName
-				var maskedCTEs map[string]any
+				var maskedCTEs map[string]emptyType
 				if len(ctx.cteByName) > 0 {
-					maskedCTEs = make(map[string]any)
+					maskedCTEs = make(map[string]emptyType)
 					for name := range ctx.cteByName {
-						maskedCTEs[name] = nil
+						maskedCTEs[name] = emptyStruct
 					}
 				}
 				defaultDatabase := viewData.DefaultDatabase
@@ -3769,13 +3771,13 @@ func (builder *QueryBuilder) buildJoinTable(tbl *tree.JoinTableExpr, ctx *BindCo
 
 	default:
 		if tbl.JoinType == tree.JOIN_TYPE_NATURAL || tbl.JoinType == tree.JOIN_TYPE_NATURAL_LEFT || tbl.JoinType == tree.JOIN_TYPE_NATURAL_RIGHT {
-			leftCols := make(map[string]any)
+			leftCols := make(map[string]emptyType)
 			for _, binding := range leftCtx.bindings {
 				for i, col := range binding.cols {
 					if binding.colIsHidden[i] {
 						continue
 					}
-					leftCols[col] = nil
+					leftCols[col] = emptyStruct
 				}
 			}
 

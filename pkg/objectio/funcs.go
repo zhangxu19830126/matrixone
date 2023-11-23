@@ -26,7 +26,6 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/container/types"
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/containers"
 )
 
 func ReadExtent(
@@ -206,8 +205,7 @@ func ReadOneBlockWithMeta(
 					meta.BlockHeader().BlockID().String(), filledEntries[i].Size, typs[i])
 				buf := &bytes.Buffer{}
 				buf.Write(EncodeIOEntryHeader(&IOEntryHeader{Type: IOET_ColData, Version: IOET_ColumnData_CurrVer}))
-				err = containers.FillCNConstVector(length, typs[i], nil, m).MarshalBinaryWithBuffer(buf)
-				if err != nil {
+				if err = vector.NewConstNull(typs[i], length, m).MarshalBinaryWithBuffer(buf); err != nil {
 					return
 				}
 				cacheData := fileservice.DefaultCacheDataAllocator.Alloc(buf.Len())

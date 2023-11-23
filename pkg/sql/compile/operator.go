@@ -17,7 +17,6 @@ package compile
 import (
 	"context"
 	"fmt"
-
 	"github.com/google/uuid"
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -109,6 +108,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions: t.Conditions,
 			Result:     t.Result,
 			HashOnPK:   t.HashOnPK,
+			IsShuffle:  t.IsShuffle,
 		}
 	case vm.Group:
 		t := sourceIns.Arg.(*group.Argument)
@@ -137,6 +137,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.Left:
 		t := sourceIns.Arg.(*left.Argument)
@@ -149,6 +150,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.Right:
 		t := sourceIns.Arg.(*right.Argument)
@@ -162,6 +164,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.RightSemi:
 		t := sourceIns.Arg.(*rightsemi.Argument)
@@ -174,6 +177,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.RightAnti:
 		t := sourceIns.Arg.(*rightanti.Argument)
@@ -186,6 +190,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.Limit:
 		t := sourceIns.Arg.(*limit.Argument)
@@ -247,8 +252,9 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 	case vm.Product:
 		t := sourceIns.Arg.(*product.Argument)
 		res.Arg = &product.Argument{
-			Result: t.Result,
-			Typs:   t.Typs,
+			Result:    t.Result,
+			Typs:      t.Typs,
+			IsShuffle: t.IsShuffle,
 		}
 	case vm.Projection:
 		t := sourceIns.Arg.(*projection.Argument)
@@ -271,6 +277,7 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 			Conditions:         t.Conditions,
 			RuntimeFilterSpecs: t.RuntimeFilterSpecs,
 			HashOnPK:           t.HashOnPK,
+			IsShuffle:          t.IsShuffle,
 		}
 	case vm.Single:
 		t := sourceIns.Arg.(*single.Argument)
@@ -423,11 +430,13 @@ func dupInstruction(sourceIns *vm.Instruction, regMap map[*process.WaitRegister]
 	case vm.Shuffle:
 		sourceArg := sourceIns.Arg.(*shuffle.Argument)
 		arg := &shuffle.Argument{
-			ShuffleType:   sourceArg.ShuffleType,
-			ShuffleColIdx: sourceArg.ShuffleColIdx,
-			ShuffleColMax: sourceArg.ShuffleColMax,
-			ShuffleColMin: sourceArg.ShuffleColMin,
-			AliveRegCnt:   sourceArg.AliveRegCnt,
+			ShuffleType:        sourceArg.ShuffleType,
+			ShuffleColIdx:      sourceArg.ShuffleColIdx,
+			ShuffleColMax:      sourceArg.ShuffleColMax,
+			ShuffleColMin:      sourceArg.ShuffleColMin,
+			AliveRegCnt:        sourceArg.AliveRegCnt,
+			ShuffleRangeInt64:  sourceArg.ShuffleRangeInt64,
+			ShuffleRangeUint64: sourceArg.ShuffleRangeUint64,
 		}
 		res.Arg = arg
 	case vm.Dispatch:
@@ -744,6 +753,7 @@ func constructJoin(n *plan.Node, typs []types.Type, proc *process.Process) *join
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -764,6 +774,7 @@ func constructSemi(n *plan.Node, typs []types.Type, proc *process.Process) *semi
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -780,6 +791,7 @@ func constructLeft(n *plan.Node, typs []types.Type, proc *process.Process) *left
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -799,6 +811,7 @@ func constructRight(n *plan.Node, left_typs, right_typs []types.Type, Ibucket, N
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -817,6 +830,7 @@ func constructRightSemi(n *plan.Node, right_typs []types.Type, Ibucket, Nbucket 
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -835,6 +849,7 @@ func constructRightAnti(n *plan.Node, right_typs []types.Type, Ibucket, Nbucket 
 		Conditions:         constructJoinConditions(conds, proc),
 		RuntimeFilterSpecs: n.RuntimeFilterBuildList,
 		HashOnPK:           n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:          n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -878,6 +893,7 @@ func constructAnti(n *plan.Node, typs []types.Type, proc *process.Process) *anti
 		Cond:       cond,
 		Conditions: constructJoinConditions(conds, proc),
 		HashOnPK:   n.Stats.HashmapStats != nil && n.Stats.HashmapStats.HashOnPK,
+		IsShuffle:  n.Stats.HashmapStats != nil && n.Stats.HashmapStats.Shuffle,
 	}
 }
 
@@ -1302,23 +1318,35 @@ func constructShuffleJoinArg(ss []*Scope, node *plan.Node, left bool) *shuffle.A
 		}
 	}
 
-	hashCol, _ := plan2.GetHashColumn(expr)
+	hashCol, typ := plan2.GetHashColumn(expr)
 	arg.ShuffleColIdx = hashCol.ColPos
 	arg.ShuffleType = int32(node.Stats.HashmapStats.ShuffleType)
 	arg.ShuffleColMin = node.Stats.HashmapStats.ShuffleColMin
 	arg.ShuffleColMax = node.Stats.HashmapStats.ShuffleColMax
 	arg.AliveRegCnt = int32(len(ss))
+	switch types.T(typ) {
+	case types.T_int64, types.T_int32, types.T_int16:
+		arg.ShuffleRangeInt64 = plan2.ShuffleRangeReEvalSigned(node.Stats.HashmapStats.Ranges, int(arg.AliveRegCnt), node.Stats.HashmapStats.Nullcnt, int64(node.Stats.TableCnt))
+	case types.T_uint64, types.T_uint32, types.T_uint16, types.T_varchar, types.T_char, types.T_text:
+		arg.ShuffleRangeUint64 = plan2.ShuffleRangeReEvalUnsigned(node.Stats.HashmapStats.Ranges, int(arg.AliveRegCnt), node.Stats.HashmapStats.Nullcnt, int64(node.Stats.TableCnt))
+	}
 	return arg
 }
 
 func constructShuffleGroupArg(ss []*Scope, node *plan.Node) *shuffle.Argument {
 	arg := new(shuffle.Argument)
-	hashCol, _ := plan2.GetHashColumn(node.GroupBy[node.Stats.HashmapStats.ShuffleColIdx])
+	hashCol, typ := plan2.GetHashColumn(node.GroupBy[node.Stats.HashmapStats.ShuffleColIdx])
 	arg.ShuffleColIdx = hashCol.ColPos
 	arg.ShuffleType = int32(node.Stats.HashmapStats.ShuffleType)
 	arg.ShuffleColMin = node.Stats.HashmapStats.ShuffleColMin
 	arg.ShuffleColMax = node.Stats.HashmapStats.ShuffleColMax
 	arg.AliveRegCnt = int32(len(ss))
+	switch types.T(typ) {
+	case types.T_int64, types.T_int32, types.T_int16:
+		arg.ShuffleRangeInt64 = plan2.ShuffleRangeReEvalSigned(node.Stats.HashmapStats.Ranges, int(arg.AliveRegCnt), node.Stats.HashmapStats.Nullcnt, int64(node.Stats.TableCnt))
+	case types.T_uint64, types.T_uint32, types.T_uint16, types.T_varchar, types.T_char, types.T_text:
+		arg.ShuffleRangeUint64 = plan2.ShuffleRangeReEvalUnsigned(node.Stats.HashmapStats.Ranges, int(arg.AliveRegCnt), node.Stats.HashmapStats.Nullcnt, int64(node.Stats.TableCnt))
+	}
 	return arg
 }
 
