@@ -1109,7 +1109,6 @@ func (s *stream) Receive() (chan Message, error) {
 
 func (s *stream) Close(closeConn bool) error {
 	if closeConn {
-		logutil.Errorf("+++ client call stream close, %p, %s", s, s.rb.conn.RemoteAddress())
 		s.rb.Close()
 	}
 	s.mu.Lock()
@@ -1157,12 +1156,6 @@ func (s *stream) done(
 
 	s.lastReceivedSequence = message.streamSequence
 	moprobe.WithRegion(ctx, moprobe.RPCStreamReceive, func() {
-		if response != nil {
-			logutil.Errorf("+++ stream receive, %p, %s, %s",
-				s,
-				s.rb.conn.RemoteAddress(),
-				response.DebugString())
-		}
 		select {
 		case s.c <- response:
 		case <-ctx.Done():
