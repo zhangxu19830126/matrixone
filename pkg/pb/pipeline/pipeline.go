@@ -86,7 +86,7 @@ func (m *Message) DebugString() string {
 		}
 		errInfo = me.Error()
 	}
-	return fmt.Sprintf("MessageSize: %d, sid: %d, ErrInfo: %s, batchSize: %d", m.Size(), m.Sid, errInfo, len(m.Data))
+	return fmt.Sprintf("MessageSize: %d, sid: %s, ErrInfo: %s, batchSize: %d", m.Size(), m.Sid.String(), errInfo, len(m.Data))
 }
 
 func (m *Message) IsBatchMessage() bool {
