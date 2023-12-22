@@ -268,6 +268,10 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 
 		responses := make([]*Future, 0, s.options.batchSendSize)
 		fetch := func() {
+			defer func() {
+				cs.metrics.sendingQueueSizeGauge.Set(float64(len(cs.c)))
+			}()
+
 			for i := 0; i < len(responses); i++ {
 				responses[i] = nil
 			}
@@ -314,7 +318,7 @@ func (s *server) startWriteLoop(cs *clientSession) error {
 				fetch()
 
 				if len(responses) > 0 {
-					s.metrics.sendingBatchSizeGauge.Set(float64(len(responses)))
+					cs.metrics.sendingBatchSizeGauge.Set(float64(len(responses)))
 
 					start := time.Now()
 
@@ -597,6 +601,7 @@ func (cs *clientSession) send(msg RPCMessage) (*Future, error) {
 	f.ref()
 	f.init(msg)
 	cs.c <- f
+	cs.metrics.sendingQueueSizeGauge.Set(float64(len(cs.c)))
 	return f, nil
 }
 
