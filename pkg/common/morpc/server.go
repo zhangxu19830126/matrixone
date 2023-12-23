@@ -248,6 +248,7 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 						zap.String("client", rs.RemoteAddress()),
 						zap.Int("queue", n),
 						zap.Time("receive", now),
+						zap.Time("now", time.Now()),
 						zap.Duration("left timeout", d),
 						zap.Error(err))
 				}
