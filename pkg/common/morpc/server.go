@@ -232,6 +232,8 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 			switch m.flag {
 			case flagPing:
 				n := len(cs.c)
+				now := time.Now()
+				d, _ := request.GetTimeoutFromContext()
 				err := cs.WriteRPCMessage(RPCMessage{
 					Ctx:      request.Ctx,
 					internal: true,
@@ -241,9 +243,12 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 					},
 				})
 				if err != nil {
+
 					s.logger.Error("failed to handle ping request",
 						zap.String("client", rs.RemoteAddress()),
 						zap.Int("queue", n),
+						zap.Time("receive", now),
+						zap.Duration("left timeout", d),
 						zap.Error(err))
 				}
 				return nil
