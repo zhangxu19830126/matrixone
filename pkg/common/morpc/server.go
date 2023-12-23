@@ -231,6 +231,7 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 		if m, ok := request.Message.(*flagOnlyMessage); ok {
 			switch m.flag {
 			case flagPing:
+				n := len(cs.c)
 				err := cs.WriteRPCMessage(RPCMessage{
 					Ctx:      request.Ctx,
 					internal: true,
@@ -242,9 +243,10 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 				if err != nil {
 					s.logger.Error("failed to handle ping request",
 						zap.String("client", rs.RemoteAddress()),
+						zap.Int("queue", n),
 						zap.Error(err))
 				}
-				return err
+				return nil
 			default:
 				panic(fmt.Sprintf("invalid internal message, flag %d", m.flag))
 			}
