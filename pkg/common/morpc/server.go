@@ -243,8 +243,8 @@ func (s *server) onMessage(rs goetty.IOSession, value any, sequence uint64) erro
 					s.logger.Error("failed to handle ping request",
 						zap.String("client", rs.RemoteAddress()),
 						zap.Error(err))
-					return err
 				}
+				return err
 			default:
 				panic(fmt.Sprintf("invalid internal message, flag %d", m.flag))
 			}
