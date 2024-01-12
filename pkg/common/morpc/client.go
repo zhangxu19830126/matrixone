@@ -441,10 +441,10 @@ func (c *client) createTask(ctx context.Context) {
 						zap.String("backend", backend),
 						zap.Error(err))
 				} else {
+					n++
 					c.logger.Info("async create backend",
 						zap.String("name", c.name),
 						zap.Int("count", n))
-					n++
 				}
 				c.mu.Unlock()
 			}
