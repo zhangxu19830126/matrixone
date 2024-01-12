@@ -428,6 +428,7 @@ func (c *client) closeIdleBackends() {
 }
 
 func (c *client) createTask(ctx context.Context) {
+	n := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -439,6 +440,10 @@ func (c *client) createTask(ctx context.Context) {
 					c.logger.Error("create backend failed",
 						zap.String("backend", backend),
 						zap.Error(err))
+				} else {
+					c.logger.Info("async create backend",
+						zap.String("name", c.name),
+						zap.Int("count", n))
 				}
 				c.mu.Unlock()
 			}

@@ -45,7 +45,11 @@ func CloseCNClient() error {
 }
 
 func GetStreamSender(backend string) (morpc.Stream, error) {
-	return client.NewStream(backend)
+	st, err := client.NewStream(backend)
+	if err != nil && st != nil {
+		panic("BUG: stream should be nil when error is not nil")
+	}
+	return st, err
 }
 
 func AcquireMessage() *pipeline.Message {
