@@ -73,6 +73,7 @@ type CNClient struct {
 
 	// pool for send message
 	requestPool *sync.Pool
+	n           int
 }
 
 func (c *CNClient) NewStream(backend string) (morpc.Stream, error) {
@@ -88,6 +89,9 @@ func (c *CNClient) NewStream(backend string) (morpc.Stream, error) {
 				zap.String("local-address", c.localServiceAddress),
 				zap.String("remote-address", backend))
 	}
+	c.n++
+	runtime.ProcessLevelRuntime().Logger().Info("create pipeline stream",
+		zap.Int("count", c.n))
 	return c.client.NewStream(backend, true)
 }
 

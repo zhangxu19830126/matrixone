@@ -444,6 +444,7 @@ func (c *client) createTask(ctx context.Context) {
 					c.logger.Info("async create backend",
 						zap.String("name", c.name),
 						zap.Int("count", n))
+					n++
 				}
 				c.mu.Unlock()
 			}

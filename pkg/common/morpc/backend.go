@@ -1088,9 +1088,13 @@ func (s *stream) Receive() (chan Message, error) {
 	return s.c, nil
 }
 
+var n atomic.Uint64
+
 func (s *stream) Close(closeConn bool) error {
 	if closeConn {
 		s.rb.Close()
+		v := n.Add(1)
+		s.rb.logger.Info("call close stream", zap.Uint64("count", v))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
