@@ -90,9 +90,13 @@ func (c *CNClient) NewStream(backend string) (morpc.Stream, error) {
 				zap.String("remote-address", backend))
 	}
 	c.n++
+	st, err := c.client.NewStream(backend, true)
+	if err != nil {
+		return nil, err
+	}
 	runtime.ProcessLevelRuntime().Logger().Info("create pipeline stream",
 		zap.Int("count", c.n))
-	return c.client.NewStream(backend, true)
+	return st, nil
 }
 
 func (c *CNClient) Close() error {

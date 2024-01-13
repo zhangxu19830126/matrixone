@@ -434,6 +434,7 @@ func (c *client) createTask(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case backend, ok := <-c.createC:
+			continue
 			if ok {
 				c.mu.Lock()
 				if _, err := c.createBackendLocked(backend); err != nil {
