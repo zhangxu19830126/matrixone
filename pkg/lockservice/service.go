@@ -331,11 +331,13 @@ func (s *service) getLockTableWithCreate(tableID uint64, create bool) (lockTable
 		return nil, err
 	}
 
-	l := s.createLockTableByBind(bind)
-	if _, loaded := s.tables.LoadOrStore(tableID, l); loaded {
-		getLogger().Fatal("BUG: cannot loaded lock table from tables")
+	new := s.createLockTableByBind(bind)
+	old, loaded := s.tables.Swap(bind.Table, new)
+	if loaded {
+		new.close()
+		return old.(lockTable), nil
 	}
-	return l, nil
+	return new, nil
 }
 
 func (s *service) handleBindChanged(newBind pb.LockTable) {
