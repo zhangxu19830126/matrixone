@@ -257,7 +257,6 @@ func (s *service) getLocalLockTable(
 		uuid := getUUIDFromServiceIdentifier(s.serviceID)
 		uuidRequest := getUUIDFromServiceIdentifier(bind.ServiceID)
 		if strings.EqualFold(uuid, uuidRequest) {
-			s.tables.Delete(bind.Table)
 			l.close()
 			return nil, ErrLockTableBindChanged
 		}
