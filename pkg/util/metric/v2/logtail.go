@@ -72,7 +72,15 @@ var (
 			Help:      "Bucketed histogram of apply log tail into mem-table duration.",
 			Buckets:   getDurationBuckets(),
 		}, []string{"step"})
-	LogTailApplyDurationHistogram              = logTailApplyDurationHistogram.WithLabelValues("apply")
+	LogTailApplyDurationHistogram                       = logTailApplyDurationHistogram.WithLabelValues("apply")
+	LogTailApplyGetLockDurationHistogram                = logTailApplyDurationHistogram.WithLabelValues("apply-get-lock")
+	LogTailApplyGetMutationDurationHistogram            = logTailApplyDurationHistogram.WithLabelValues("apply-get-mutation")
+	LogTailApplyGetCatalogDurationHistogram             = logTailApplyDurationHistogram.WithLabelValues("apply-get-catalog")
+	LogTailApplyConsumeWithLazyLoadDurationHistogram    = logTailApplyDurationHistogram.WithLabelValues("apply-lazy-load")
+	LogTailApplyConsumeWithoutLazyLoadDurationHistogram = logTailApplyDurationHistogram.WithLabelValues("apply-without-lazy-load")
+	LogTailApplyMutationDurationHistogram               = logTailApplyDurationHistogram.WithLabelValues("apply-mutation")
+	// LogTailApplyDurationHistogram              = logTailApplyDurationHistogram.WithLabelValues("apply-step-1")
+	// LogTailApplyDurationHistogram              = logTailApplyDurationHistogram.WithLabelValues("apply-step-1")
 	LogTailApplyLatencyDurationHistogram       = logTailApplyDurationHistogram.WithLabelValues("apply-latency")
 	LogTailApplyNotifyDurationHistogram        = logTailApplyDurationHistogram.WithLabelValues("apply-notify")
 	LogTailApplyNotifyLatencyDurationHistogram = logTailApplyDurationHistogram.WithLabelValues("apply-notify-latency")

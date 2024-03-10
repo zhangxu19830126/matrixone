@@ -1320,23 +1320,32 @@ func updatePartitionOfPush(
 	}()
 
 	// after consume the logtail, enqueue it to global stats.
-	defer func() { e.globalStats.enqueue(tl) }()
+	defer func() {
+		e.globalStats.enqueue(tl)
+	}()
 
 	// get table info by table id
 	dbId, tblId := tl.Table.GetDbId(), tl.Table.GetTbId()
 
 	partition := e.getPartition(dbId, tblId)
 
+	at := time.Now()
 	lockErr := partition.Lock(ctx)
 	if lockErr != nil {
 		return lockErr
 	}
+	v2.LogTailApplyGetLockDurationHistogram.Observe(time.Since(at).Seconds())
 	defer partition.Unlock()
 
+	at = time.Now()
 	state, doneMutate := partition.MutateState()
+	v2.LogTailApplyGetMutationDurationHistogram.Observe(time.Since(at).Seconds())
 
+	at = time.Now()
 	key := e.catalog.GetTableById(dbId, tblId)
+	v2.LogTailApplyGetCatalogDurationHistogram.Observe(time.Since(at).Seconds())
 
+	at = time.Now()
 	if lazyLoad {
 		if len(tl.CkpLocation) > 0 {
 			state.AppendCheckpoint(tl.CkpLocation, partition)
@@ -1349,8 +1358,10 @@ func updatePartitionOfPush(
 			state,
 			tl,
 		)
+		v2.LogTailApplyConsumeWithLazyLoadDurationHistogram.Observe(time.Since(at).Seconds())
 	} else {
 		err = consumeLogTailOfPushWithoutLazyLoad(ctx, key.PrimarySeqnum, e, state, tl, dbId, key.Id, key.Name)
+		v2.LogTailApplyConsumeWithoutLazyLoadDurationHistogram.Observe(time.Since(at).Seconds())
 	}
 
 	if err != nil {
@@ -1360,7 +1371,9 @@ func updatePartitionOfPush(
 
 	partition.TS = *tl.Ts
 
+	at = time.Now()
 	doneMutate()
+	v2.LogTailApplyMutationDurationHistogram.Observe(time.Since(at).Seconds())
 
 	return nil
 }
