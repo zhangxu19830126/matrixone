@@ -30,7 +30,7 @@ func (p *PartitionState) PKExistInMemBetween(
 	pivot := RowEntry{
 		Time: types.BuildTS(math.MaxInt64, math.MaxUint32),
 	}
-	idxEntry := &PrimaryIndexEntry{}
+	idxEntry := PrimaryIndexEntry{}
 	defer iter.Release()
 
 	for _, key := range keys {

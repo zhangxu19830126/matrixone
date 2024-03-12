@@ -112,7 +112,7 @@ func (p *rowsIter) Close() error {
 type primaryKeyIter struct {
 	ts          types.TS
 	spec        PrimaryKeyMatchSpec
-	iter        btree.IterG[*PrimaryIndexEntry]
+	iter        btree.IterG[PrimaryIndexEntry]
 	firstCalled bool
 	rows        *btree.BTreeG[RowEntry]
 	curRow      RowEntry
@@ -170,7 +170,7 @@ func (p *primaryKeyIter) Next() bool {
 	for {
 
 		if !p.firstCalled {
-			if !p.iter.Seek(&PrimaryIndexEntry{
+			if !p.iter.Seek(PrimaryIndexEntry{
 				Bytes: p.spec.Seek,
 			}) {
 				return false
@@ -267,7 +267,7 @@ func (p *primaryKeyDelIter) Next() bool {
 	for {
 
 		if !p.firstCalled {
-			if !p.iter.Seek(&PrimaryIndexEntry{
+			if !p.iter.Seek(PrimaryIndexEntry{
 				Bytes: p.spec.Seek,
 			}) {
 				return false
