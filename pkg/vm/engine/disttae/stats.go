@@ -123,7 +123,7 @@ type GlobalStats struct {
 	// tailC is the chan to receive entries from logtail
 	// and then update the stats info map.
 	// TODO(volgariver6): add metrics of the chan length.
-	tailC chan *logtail.TableLogtail
+	tailC chan logtail.TableLogtail
 
 	updateC chan pb.StatsInfoKey
 
@@ -160,7 +160,7 @@ func NewGlobalStats(
 	s := &GlobalStats{
 		ctx:                 ctx,
 		engine:              e,
-		tailC:               make(chan *logtail.TableLogtail, 10000),
+		tailC:               make(chan logtail.TableLogtail, 10000),
 		updateC:             make(chan pb.StatsInfoKey, 1000),
 		logtailUpdate:       newLogtailUpdate(),
 		tableLogtailCounter: make(map[pb.StatsInfoKey]int),
@@ -231,7 +231,7 @@ func (gs *GlobalStats) Get(ctx context.Context, key pb.StatsInfoKey, sync bool) 
 	return info
 }
 
-func (gs *GlobalStats) enqueue(tail *logtail.TableLogtail) {
+func (gs *GlobalStats) enqueue(tail logtail.TableLogtail) {
 	select {
 	case gs.tailC <- tail:
 	default:
@@ -271,7 +271,7 @@ func (gs *GlobalStats) triggerUpdate(key pb.StatsInfoKey) {
 	}
 }
 
-func (gs *GlobalStats) consumeLogtail(tail *logtail.TableLogtail) {
+func (gs *GlobalStats) consumeLogtail(tail logtail.TableLogtail) {
 	key := pb.StatsInfoKey{
 		DatabaseID: tail.Table.DbId,
 		TableID:    tail.Table.TbId,
