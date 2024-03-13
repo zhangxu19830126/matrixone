@@ -48,12 +48,11 @@ func (c *PushClient) newConsumeWorker(
 	engine *Engine,
 ) logtailConsumerWorker {
 	w := logtailConsumerWorker{
-		engine:         engine,
-		workerID:       workerID,
-		closeC:         make(chan bool),
-		commandsC:      make(chan command, bufferSize),
-		errC:           c.errC,
-		partitionState: map[uint64]stateCache{},
+		engine:    engine,
+		workerID:  workerID,
+		closeC:    make(chan bool),
+		commandsC: make(chan command, bufferSize),
+		errC:      c.errC,
 	}
 
 	w.start(ctx)
@@ -66,9 +65,7 @@ type logtailConsumerWorker struct {
 	closeC    chan bool
 	commandsC chan command
 	errC      chan error
-
-	partitionState map[uint64]stateCache
-	applied        timestamp.Timestamp
+	applied   timestamp.Timestamp
 }
 
 func (w *logtailConsumerWorker) syncApply(
@@ -117,9 +114,6 @@ func (w *logtailConsumerWorker) start(ctx context.Context) {
 				if err := w.apply(ctx, cmd, true); err != nil {
 					hasError = true
 					w.errC <- err
-				}
-				if len(w.commandsC) == 0 {
-					w.doneMutate()
 				}
 			case <-w.closeC:
 				close(w.closeC)
@@ -176,6 +170,10 @@ func (w *logtailConsumerWorker) applyTimestamp(
 ) {
 	if cmd.target.Greater(w.applied) {
 		w.applied = cmd.target
+
+		if w.workerID < consumeWorkers {
+			w.engine.pClient.receivedLogTailTime.updateApplied(w.workerID, w.applied)
+		}
 	}
 }
 
@@ -195,29 +193,17 @@ func (w *logtailConsumerWorker) doApply(
 	}()
 
 	db, table := tail.Table.GetDbId(), tail.Table.GetTbId()
-	stateCache, err := w.getStateCache(db, table)
+	stateCache, err := w.getStateCache(ctx, db, table)
 	if err != nil {
 		return err
 	}
-	needDone := false
-	if async && len(tail.CkpLocation) > 0 {
-		needDone = true
-		if err := stateCache.partition.Lock(ctx); err != nil {
-			return err
-		}
-		defer func() {
-			stateCache.partition.Unlock()
-		}()
+	defer func() {
+		stateCache.partition.Unlock()
+	}()
 
+	if async && len(tail.CkpLocation) > 0 {
 		stateCache.state.AppendCheckpoint(tail.CkpLocation, stateCache.partition)
 	} else if !async {
-		needDone = true
-		if err := stateCache.partition.Lock(ctx); err != nil {
-			return err
-		}
-		defer func() {
-			stateCache.partition.Unlock()
-		}()
 		var entries []*api.Entry
 		var closeCBs []func()
 		if entries, closeCBs, err = taeLogtail.LoadCheckpointEntries(
@@ -262,21 +248,21 @@ func (w *logtailConsumerWorker) doApply(
 
 	stateCache.partition.TS = *tail.Ts
 
-	if needDone {
-		w.doneMutate()
-	}
+	stateCache.done()
 	return nil
 }
 
 func (w *logtailConsumerWorker) getStateCache(
+	ctx context.Context,
 	db, table uint64,
 ) (stateCache, error) {
-	if cache, ok := w.partitionState[table]; ok {
-		return cache, nil
-	}
-
 	partition := w.engine.getPartition(db, table)
 	tableCache := w.engine.catalog.GetTableById(db, table)
+
+	if err := partition.Lock(ctx); err != nil {
+		return stateCache{}, err
+	}
+
 	state, done := partition.MutateState()
 	value := stateCache{
 		partition:  partition,
@@ -284,18 +270,7 @@ func (w *logtailConsumerWorker) getStateCache(
 		done:       done,
 		tableCache: tableCache,
 	}
-	w.partitionState[table] = value
 	return value, nil
-}
-
-func (w *logtailConsumerWorker) doneMutate() {
-	for id, sc := range w.partitionState {
-		delete(w.partitionState, id)
-		sc.done()
-	}
-	if w.workerID < consumeWorkers {
-		w.engine.pClient.receivedLogTailTime.updateApplied(w.workerID, w.applied)
-	}
 }
 
 type command struct {

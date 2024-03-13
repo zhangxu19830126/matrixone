@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/crc64"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -46,9 +47,13 @@ type PartitionState struct {
 	// also modify the Copy method if adding fields
 
 	// data
-	rows *btree.BTreeG[RowEntry] // use value type to avoid locking on elements
+	rows     *btree.BTreeG[RowEntry] // use value type to avoid locking on elements
+	rowsLock sync.RWMutex
 	// index
 	primaryIndex *btree.BTreeG[PrimaryIndexEntry]
+	pkLock       sync.RWMutex
+
+	wg sync.WaitGroup
 
 	//table data objects
 	dataObjects           *btree.BTreeG[ObjectEntry]
@@ -285,10 +290,10 @@ func NewPartitionState(noData bool) *PartitionState {
 	return &PartitionState{
 		noData:                noData,
 		rows:                  btree.NewBTreeGOptions((RowEntry).Less, opts),
+		primaryIndex:          btree.NewBTreeGOptions((PrimaryIndexEntry).Less, opts),
 		dataObjects:           btree.NewBTreeGOptions((ObjectEntry).Less, opts),
 		dataObjectsByCreateTS: btree.NewBTreeGOptions((ObjectIndexByCreateTSEntry).Less, opts),
 		blockDeltas:           btree.NewBTreeGOptions((BlockDeltaEntry).Less, opts),
-		primaryIndex:          btree.NewBTreeGOptions((PrimaryIndexEntry).Less, opts),
 		dirtyBlocks:           btree.NewBTreeGOptions((types.Blockid).Less, opts),
 		objectIndexByTS:       btree.NewBTreeGOptions((ObjectIndexByTSEntry).Less, opts),
 		shared:                new(sharedStates),
@@ -521,6 +526,10 @@ func (p *PartitionState) HandleObjectInsert(ctx context.Context, bat *api.Batch,
 
 var nextRowEntryID = int64(1)
 
+func (p *PartitionState) applied() {
+	p.wg.Done()
+}
+
 func (p *PartitionState) HandleRowsInsert(
 	ctx context.Context,
 	input *api.Batch,
@@ -538,42 +547,34 @@ func (p *PartitionState) HandleRowsInsert(
 		packer,
 	)
 
-	var numInserted int64
 	rowIDVector := vector.MustFixedCol[types.Rowid](batch.Vecs[0])
 	timeVector := vector.MustFixedCol[types.TS](batch.Vecs[1])
-	for i, rowID := range rowIDVector {
-		blockID := rowID.CloneBlockID()
-		pivot := RowEntry{
-			BlockID: blockID,
-			RowID:   rowID,
-			Time:    timeVector[i],
-		}
-		entry, ok := p.rows.Get(pivot)
-		if !ok {
-			entry = pivot
-			entry.ID = atomic.AddInt64(&nextRowEntryID, 1)
-			numInserted++
-		}
 
-		if !p.noData {
-			entry.Batch = batch
-			entry.Offset = int64(i)
-		}
-		entry.PrimaryIndexBytes = primaryKeys[i]
-		p.rows.Set(entry)
+	// sharding
+	for i, pk := range primaryKeys {
+		p.wg.Add(1)
 
-		{
-			entry := PrimaryIndexEntry{
-				Bytes:      primaryKeys[i],
-				RowEntryID: entry.ID,
-				BlockID:    blockID,
-				RowID:      rowID,
-				Time:       entry.Time,
-			}
-			p.primaryIndex.Set(entry)
-		}
+		hash := crc64.Checksum(pk, crc64.MakeTable(crc64.ECMA))
+		w.addInsert(
+			hash,
+			insertCommand{
+				rows:         p.rows,
+				rowLock:      &p.rowsLock,
+				primaryIndex: p.primaryIndex,
+				pkLock:       &p.pkLock,
+
+				rowIDs:      rowIDVector,
+				timestamps:  timeVector,
+				primaryKeys: primaryKeys,
+				noData:      p.noData,
+
+				batch: batch,
+				idx:   i,
+				cb:    p.applied,
+			})
 	}
 
+	p.wg.Wait()
 	return
 }
 

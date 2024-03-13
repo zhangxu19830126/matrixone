@@ -26,15 +26,30 @@ var blkTableMatchRegexp = regexp.MustCompile(`\_\d+\_meta`)
 var objTableMatchRegexp = regexp.MustCompile(`\_\d+\_obj`)
 
 func IsMetaTable(name string) bool {
-	return metaTableMatchRegexp.MatchString(name)
+	n := len(name)
+	if n < 5 {
+		return false
+	}
+
+	return name[n-4:] == "_seg" || name[n-5:] == "_meta"
 }
 
 func IsBlkTable(name string) bool {
-	return blkTableMatchRegexp.MatchString(name)
+	n := len(name)
+	if n < 5 {
+		return false
+	}
+
+	return name[n-5:] == "_meta"
 }
 
 func IsObjTable(name string) bool {
-	return objTableMatchRegexp.MatchString(name)
+	n := len(name)
+	if n < 4 {
+		return false
+	}
+
+	return name[n-4:] == "_obj"
 }
 
 func mustVectorFromProto(v api.Vector) *vector.Vector {
