@@ -26,14 +26,14 @@ func (p *PartitionState) PKExistInMemBetween(
 	to types.TS,
 	keys [][]byte,
 ) (bool, bool) {
-	iter := p.primaryIndex.Copy().Iter()
 	pivot := RowEntry{
 		Time: types.BuildTS(math.MaxInt64, math.MaxUint32),
 	}
 	idxEntry := PrimaryIndexEntry{}
-	defer iter.Release()
 
 	for _, key := range keys {
+		rows, pk, _ := p.getShard(key)
+		iter := pk.Copy().Iter()
 
 		idxEntry.Bytes = key
 
@@ -53,7 +53,7 @@ func (p *PartitionState) PKExistInMemBetween(
 			//don't take pk in log tail when delete row , so check all rows for changes.
 			pivot.BlockID = entry.BlockID
 			pivot.RowID = entry.RowID
-			rowIter := p.rows.Iter()
+			rowIter := rows.Iter()
 			seek := false
 			for {
 				if !seek {
@@ -81,7 +81,7 @@ func (p *PartitionState) PKExistInMemBetween(
 			rowIter.Release()
 		}
 
-		iter.First()
+		iter.Release()
 	}
 
 	p.shared.Lock()

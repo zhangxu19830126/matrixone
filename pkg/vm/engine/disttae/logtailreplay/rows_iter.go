@@ -37,8 +37,12 @@ type rowsIter struct {
 	iterDeleted  bool
 }
 
-func (p *PartitionState) NewRowsIter(ts types.TS, blockID *types.Blockid, iterDeleted bool) *rowsIter {
-	iter := p.rows.Copy().Iter()
+func (p *PartitionState) NewRowsIter(
+	ts types.TS,
+	blockID *types.Blockid,
+	iterDeleted bool,
+) *rowsIter {
+	iter := p.getMergedRows().Iter()
 	ret := &rowsIter{
 		ts:          ts,
 		iter:        iter,
@@ -119,13 +123,15 @@ type primaryKeyIter struct {
 }
 
 type PrimaryKeyMatchSpec struct {
+	Point bool
 	Seek  []byte
 	Match func(key []byte) bool
 }
 
 func Exact(key []byte) PrimaryKeyMatchSpec {
 	return PrimaryKeyMatchSpec{
-		Seek: key,
+		Point: true,
+		Seek:  key,
 		Match: func(k []byte) bool {
 			return bytes.Equal(k, key)
 		},
@@ -141,26 +147,25 @@ func Prefix(prefix []byte) PrimaryKeyMatchSpec {
 	}
 }
 
-func MinMax(min []byte, max []byte) PrimaryKeyMatchSpec {
-	return PrimaryKeyMatchSpec{
-		Seek: min,
-		Match: func(k []byte) bool {
-			return bytes.Compare(min, k) <= 0 &&
-				bytes.Compare(k, max) <= 0
-		},
-	}
-}
-
 func (p *PartitionState) NewPrimaryKeyIter(
 	ts types.TS,
 	spec PrimaryKeyMatchSpec,
 ) *primaryKeyIter {
-	iter := p.primaryIndex.Copy().Iter()
+	var pk *btree.BTreeG[PrimaryIndexEntry]
+	var rows *btree.BTreeG[RowEntry]
+	if spec.Point {
+		rows, pk, _ = p.getShard(spec.Seek)
+	} else {
+		rows = p.getMergedRows()
+		pk = p.getMergedPKs()
+	}
+
+	iter := pk.Copy().Iter()
 	return &primaryKeyIter{
 		ts:   ts,
 		spec: spec,
 		iter: iter,
-		rows: p.rows.Copy(),
+		rows: rows.Copy(),
 	}
 }
 
@@ -249,13 +254,15 @@ func (p *PartitionState) NewPrimaryKeyDelIter(
 	spec PrimaryKeyMatchSpec,
 	bid types.Blockid,
 ) *primaryKeyDelIter {
-	iter := p.primaryIndex.Copy().Iter()
+	rows, pk, _ := p.getShard(spec.Seek)
+
+	iter := pk.Copy().Iter()
 	return &primaryKeyDelIter{
 		primaryKeyIter: primaryKeyIter{
 			ts:   ts,
 			spec: spec,
 			iter: iter,
-			rows: p.rows.Copy(),
+			rows: rows.Copy(),
 		},
 		bid: bid,
 	}

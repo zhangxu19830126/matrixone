@@ -2,7 +2,6 @@ package logtailreplay
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 
 	"github.com/matrixorigin/matrixone/pkg/common/stopper"
@@ -14,22 +13,19 @@ import (
 var w *workers
 
 func init() {
-	w = newWorkers(32)
+	w = newWorkers(1)
 }
 
 type insertCommand struct {
 	noData       bool
 	rows         *btree.BTreeG[RowEntry]
 	primaryIndex *btree.BTreeG[PrimaryIndexEntry]
-	rowLock      *sync.RWMutex
-	pkLock       *sync.RWMutex
-
-	rowIDs      []types.Rowid
-	timestamps  []types.TS
-	primaryKeys [][]byte
-	batch       *batch.Batch
-	idx         int
-	cb          func()
+	rowIDs       []types.Rowid
+	timestamps   []types.TS
+	primaryKeys  [][]byte
+	batch        *batch.Batch
+	idx          int
+	cb           func()
 }
 
 type workers struct {
@@ -71,10 +67,10 @@ func (w *workers) start() {
 }
 
 func (w *workers) addInsert(
-	idx uint64,
+	hash uint64,
 	cmd insertCommand,
 ) {
-	w.inserts[idx%w.max] <- cmd
+	w.inserts[hash%w.max] <- cmd
 }
 
 func (w *workers) handleRowInsert(cmd insertCommand) {
@@ -88,9 +84,7 @@ func (w *workers) handleRowInsert(cmd insertCommand) {
 		Time:    ts,
 	}
 
-	cmd.rowLock.RLock()
 	entry, ok := cmd.rows.Get(pivot)
-	cmd.rowLock.RUnlock()
 	if !ok {
 		entry = pivot
 		entry.ID = atomic.AddInt64(&nextRowEntryID, 1)
@@ -111,13 +105,7 @@ func (w *workers) handleRowInsert(cmd insertCommand) {
 		Time:       entry.Time,
 	}
 
-	cmd.rowLock.Lock()
 	cmd.rows.Set(entry)
-	cmd.rowLock.Unlock()
-
-	cmd.pkLock.Lock()
 	cmd.primaryIndex.Set(pkEntry)
-	cmd.pkLock.Unlock()
-
 	cmd.cb()
 }

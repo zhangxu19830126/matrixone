@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/crc64"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -37,6 +36,10 @@ import (
 	"github.com/tidwall/btree"
 )
 
+var (
+	shards = uint64(1)
+)
+
 var partitionStateProfileHandler = fileservice.NewProfileHandler()
 
 func init() {
@@ -47,11 +50,9 @@ type PartitionState struct {
 	// also modify the Copy method if adding fields
 
 	// data
-	rows     *btree.BTreeG[RowEntry] // use value type to avoid locking on elements
-	rowsLock sync.RWMutex
+	rows []*btree.BTreeG[RowEntry] // use value type to avoid locking on elements
 	// index
-	primaryIndex *btree.BTreeG[PrimaryIndexEntry]
-	pkLock       sync.RWMutex
+	primaryIndexes []*btree.BTreeG[PrimaryIndexEntry]
 
 	wg sync.WaitGroup
 
@@ -287,10 +288,10 @@ func NewPartitionState(noData bool) *PartitionState {
 		Degree:  64,
 		NoLocks: true,
 	}
-	return &PartitionState{
+	ps := &PartitionState{
 		noData:                noData,
-		rows:                  btree.NewBTreeGOptions((RowEntry).Less, opts),
-		primaryIndex:          btree.NewBTreeGOptions((PrimaryIndexEntry).Less, opts),
+		rows:                  make([]*btree.BTreeG[RowEntry], shards),
+		primaryIndexes:        make([]*btree.BTreeG[PrimaryIndexEntry], shards),
 		dataObjects:           btree.NewBTreeGOptions((ObjectEntry).Less, opts),
 		dataObjectsByCreateTS: btree.NewBTreeGOptions((ObjectIndexByCreateTSEntry).Less, opts),
 		blockDeltas:           btree.NewBTreeGOptions((BlockDeltaEntry).Less, opts),
@@ -298,20 +299,30 @@ func NewPartitionState(noData bool) *PartitionState {
 		objectIndexByTS:       btree.NewBTreeGOptions((ObjectIndexByTSEntry).Less, opts),
 		shared:                new(sharedStates),
 	}
+	for i := uint64(0); i < shards; i++ {
+		ps.rows[i] = btree.NewBTreeGOptions((RowEntry).Less, opts)
+		ps.primaryIndexes[i] = btree.NewBTreeGOptions((PrimaryIndexEntry).Less, opts)
+	}
+	return ps
 }
 
 func (p *PartitionState) Copy() *PartitionState {
 	state := PartitionState{
-		rows:                  p.rows.Copy(),
+		rows:                  make([]*btree.BTreeG[RowEntry], shards),
+		primaryIndexes:        make([]*btree.BTreeG[PrimaryIndexEntry], shards),
 		dataObjects:           p.dataObjects.Copy(),
 		dataObjectsByCreateTS: p.dataObjectsByCreateTS.Copy(),
 		blockDeltas:           p.blockDeltas.Copy(),
-		primaryIndex:          p.primaryIndex.Copy(),
 		noData:                p.noData,
 		dirtyBlocks:           p.dirtyBlocks.Copy(),
 		objectIndexByTS:       p.objectIndexByTS.Copy(),
 		shared:                p.shared,
 	}
+	for i := uint64(0); i < shards; i++ {
+		state.rows[i] = p.rows[i].Copy()
+		state.primaryIndexes[i] = p.primaryIndexes[i].Copy()
+	}
+
 	if len(p.checkpoints) > 0 {
 		state.checkpoints = make([]string, len(p.checkpoints))
 		copy(state.checkpoints, p.checkpoints)
@@ -319,34 +330,15 @@ func (p *PartitionState) Copy() *PartitionState {
 	return &state
 }
 
-func (p *PartitionState) RowExists(rowID types.Rowid, ts types.TS) bool {
-	iter := p.rows.Iter()
-	defer iter.Release()
-
-	blockID := rowID.CloneBlockID()
-	for ok := iter.Seek(RowEntry{
-		BlockID: blockID,
-		RowID:   rowID,
-		Time:    ts,
-	}); ok; ok = iter.Next() {
-		entry := iter.Item()
-		if entry.BlockID != blockID {
-			break
+func (p *PartitionState) RowExists(
+	rowID types.Rowid,
+	ts types.TS,
+) bool {
+	for _, rows := range p.rows {
+		if exists(rows, rowID, ts) {
+			return true
 		}
-		if entry.RowID != rowID {
-			break
-		}
-		if entry.Time.Greater(ts) {
-			// not visible
-			continue
-		}
-		if entry.Deleted {
-			// deleted
-			return false
-		}
-		return true
 	}
-
 	return false
 }
 
@@ -408,8 +400,11 @@ func (p *PartitionState) HandleObjectDelete(
 	}
 }
 
-func (p *PartitionState) HandleObjectInsert(ctx context.Context, bat *api.Batch, fs fileservice.FileService) {
-
+func (p *PartitionState) HandleObjectInsert(
+	ctx context.Context,
+	bat *api.Batch,
+	fs fileservice.FileService,
+) {
 	var numDeleted, blockDeleted, scanCnt int64
 	statsVec := mustVectorFromProto(bat.Vecs[2])
 	stateCol := vector.MustFixedCol[bool](mustVectorFromProto(bat.Vecs[3]))
@@ -476,7 +471,8 @@ func (p *PartitionState) HandleObjectInsert(ctx context.Context, bat *api.Batch,
 
 		// for appendable object, gc rows when delete object
 		if objEntry.EntryState && !objEntry.DeleteTime.IsEmpty() {
-			iter := p.rows.Copy().Iter()
+			rows := p.getMergedRows()
+			iter := rows.Iter()
 			objID := objEntry.ObjectStats.ObjectName().ObjectId()
 			blkID := objectio.NewBlockidWithObjectID(objID, 0)
 			pivot := RowEntry{
@@ -496,12 +492,13 @@ func (p *PartitionState) HandleObjectInsert(ctx context.Context, bat *api.Batch,
 				// the deletes for it.
 				if objEntry.EntryState {
 					if entry.Time.LessEq(trunctPoint) {
+						rows, pk, _ := p.getShard(entry.PrimaryIndexBytes)
 						// delete the row
-						p.rows.Delete(entry)
+						rows.Delete(entry)
 
 						// delete the row's primary index
 						if objEntry.EntryState && len(entry.PrimaryIndexBytes) > 0 {
-							p.primaryIndex.Delete(PrimaryIndexEntry{
+							pk.Delete(PrimaryIndexEntry{
 								Bytes:      entry.PrimaryIndexBytes,
 								RowEntryID: entry.ID,
 							})
@@ -553,24 +550,19 @@ func (p *PartitionState) HandleRowsInsert(
 	// sharding
 	for i, pk := range primaryKeys {
 		p.wg.Add(1)
-
-		hash := crc64.Checksum(pk, crc64.MakeTable(crc64.ECMA))
+		rows, pk, hash := p.getShard(pk)
 		w.addInsert(
 			hash,
 			insertCommand{
-				rows:         p.rows,
-				rowLock:      &p.rowsLock,
-				primaryIndex: p.primaryIndex,
-				pkLock:       &p.pkLock,
-
-				rowIDs:      rowIDVector,
-				timestamps:  timeVector,
-				primaryKeys: primaryKeys,
-				noData:      p.noData,
-
-				batch: batch,
-				idx:   i,
-				cb:    p.applied,
+				rows:         rows,
+				primaryIndex: pk,
+				rowIDs:       rowIDVector,
+				timestamps:   timeVector,
+				primaryKeys:  primaryKeys,
+				noData:       p.noData,
+				batch:        batch,
+				idx:          i,
+				cb:           p.applied,
 			})
 	}
 
@@ -588,6 +580,9 @@ func (p *PartitionState) HandleRowsDelete(
 		panic(err)
 	}
 
+	var rows *btree.BTreeG[RowEntry]
+	var pk *btree.BTreeG[PrimaryIndexEntry]
+	useShard := false
 	var primaryKeys [][]byte
 	if len(input.Vecs) > 2 {
 		// has primary key
@@ -595,6 +590,7 @@ func (p *PartitionState) HandleRowsDelete(
 			batch.Vecs[2],
 			packer,
 		)
+		useShard = true
 	}
 
 	numDeletes := int64(0)
@@ -607,7 +603,16 @@ func (p *PartitionState) HandleRowsDelete(
 			RowID:   rowID,
 			Time:    timeVector[i],
 		}
-		entry, ok := p.rows.Get(pivot)
+
+		var entry RowEntry
+		var ok bool
+		if useShard {
+			rows, pk, _ = p.getShard(primaryKeys[i])
+			entry, ok = rows.Get(pivot)
+		} else {
+			pk, entry, ok = p.get(pivot)
+		}
+
 		if !ok {
 			entry = pivot
 			entry.ID = atomic.AddInt64(&nextRowEntryID, 1)
@@ -622,7 +627,13 @@ func (p *PartitionState) HandleRowsDelete(
 			entry.Batch = batch
 			entry.Offset = int64(i)
 		}
-		p.rows.Set(entry)
+		if useShard {
+			rows.Set(entry)
+		} else {
+			for _, r := range p.rows {
+				r.Set(entry)
+			}
+		}
 
 		//handle memory deletes for non-appendable block.
 		p.dirtyBlocks.Set(blockID)
@@ -636,7 +647,7 @@ func (p *PartitionState) HandleRowsDelete(
 				RowID:      rowID,
 				Time:       entry.Time,
 			}
-			p.primaryIndex.Set(entry)
+			pk.Set(entry)
 		}
 	}
 }
@@ -695,7 +706,9 @@ func (p *PartitionState) HandleMetadataInsert(
 			scanCnt := int64(0)
 			blockDeleted := int64(0)
 			trunctPoint := memTruncTSVector[i]
-			iter := p.rows.Copy().Iter()
+
+			rows := p.getMergedRows()
+			iter := rows.Iter()
 			pivot := RowEntry{
 				BlockID: blockID,
 			}
@@ -725,11 +738,12 @@ func (p *PartitionState) HandleMetadataInsert(
 				if isAppendable || (!isAppendable && !isEmptyDelta) {
 					if entry.Time.LessEq(trunctPoint) {
 						// delete the row
-						p.rows.Delete(entry)
+						p.deleteInAll(entry)
 
 						// delete the row's primary index
 						if isAppendable && len(entry.PrimaryIndexBytes) > 0 {
-							p.primaryIndex.Delete(PrimaryIndexEntry{
+							_, pk, _ := p.getShard(entry.PrimaryIndexBytes)
+							pk.Delete(PrimaryIndexEntry{
 								Bytes:      entry.PrimaryIndexBytes,
 								RowEntryID: entry.ID,
 							})
