@@ -16,11 +16,14 @@ package projection
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan"
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
+	"github.com/matrixorigin/matrixone/pkg/txn/trace"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -54,6 +57,29 @@ func (arg *Argument) Prepare(proc *process.Process) (err error) {
 }
 
 func (arg *Argument) Call(proc *process.Process) (vm.CallResult, error) {
+	txnOp := proc.TxnOperator
+	if txnOp != nil {
+		seq := txnOp.NextSequence()
+		startAt := time.Now()
+		trace.GetService().AddTxnDurationAction(
+			txnOp,
+			client.ProjectionEvent,
+			seq,
+			0,
+			0,
+			nil)
+
+		defer func() {
+			trace.GetService().AddTxnDurationAction(
+				txnOp,
+				client.ProjectionEvent,
+				seq,
+				0,
+				time.Since(startAt),
+				nil)
+		}()
+	}
+
 	if err, isCancel := vm.CancelCheck(proc); isCancel {
 		return vm.CancelResult, err
 	}

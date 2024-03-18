@@ -16,7 +16,10 @@ package output
 
 import (
 	"bytes"
+	"time"
 
+	"github.com/matrixorigin/matrixone/pkg/txn/client"
+	"github.com/matrixorigin/matrixone/pkg/txn/trace"
 	"github.com/matrixorigin/matrixone/pkg/vm"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
@@ -33,6 +36,29 @@ func (arg *Argument) Prepare(_ *process.Process) error {
 }
 
 func (arg *Argument) Call(proc *process.Process) (vm.CallResult, error) {
+	txnOp := proc.TxnOperator
+	if txnOp != nil {
+		seq := txnOp.NextSequence()
+		startAt := time.Now()
+		trace.GetService().AddTxnDurationAction(
+			txnOp,
+			client.OutputEvent,
+			seq,
+			0,
+			0,
+			nil)
+
+		defer func() {
+			trace.GetService().AddTxnDurationAction(
+				txnOp,
+				client.OutputEvent,
+				seq,
+				0,
+				time.Since(startAt),
+				nil)
+		}()
+	}
+
 	if err, isCancel := vm.CancelCheck(proc); isCancel {
 		return vm.CancelResult, err
 	}
