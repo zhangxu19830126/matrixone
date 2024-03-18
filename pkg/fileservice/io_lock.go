@@ -30,7 +30,7 @@ type IOLocks struct {
 	locks sync.Map
 }
 
-var slowIOWaitDuration = time.Second * 10
+var slowIOWaitDuration = time.Microsecond * 50
 
 func (i *IOLocks) Lock(key IOLockKey) (unlock func(), wait func()) {
 	ch := make(chan struct{})

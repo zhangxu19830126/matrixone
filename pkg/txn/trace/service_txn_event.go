@@ -81,6 +81,8 @@ func (s *service) TxnCreated(op client.TxnOperator) {
 		op.AppendEventCallback(client.ExecuteSQLEvent, s.handleTxnActionEvent)
 		op.AppendEventCallback(client.CompileEvent, s.handleTxnActionEvent)
 		op.AppendEventCallback(client.TableScanEvent, s.handleTxnActionEvent)
+		op.AppendEventCallback(client.ProjectionEvent, s.handleTxnActionEvent)
+		op.AppendEventCallback(client.OutputEvent, s.handleTxnActionEvent)
 	}
 }
 
