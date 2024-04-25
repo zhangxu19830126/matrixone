@@ -434,9 +434,9 @@ func (s *service) unlockTimeoutRemoteTxn(ctx context.Context) {
 				timeoutTxns,
 				s.cfg.RemoteLockTimeout.Duration)
 			if len(timeoutTxns) > 0 {
-				getLogger().Warn("found orphans txns",
-					bytesArrayField("txns", timeoutTxns))
 				for _, txnID := range timeoutTxns {
+					getLogger().Warn("unlock found orphans txns",
+						bytesField("txn", txnID))
 					s.Unlock(ctx, txnID, timestamp.Timestamp{})
 				}
 			}

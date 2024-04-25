@@ -378,8 +378,8 @@ func logUnlockTxn(
 	serviceID string,
 	txn *activeTxn) func() {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		return logger.DebugAction("unlock txn",
+	if logger.Enabled(zap.InfoLevel) {
+		return logger.InfoAction("unlock txn",
 			txnField(txn))
 	}
 	return func() {}

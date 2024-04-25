@@ -172,16 +172,42 @@ func (w *waiter) wait(ctx context.Context) notifyValue {
 		logWaiterGetNotify(w, v)
 		w.setStatus(completed)
 	}
-	select {
-	case v := <-w.c:
-		apply(v)
-		return v
-	case <-ctx.Done():
+OUT:
+	for {
 		select {
 		case v := <-w.c:
 			apply(v)
 			return v
-		default:
+		case <-time.After(time.Minute * 5):
+			var holders [][]byte
+			var waiters [][]byte
+			w.lt.mu.Lock()
+			lock, ok := w.lt.mu.store.Get(w.conflictKey)
+			if ok {
+				for _, v := range lock.holders.txns {
+					holders = append(holders, v.TxnID)
+				}
+				lock.waiters.iter(func(v *waiter) bool {
+					waiters = append(waiters, v.txn.TxnID)
+					return true
+				})
+			}
+			w.lt.mu.Unlock()
+
+			getLogger().Error("wait too long",
+				zap.Uint64("table", w.lt.bind.Table),
+				zap.String("key", hex.EncodeToString(w.conflictKey)),
+				bytesArrayField("holders", holders),
+				bytesArrayField("waiters", waiters),
+				zap.String("waiter", w.String()))
+		case <-ctx.Done():
+			select {
+			case v := <-w.c:
+				apply(v)
+				return v
+			default:
+				break OUT
+			}
 		}
 	}
 
