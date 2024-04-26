@@ -98,6 +98,7 @@ func (l *localLockTable) doLock(
 
 	if c.txnClosed() {
 		if c.w != nil {
+			c.w.disableNotify()
 			c.w.close()
 		}
 		c.done(ErrTxnNotFound)
