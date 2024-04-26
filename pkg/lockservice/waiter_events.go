@@ -15,6 +15,7 @@
 package lockservice
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"sync/atomic"
@@ -84,6 +85,10 @@ func (c *lockContext) doLock() {
 		panic("missing lock")
 	}
 	c.lockFunc(c, true)
+}
+
+func (c *lockContext) txnClosed() bool {
+	return !bytes.Equal(c.waitTxn.TxnID, c.txn.txnID)
 }
 
 type event struct {

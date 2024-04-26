@@ -95,6 +95,15 @@ func (l *localLockTable) doLock(
 		c.done(ErrDeadLockDetected)
 		return
 	}
+
+	if c.txnClosed() {
+		if c.w != nil {
+			c.w.close()
+		}
+		c.done(ErrTxnNotFound)
+		return
+	}
+
 	var old *waiter
 	var err error
 	table := l.bind.Table
