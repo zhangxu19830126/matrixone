@@ -242,8 +242,8 @@ func logLockUnlocked(
 	key []byte,
 	lock Lock) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("lock unlocked",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("lock unlocked",
 			txnField(txn),
 			bytesField("key", key),
 			zap.Stringer("lock", lock))
@@ -428,8 +428,8 @@ func logUnlockTableOnLocal(
 	txn *activeTxn,
 	bind pb.LockTable) {
 	logger := getWithSkipLogger()
-	if logger.Enabled(zap.DebugLevel) {
-		logger.Debug("txn unlock table on local",
+	if logger.Enabled(zap.InfoLevel) {
+		logger.Info("txn unlock table on local",
 			txnField(txn),
 			zap.String("bind", bind.DebugString()))
 	}

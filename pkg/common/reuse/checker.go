@@ -43,7 +43,7 @@ type checker[T ReusableObject] struct {
 
 func newChecker[T ReusableObject](enable bool) *checker[T] {
 	c := &checker[T]{
-		enable: true,
+		enable: enable,
 	}
 	c.mu.m = make(map[uintptr]step)
 	c.mu.createStack = make(map[uintptr]string)
