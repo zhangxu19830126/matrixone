@@ -17,7 +17,6 @@ package lockservice
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -258,7 +257,6 @@ func (mw *waiterEvents) checkOrphan(v checkOrphan) {
 	}
 
 	for _, h := range holders {
-		fmt.Printf("check %x, %s\n", h.TxnID, h.CreatedOn)
 		if mw.txnHolder.validTimeoutRemoteTxn(h) {
 			// ignore error. If failed will retry until lock removed
 			_ = mw.unlock(context.Background(), h.TxnID, timestamp.Timestamp{})
