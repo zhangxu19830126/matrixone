@@ -218,8 +218,15 @@ func (s *sqlStore) Allocate(
 			break
 		}
 	}
-
 	from, to := getNextRange(current, next, int(step))
+	getLogger(s.ls.GetConfig().ServiceID).Info(
+		"fetch new cache",
+		zap.Uint64("account", uint64(opts.AccountID())),
+		zap.Uint64("table", tableID),
+		zap.String("sql", fetchSQL),
+		zap.Uint64("current", current),
+		zap.Uint64("next", next),
+	)
 	return from, to, nil
 }
 
