@@ -73,6 +73,7 @@ type ShardService interface {
 	Read(ctx context.Context, req ReadRequest, opts ReadOptions) error
 	// HasLocalReplica returns whether the shard has a local replica.
 	HasLocalReplica(tableID, shardID uint64) (bool, error)
+	GetLocalReplica(tableID uint64) ([]uint64, error)
 	// HasAllLocalReplicas returns whether all shards of the table have local replicas.
 	HasAllLocalReplicas(tableID uint64) (bool, error)
 	// GetShardInfo returns the metadata of the shards corresponding to the table.

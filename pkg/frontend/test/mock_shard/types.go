@@ -85,6 +85,10 @@ func (m *MockShardService) Close() error {
 	return ret0
 }
 
+func (m *MockShardService) GetLocalReplica(tableID uint64) ([]uint64, error) {
+	panic(1)
+}
+
 // Close indicates an expected call of Close.
 func (mr *MockShardServiceMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()

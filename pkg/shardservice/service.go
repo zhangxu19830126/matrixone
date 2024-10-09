@@ -233,6 +233,31 @@ func (s *service) Delete(
 	return nil
 }
 
+func (s *service) GetLocalReplica(tableID uint64) ([]uint64, error) {
+	r, err := s.getShards(tableID)
+	if err != nil {
+		return nil, err
+	}
+
+	var values []uint64
+	r.selectShards(
+		tableID,
+		func(
+			metadata pb.ShardsMetadata,
+			shard pb.TableShard,
+		) bool {
+			for _, replica := range shard.Replicas {
+				if s.isLocalReplica(replica) {
+					values = append(values, shard.ShardID)
+					break
+				}
+			}
+			return true
+		},
+	)
+	return values, nil
+}
+
 func (s *service) HasLocalReplica(
 	tableID, shardID uint64,
 ) (bool, error) {

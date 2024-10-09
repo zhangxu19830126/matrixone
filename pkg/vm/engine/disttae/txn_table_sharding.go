@@ -38,6 +38,7 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae/cache"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/engine_util"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
+	"go.uber.org/zap"
 )
 
 type ReaderPhase uint8
@@ -1004,10 +1005,27 @@ func (tbl *txnTableDelegate) isLocalFunc() (bool, error) {
 }
 
 func (tbl *txnTableDelegate) hasAllLocalReplicas() (bool, error) {
-	return tbl.shard.service.HasLocalReplica(
+	has, err := tbl.shard.service.HasLocalReplica(
 		tbl.shard.tableID,
 		tbl.origin.tableId,
 	)
+
+	if err == nil && !has {
+		ids, e := tbl.shard.service.GetLocalReplica(tbl.shard.tableID)
+		if e != nil {
+			return false, err
+		}
+
+		logutil.Warn("receive remote shard request",
+			zap.String("cn", tbl.shard.service.Config().ServiceID),
+			zap.Uint64("table", tbl.shard.tableID),
+			zap.Uint64("partition-id", tbl.origin.tableId),
+			zap.Any("local-partitions", ids),
+			zap.Stack("stack"),
+		)
+	}
+
+	return has, err
 }
 
 func (tbl *txnTableDelegate) getReadRequest(

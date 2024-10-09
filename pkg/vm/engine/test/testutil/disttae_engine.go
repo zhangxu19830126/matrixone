@@ -563,6 +563,10 @@ func (ms *mockShardService) GetShardInfo(table uint64) (uint64, pb.Policy, bool,
 	return table, 1, true, nil
 }
 
+func (ms *mockShardService) GetLocalReplica(tableID uint64) ([]uint64, error) {
+	panic(1)
+}
+
 func (ms *mockShardService) Create(ctx context.Context, table uint64, txnOp client.TxnOperator) error {
 	return nil
 }
