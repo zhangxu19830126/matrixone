@@ -27,17 +27,17 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/fileservice"
 	"github.com/matrixorigin/matrixone/pkg/logutil"
 	"github.com/matrixorigin/matrixone/pkg/objectio"
+	"github.com/matrixorigin/matrixone/pkg/objectio/ioutil"
 	"github.com/matrixorigin/matrixone/pkg/sql/colexec"
 	"github.com/matrixorigin/matrixone/pkg/sql/plan"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/disttae"
-	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/blockio"
 	"github.com/matrixorigin/matrixone/pkg/vm/engine/tae/index"
 	"github.com/matrixorigin/matrixone/pkg/vm/process"
 )
 
 func generateBlockWriter(writer *s3Writer,
 	proc *process.Process, idx int,
-	isDelete bool) (*blockio.BlockWriter, error) {
+	isDelete bool) (*ioutil.BlockWriter, error) {
 	// Use uuid as segment id
 	// TODO: multiple 64m file in one segment
 	obj := colexec.Get().GenerateObject()
@@ -51,7 +51,7 @@ func generateBlockWriter(writer *s3Writer,
 		seqnums = nil
 		sortIdx = 0
 	}
-	blockWriter, err := blockio.NewBlockWriterNew(
+	blockWriter, err := ioutil.NewBlockWriterNew(
 		s3,
 		obj,
 		writer.schemaVersions[idx],
@@ -203,7 +203,7 @@ func fetchSomeVecFromCompactBatchs(
 	return retBats, nil
 }
 
-func syncThenGetBlockInfoAndStats(ctx context.Context, blockWriter *blockio.BlockWriter, sortIdx int) ([]objectio.BlockInfo, objectio.ObjectStats, error) {
+func syncThenGetBlockInfoAndStats(ctx context.Context, blockWriter *ioutil.BlockWriter, sortIdx int) ([]objectio.BlockInfo, objectio.ObjectStats, error) {
 	blocks, _, err := blockWriter.Sync(ctx)
 	if err != nil {
 		return nil, objectio.ObjectStats{}, err
