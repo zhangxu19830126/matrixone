@@ -751,32 +751,6 @@ func TestIssue19551(t *testing.T) {
 	)
 }
 
-func Test111(t *testing.T) {
-	embed.RunBaseClusterTests(
-		func(c embed.Cluster) {
-			cn, _ := c.GetCNService(0)
-			testutils.ExecSQL(
-				t,
-				"mo_catalog",
-				cn,
-				`
-				CREATE TABLE members (
-				id INT PRIMARY KEY,
-    firstname VARCHAR(25) NOT NULL,
-    lastname VARCHAR(25) NOT NULL,
-    username VARCHAR(16) NOT NULL,
-    email VARCHAR(35),
-    joined DATE NOT NULL,
-	v int
-)
-PARTITION BY KEY(id)
-PARTITIONS 6;
-				`,
-			)
-		},
-	)
-}
-
 func TestSpeedupAbortAllTxn(t *testing.T) {
 	c, err := embed.NewCluster(
 		embed.WithPreStart(

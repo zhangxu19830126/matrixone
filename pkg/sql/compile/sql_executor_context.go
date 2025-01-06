@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/common/moerr"
@@ -117,6 +118,12 @@ func (c *compilerContext) ResolveAccountIds(accountNames []string) ([]uint32, er
 }
 
 func (c *compilerContext) Stats(obj *plan.ObjectRef, snapshot *plan.Snapshot) (*pb.StatsInfo, error) {
+	stats := statistic.StatsInfoFromContext(c.GetContext())
+	start := time.Now()
+	defer func() {
+		stats.AddBuildPlanStatsConsumption(time.Since(start))
+	}()
+
 	dbName := obj.GetSchemaName()
 	tableName := obj.GetObjName()
 
@@ -129,23 +136,11 @@ func (c *compilerContext) Stats(obj *plan.ObjectRef, snapshot *plan.Snapshot) (*
 		return nil, err
 	}
 
-	stats := statistic.StatsInfoFromContext(ctx)
-	crs := new(perfcounter.CounterSet)
-	newCtx := perfcounter.AttachS3RequestKey(ctx, crs)
-
+	newCtx := perfcounter.AttachCalcTableStatsKey(ctx)
 	statsInfo, err := table.Stats(newCtx, true)
 	if err != nil {
 		return nil, err
 	}
-
-	stats.AddBuildPlanStatsS3Request(statistic.S3Request{
-		List:      crs.FileService.S3.List.Load(),
-		Head:      crs.FileService.S3.Head.Load(),
-		Put:       crs.FileService.S3.Put.Load(),
-		Get:       crs.FileService.S3.Get.Load(),
-		Delete:    crs.FileService.S3.Delete.Load(),
-		DeleteMul: crs.FileService.S3.DeleteMulti.Load(),
-	})
 	return statsInfo, nil
 }
 
