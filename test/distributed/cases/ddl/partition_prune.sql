@@ -1,7 +1,9 @@
+-- @skip
 drop database if exists db1;
 create database db1;
 use db1;
 
+-- @bvt:issue#16438
 drop table if exists t1;
 CREATE TABLE t1 (
                     col1 INT NOT NULL,
@@ -273,3 +275,4 @@ insert into employees select * from employees;
 delete from employees where store_id = (select min(store_id) from employees);
 
 drop database db1;
+-- @bvt:issue

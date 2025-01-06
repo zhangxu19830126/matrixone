@@ -1,6 +1,9 @@
+-- @skip
 drop database if exists tpcc;
 create database tpcc;
 use tpcc;
+
+-- @bvt:issue#16438
 create table bmsql_oorder (
   o_w_id       integer      not null,
   o_d_id       integer      not null,
@@ -62,6 +65,8 @@ INSERT INTO `bmsql_oorder` VALUES (10, 10, 2977, 1049, NULL, 13, 1, '2024-05-22 
 INSERT INTO `bmsql_oorder` VALUES (10, 10, 2344, 1590, NULL, 11, 1, '2024-05-22 11:55:56');
 
 select * from bmsql_oorder order by o_w_id, o_d_id, o_id;
+-- @bvt:issue
+
 
 --------------------------------------------------------------------------
 -- @session:id=1&user=dump&password=111

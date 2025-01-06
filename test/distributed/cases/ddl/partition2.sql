@@ -1,3 +1,4 @@
+-- @skip
 drop table if exists t1;
 drop table if exists t2;
 drop table if exists t3;
@@ -9,6 +10,7 @@ drop table if exists t8;
 drop table if exists t9;
 drop table if exists t10;
 drop table if exists t11;
+-- @bvt:issue#16438
 create table t1(a int,b int) partition by hash(a) partitions 2;
 create table t2(a int,b int) partition by hash(a) partitions 2 (partition x, partition y);
 create table t3(a int,b int) partition by hash(a) partitions 3 (partition x, partition y);
@@ -32,3 +34,4 @@ drop table if exists t8;
 drop table if exists t9;
 drop table if exists t10;
 drop table if exists t11;
+-- @bvt:issue

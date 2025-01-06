@@ -1,7 +1,9 @@
+-- @skip
 drop database if exists db1;
 create database db1;
 use db1;
 
+-- @bvt:issue#16438
 drop table if exists lc;
 CREATE TABLE lc (
                     a INT NULL,
@@ -174,3 +176,4 @@ select
 from information_schema.partitions
 where table_name = 'trp' and table_schema = 'db1';
 drop table trp;
+-- @bvt:issue

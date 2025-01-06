@@ -22,6 +22,7 @@ insert into t1 values(1, '2020-11-11'), (2, '2020-11-12'), (3, '2020-11-13'), (1
 select count(*) over(order by b range current row) from t1;
 drop table t1;
 
+-- @bvt:issue#16438
 drop table if exists t1;
 create table t1 (a int, b int, c int);
 insert into t1 values(1, 2, 1), (3, 4, 2), (5, 6, 3), (7, 8, 4), (3, 4, 5), (3, 4, 6), (3, 4, 7);
@@ -76,6 +77,7 @@ create table t1 (a int, b decimal(7, 2));
 insert into t1 values(1, 12.12), (2, 123.13), (3, 456.66), (4, 1111.34);
 select a, sum(b) over (partition by a order by a) from t1;
 drop table t1;
+-- @bvt:issue
 
 drop table if exists wf01;
 create table wf01(i int,j int);
@@ -153,6 +155,7 @@ select i, j, sum(i+j) over (order by j rows between 2 preceding and 1 preceding)
 select i, j, sum(i+j) over (order by j rows between 2 following and 1 following) foo from row01 order by foo desc;
 drop table row01;
 
+-- @bvt:issue#16438
 drop table if exists test01;
 create table test01(i int, j int);
 insert into test01 values (1,null);
@@ -166,7 +169,9 @@ insert into test01 values (2,null);
 insert into test01 values (2,null);
 select i, j, min(j) over (partition by i order by j rows unbounded preceding) from test01;
 drop table test01;
+-- @bvt:issue
 
+-- @bvt:issue#16438
 drop table if exists double01;
 create table double01(d double);
 insert into double01 values (2);
@@ -180,6 +185,7 @@ insert into double01 values (null);
 select d, sum(d) over (partition by d order by d), avg(d) over (order by d rows between 1 preceding and 1 following) from double01;
 select d, sum(d) over (partition by d order by d), avg(d) over (order by d rows between 2 preceding and 1 following) from double01;
 drop table double01;
+-- @bvt:issue
 
 drop table if exists wf01;
 create table wf01(d float);
@@ -197,6 +203,7 @@ select d, sum(d) over (order by d range between current row and 2 following), av
 select d, sum(d) over (order by d range between 2 preceding and 2 following), avg(d) over (order by d range between current row and 2 following) from wf01;
 drop table wf01;
 
+-- @bvt:issue#16438
 drop table if exists dense_rank01;
 create table dense_rank01 (id integer, sex char(1));
 insert into dense_rank01 values (1, 'm');
@@ -207,7 +214,9 @@ insert into dense_rank01 values (5, 'm');
 select sex, id, rank() over (partition by sex order by id desc) from dense_rank01;
 select sex, id, dense_rank() over (partition by sex order by id desc) from dense_rank01;
 drop table dense_rank01;
+-- @bvt:issue
 
+-- @bvt:issue#16438
 drop table if exists sales;
 create table sales (customer_id varchar(1), order_date date, product_id integer);
 insert into sales(customer_id, order_date, product_id) values ('a', '2021-01-01', '1'), ('a', '2021-01-01', '2'), ('a', '2021-01-07', '2'), ('a', '2021-01-10', '3'), ('a', '2021-01-11', '3'), ('a', '2021-01-11', '3'),('b', '2021-01-01', '2'),('b', '2021-01-02', '2'),('b', '2021-01-04', '1'),('b', '2021-01-11', '1'),('b', '2021-01-16', '3'),('b', '2021-02-01', '3'),('c', '2021-01-01', '3'),('c', '2021-01-01', '3'),('c', '2021-01-07', '3');
@@ -216,6 +225,7 @@ create table menu (product_id integer,product_name varchar(5),price integer);
 insert into menu(product_id, product_name, price) values ('1', 'sushi', '10'),('2', 'curry', '15'),('3', 'ramen', '12');
 with ordered_sales as (select sales.customer_id, sales.order_date, menu.product_name,dense_rank() over (partition by sales.customer_id order by sales.order_date) as `rank` from sales inner join menu on sales.product_id = menu.product_id) select customer_id, product_name from ordered_sales where `rank` = 1 group by customer_id, product_name;
 drop table sales;
+-- @bvt:issue
 
 drop table if exists test01;
 create table test01(i int, j int);
@@ -232,6 +242,7 @@ select rank() over (order by t0.a) as b from (select i as a from test01) as t0;
 select rank() over(order by j) as col, j from test01;
 drop table test01;
 
+-- @bvt:issue#16438
 drop table if exists wf14;
 create table wf14 (id integer, sex char(1));
 insert into wf14 values (1, 'm');
@@ -246,6 +257,7 @@ select id, sex, sum(id) over (partition by sex order by id rows between 2 preced
 select id, sex, sum(id) over (partition by sex order by id rows between 2 preceding and 1 following) as a from wf14;
 select id, sex, sum(id) over (partition by sex order by id rows between 2 preceding and 1 following) as a from wf14;
 drop table wf14;
+-- @bvt:issue
 
 -- @suit
 -- @case
@@ -256,6 +268,7 @@ drop database if exists test;
 create database test;
 use test;
 
+-- @bvt:issue#16438
 -- partition by follows the bool type
 drop table if exists bool01;
 create table bool01(col1 int,col2 bool,col3 datetime);
@@ -1453,4 +1466,5 @@ select * from (select i_manufact_id, sum(ss_sales_price) sum_sales, avg(sum(ss_s
 -- information_schema is now a table which is compatible with mysql, it is now an empty table
 select group_concat(c.column_name order by ordinal_position) key_columns  from information_schema.key_column_usage c where c.table_schema='test1' and c.table_name='region' and constraint_name='PRIMARY';
 drop database test;
+-- @bvt:issue
 

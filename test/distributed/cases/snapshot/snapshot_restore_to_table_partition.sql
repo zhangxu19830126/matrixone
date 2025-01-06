@@ -2,7 +2,7 @@ drop account if exists acc01;
 create account acc01 admin_name = 'test_account' identified by '111';
 drop account if exists acc02;
 create account acc02 admin_name = 'test_account' identified by '111';
-
+-- @bvt:issue#16438
 -- @session:id=1&user=acc01:test_account&password=111
 drop database if exists acc_test04;
 create database acc_test04;
@@ -128,6 +128,7 @@ select count(*) from table02;
 select count(*) from table03;
 select count(*) from table04;
 
+-- @bvt:issue#16438
 drop database if exists acc_test04;
 create database acc_test04;
 use acc_test04;
@@ -149,6 +150,7 @@ create table index03 (
 
 insert into index03 values (9001,'1980-12-17', 'SMITH', 'CLERK', 'F', '2008-12-17'),
                            (9002,'1981-02-20', 'ALLEN', 'SALESMAN', 'F', '2008-02-20');
+-- @bvt:issue
 
 
 select count(*) from acc_test02.pri01;
@@ -200,5 +202,7 @@ select count(*) from acc_test03.table04;
 drop database acc_test03;
 -- @session
 drop snapshot sp04;
+
+-- @bvt:issue
 drop account acc01;
 drop account acc02;

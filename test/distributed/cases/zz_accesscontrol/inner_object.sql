@@ -51,7 +51,9 @@ delete from mo_catalog.mo_role_privs;
 delete from mo_catalog.mo_database;
 delete from mo_catalog.mo_columns;
 delete from mo_catalog.mo_indexes;
+-- @bvt:issue#16438
 delete from mo_catalog.mo_table_partitions;
+-- @bvt:issue
 
 --内置数据库不能删除
 drop database information_schema;
@@ -86,6 +88,7 @@ create table tb1(
 select `name`,`type`,`name`,`is_visible`,`hidden`,`comment`,`column_name`,`ordinal_position`,`options` from mo_catalog.mo_indexes where table_id = (select rel_id from mo_catalog.mo_tables where relname = 'tb1');
 desc mo_catalog.mo_indexes;
 
+-- @bvt:issue#16438
 CREATE TABLE trp (
                      id INT NOT NULL,
                      fname VARCHAR(30),
@@ -105,6 +108,7 @@ select tbl.relname, part.number, part.name, part.description_utf8, part.comment,
 from mo_catalog.mo_tables tbl left join mo_catalog.mo_table_partitions part on tbl.rel_id = part.table_id
 where tbl.relname = 'trp';
 desc mo_catalog.mo_table_partitions;
+-- @bvt:issue
 
 --accountadmin删除/回收,切换到普通account验证
 create account accx11 ADMIN_NAME 'admin' IDENTIFIED BY '111';
@@ -121,6 +125,7 @@ set global enable_privilege_cache = on;
 desc mo_catalog.mo_stages;
 select disable_fault_injection();
 
+-- @bvt:issue#16438
 -- sys and non sys account admin user information_schema:columns，schemata,tables，views，partitions isolation
 create account ac_1 ADMIN_NAME 'admin' IDENTIFIED BY '111';
 create database sys_db1;
@@ -158,6 +163,7 @@ partition p02 values less than (200001),
 partition p03 values less than (300001),
 partition p04 values less than (400001)
 );
+-- @bvt:issue
 select table_catalog,table_schema,table_name,column_name from information_schema.columns where table_schema="ac_db" and table_name='ac_t1';
 select table_catalog,table_schema,table_name,column_name from information_schema.columns where table_schema="ac_db" and table_name='test02';
 select table_catalog,table_schema,table_name,column_name from information_schema.columns where table_schema="sys_db1";
@@ -275,6 +281,7 @@ select count(*),table_name from information_schema.views group by table_name hav
 select table_schema,table_name,partition_name from information_schema.partitions where table_schema='acuser_db';
 select table_schema,table_name,partition_name from information_schema.partitions where table_schema='user_db';
 select count(*),table_schema,table_name,partition_name  from information_schema.partitions group by table_schema,table_name,partition_name having count(*) >1;
+-- @bvt:issue
 -- @session
 
 drop database sys_db1;

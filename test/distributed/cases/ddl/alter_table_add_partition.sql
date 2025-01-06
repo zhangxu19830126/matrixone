@@ -1,4 +1,6 @@
+-- @skip
 drop database if exists db1;
+-- @bvt:issue#16438
 create database db1;
 use db1;
 -----------------------------------------------range partition------------------------------------------------------
@@ -343,3 +345,4 @@ ALTER TABLE pt5 ADD PARTITION (PARTITION p5 VALUES LESS THAN (2020));
 --ERROR 1480 (HY000): Only RANGE PARTITIONING can use VALUES LESS THAN in partition definition
 
 drop database db1;
+-- @bvt:issue

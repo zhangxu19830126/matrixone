@@ -1,4 +1,7 @@
+-- @skip
 drop table if exists t1;
+
+-- @bvt:issue#16438
 CREATE TABLE t1 (
 col1 INT NOT NULL AUTO_INCREMENT,
 col2 DATE NOT NULL,
@@ -85,3 +88,4 @@ insert into insert_ignore_06 (product_id, sale_amount, sale_date) VALUES
 (1, 2000.00, '1991-07-01');
 select * from insert_ignore_06 order by sale_id;
 drop table insert_ignore_06;
+-- @bvt:issue

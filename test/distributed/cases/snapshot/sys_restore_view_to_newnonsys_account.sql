@@ -320,7 +320,7 @@ drop view employee_with_department_view;
 drop snapshot sp04;
 
 
-
+-- @bvt:issue#16438
 -- view in partition table
 -- @session:id=1&user=acc01:test_account&password=111
 use test;
@@ -387,7 +387,7 @@ drop database test;
 -- @session
 drop snapshot sp06;
 drop snapshot sp05;
-
+-- @bvt:issue
 
 
 

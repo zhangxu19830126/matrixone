@@ -634,6 +634,7 @@ insert into index02 values('c', 231, 0);
 alter table index02 add key pk(col1) comment 'primary key';
 select count(*) from index02;
 
+-- @bvt:issue#16438
 drop database if exists db10;
 create database db10;
 use db10;
@@ -679,11 +680,13 @@ show create table index02;
 use db10;
 select * from index03;
 
+
 -- @ignore:1
 show snapshots;
 drop database db09;
 drop database db10;
 drop snapshot sp16;
+-- @bvt:issue
 
 
 

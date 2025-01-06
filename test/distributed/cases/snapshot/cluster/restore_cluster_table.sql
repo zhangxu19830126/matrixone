@@ -7,6 +7,7 @@ create account acc03 admin_name = 'test_account' identified by '111';
 drop account if exists acc04;
 create account acc04 admin_name = 'test_account' identified by '111';
 
+-- @bvt:issue#16438
 drop database if exists db01;
 create database db01;
 use db01;
@@ -33,6 +34,8 @@ insert into index03 values (9001,'1980-12-17', 'SMITH', 'CLERK', 'F', '2008-12-1
 select * from index03;
 
 drop database if exists db02;
+-- @bvt:issue
+
 create database db02;
 use db02;
 drop table if exists departments;
@@ -249,6 +252,7 @@ create database test01;
 create database test02;
 create database test03;
 
+-- @bvt:issue#16438
 use test01;
 drop table if exists sales;
 create table sales (
@@ -273,6 +277,7 @@ use test02;
 create view v01 as select * from test01.sales;
 show create view v01;
 select * from v01;
+-- @bvt:issue
 
 use test03;
 create view v02 as select * from test02.v01;

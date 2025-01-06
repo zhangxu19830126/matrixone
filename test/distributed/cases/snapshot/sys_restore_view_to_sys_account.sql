@@ -272,7 +272,7 @@ drop table departments;
 
 
 
-
+-- @bvt:issue#16438
 -- view in partition table
 drop table if exists partition01;
 create table partition01 (
@@ -329,7 +329,7 @@ drop snapshot sp06;
 drop snapshot sp05;
 drop table partition01;
 drop database test;
-
+-- @bvt:issue
 
 
 

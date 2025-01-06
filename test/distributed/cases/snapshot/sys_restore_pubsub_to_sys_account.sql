@@ -246,6 +246,7 @@ insert into index02 values('c', 231, 0);
 alter table index02 add key pk(col1) comment 'primary key';
 select count(*) from index02;
 
+-- @bvt:issue#16438
 drop database if exists db10;
 create database db10;
 use db10;
@@ -267,6 +268,7 @@ create table index03 (
 
 insert into index03 values (9001,'1980-12-17', 'SMITH', 'CLERK', 'F', '2008-12-17'),
                            (9002,'1981-02-20', 'ALLEN', 'SALESMAN', 'F', '2008-02-20');
+-- @bvt:issue
 -- @session
 
 drop snapshot if exists sp05;

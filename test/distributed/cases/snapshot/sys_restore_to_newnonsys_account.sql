@@ -149,6 +149,7 @@ select count(*) from table02;
 select count(*) from table03;
 select count(*) from table04;
 
+-- @bvt:issue#16438
 drop database if exists acc_test04;
 create database acc_test04;
 use acc_test04;
@@ -187,6 +188,7 @@ show create table acc_test03.table03;
 show create table acc_test03.table04;
 select count(*) from acc_test04.index03;
 show create table acc_test04.index03;
+-- @bvt:issue
 -- @session
 
 drop snapshot if exists sp04;

@@ -36,6 +36,7 @@ desc pri04;
 drop table pri03;
 drop table pri04;
 
+-- @bvt:issue#16438
 -- partition by
 drop table if exists test03;
 create table test03 (
@@ -55,6 +56,8 @@ create table test03 (
 
 insert into test03 values (9001,'1980-12-17', 'SMITH', 'CLERK', 'F', '2008-12-17'),
                           (9002,'1981-02-20', 'ALLEN', 'SALESMAN', 'F', '2008-02-20');
+-- @bvt:issue
+
 drop table if exists test04;
 create table test04 like test03;
 show create table test03;

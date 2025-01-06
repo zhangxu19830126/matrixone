@@ -149,6 +149,7 @@ func (db *txnDatabase) relation(ctx context.Context, name string, proc any) (eng
 	}
 
 	tbl, err := newTxnTable(
+		ctx,
 		db,
 		*item,
 	)

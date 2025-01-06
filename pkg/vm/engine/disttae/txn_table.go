@@ -73,6 +73,7 @@ var traceFilterExprInterval2 atomic.Uint64
 var _ engine.Relation = new(txnTable)
 
 func newTxnTable(
+	ctx context.Context,
 	db *txnDatabase,
 	item cache.TableItem,
 ) (engine.Relation, error) {
@@ -92,7 +93,7 @@ func newTxnTable(
 
 	if db.databaseId != catalog.MO_CATALOG_ID {
 		ps := partitionservice.GetService(process.GetService())
-		is, metadata, err := ps.Is(process.Ctx, item.Id, txn.op)
+		is, metadata, err := ps.Is(ctx, item.Id, txn.op)
 		if err != nil {
 			return nil, err
 		}

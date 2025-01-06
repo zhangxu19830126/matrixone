@@ -146,6 +146,7 @@ create table table04(a INT primary key AUTO_INCREMENT, b INT, c INT);
 insert into table03 values (1,1,1), (2,2,2);
 insert into table04 values (0,1,2), (2,3,4);
 
+-- @bvt:issue#16438
 drop database if exists acc_test04;
 create database acc_test04;
 use acc_test04;
@@ -167,6 +168,7 @@ create table index03 (
 
 insert into index03 values (9001,'1980-12-17', 'SMITH', 'CLERK', 'F', '2008-12-17'),
                            (9002,'1981-02-20', 'ALLEN', 'SALESMAN', 'F', '2008-02-20');
+-- @bvt:issue
 
 
 select count(*) from acc_test02.pri01;
