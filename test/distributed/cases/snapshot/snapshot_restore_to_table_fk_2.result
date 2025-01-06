@@ -313,7 +313,7 @@ departmentid    budget
 drop snapshot if exists snapshot_01;
 show snapshots;
 SNAPSHOT_NAME    TIMESTAMP    SNAPSHOT_LEVEL    ACCOUNT_NAME    DATABASE_NAME    TABLE_NAME
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
 Drop database Payroll;
 Drop database Projects;
 Drop database Company;
@@ -749,7 +749,7 @@ departmentid    budget
 drop snapshot if exists snapshot_01;
 show snapshots;
 SNAPSHOT_NAME    TIMESTAMP    SNAPSHOT_LEVEL    ACCOUNT_NAME    DATABASE_NAME    TABLE_NAME
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
 Drop database Payroll;
 Drop database Projects;
 Drop database Company;
@@ -914,7 +914,8 @@ count(*)
 drop snapshot if exists snapshot_01;
 show snapshots;
 SNAPSHOT_NAME    TIMESTAMP    SNAPSHOT_LEVEL    ACCOUNT_NAME    DATABASE_NAME    TABLE_NAME
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
+DROP DATABASE IF EXISTS Company;
 CREATE DATABASE Company;
 USE Company;
 drop table if exists Departments;

@@ -251,7 +251,7 @@ select * from DepartmentBudgets;
 drop snapshot if exists snapshot_01;
 -- @ignore:1
 show snapshots;
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
 
 Drop database Payroll;
 Drop database Projects;
@@ -535,7 +535,7 @@ select * from DepartmentBudgets;
 drop snapshot if exists snapshot_01;
 -- @ignore:1
 show snapshots;
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
 
 Drop database Payroll;
 Drop database Projects;
@@ -610,7 +610,7 @@ select count(*) from aff01;
 drop snapshot if exists snapshot_01;
 -- @ignore:1
 show snapshots;
-create snapshot snapshot_01 for account sys;
+create snapshot snapshot_01 for account;
 
 CREATE DATABASE Company;
 USE Company;
