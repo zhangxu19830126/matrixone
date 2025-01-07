@@ -7,10 +7,10 @@ create account acc03 admin_name = 'test_account' identified by '111';
 drop account if exists acc04;
 create account acc04 admin_name = 'test_account' identified by '111';
 
--- @bvt:issue#16438
 drop database if exists db01;
 create database db01;
 use db01;
+-- @bvt:issue#16438
 drop table if exists index03;
 create table index03 (
                          emp_no      int             not null,
@@ -290,13 +290,12 @@ use test02;
 create view v01 as select * from test01.sales;
 show create view v01;
 select * from v01;
--- @bvt:issue
-
 
 use test03;
 create view v02 as select * from test02.v01;
 show create view v02;
 select * from v02;
+-- @bvt:issue
 
 drop database if exists udf_db;
 create database udf_db;
@@ -405,10 +404,13 @@ select * from mo_catalog.mo_user_defined_function;
 
 -- @session:id=3&user=acc03:test_account&password=111
 drop database test01;
+-- @bvt:issue#16438
 use test02;
 select * from v01;
 use test03;
 select * from v02;
+-- @bvt:issue
+
 use udf_db;
 drop function `addab`(x int, y int);
 use udf_db2;
@@ -455,11 +457,14 @@ select * from mo_catalog.mo_stages;
 select * from mo_catalog.mo_user_defined_function;
 -- @session
 
+-- @bvt:issue#16438
 -- @session:id=3&user=acc03:test_account&password=111
 use test02;
 select * from v01;
 use test03;
 select * from v02;
+-- @bvt:issue
+
 -- @ignore:0,9,10
 select name, db from mo_catalog.mo_user_defined_function;
 -- @session
