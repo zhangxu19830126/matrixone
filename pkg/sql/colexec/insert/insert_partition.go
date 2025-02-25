@@ -69,6 +69,7 @@ func (op *PartitionInsert) Prepare(
 		op.OpAnalyzer.Reset()
 	}
 
+	op.raw.delegated = true
 	op.raw.OperatorBase = op.OperatorBase
 	return op.raw.Prepare(proc)
 }
@@ -84,15 +85,13 @@ func (op *PartitionInsert) Call(
 	if err != nil {
 		return input, err
 	}
-	if input.Batch == nil || input.Batch.IsEmpty() {
-		return input, nil
-	}
-
-	op.raw.delegated = true
 	op.raw.input = input
 
-	ps := proc.GetPartitionService()
+	if input.Batch == nil || input.Batch.IsEmpty() {
+		return op.raw.Call(proc)
+	}
 
+	ps := proc.GetPartitionService()
 	res, err := ps.Prune(
 		proc.Ctx,
 		op.tableID,
@@ -130,6 +129,7 @@ func (op *PartitionInsert) Call(
 			if err != nil {
 				return false
 			}
+			input.Batch = bat
 			op.raw.ctr.source = rel
 			_, e := op.raw.Call(proc)
 			if e != nil {

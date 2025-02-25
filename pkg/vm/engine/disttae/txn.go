@@ -648,7 +648,7 @@ func (txn *Transaction) dumpInsertBatchLocked(ctx context.Context, offset int, s
 
 		tableDef := tbl.GetTableDef(txn.proc.Ctx)
 
-		s3Writer, err := colexec.NewS3Writer(tableDef, 0)
+		s3Writer, err := colexec.NewS3Writer(tableDef)
 		if err != nil {
 			return err
 		}

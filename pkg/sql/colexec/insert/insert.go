@@ -47,9 +47,10 @@ func (insert *Insert) Prepare(proc *process.Process) error {
 	}
 
 	insert.ctr.state = vm.Build
+	insert.ctr.affectedRows = 0
+
 	if insert.ToWriteS3 {
-		// If the target is not partition table, you only need to operate the main table
-		s3Writer, err := colexec.NewS3Writer(insert.InsertCtx.TableDef, 0)
+		s3Writer, err := colexec.NewS3Writer(insert.InsertCtx.TableDef)
 		if err != nil {
 			return err
 		}
@@ -80,7 +81,7 @@ func (insert *Insert) Prepare(proc *process.Process) error {
 			insert.ctr.buf.SetAttributes(insert.InsertCtx.Attrs)
 		}
 	}
-	insert.ctr.affectedRows = 0
+
 	return nil
 }
 
@@ -95,12 +96,12 @@ func (insert *Insert) Call(proc *process.Process) (vm.CallResult, error) {
 	}()
 
 	if insert.ToWriteS3 {
-		return insert.insert_s3(proc, analyzer)
+		return insert.writeToS3(proc, analyzer)
 	}
-	return insert.insert_table(proc, analyzer)
+	return insert.writeToWorkspace(proc, analyzer)
 }
 
-func (insert *Insert) insert_s3(proc *process.Process, analyzer process.Analyzer) (vm.CallResult, error) {
+func (insert *Insert) writeToS3(proc *process.Process, analyzer process.Analyzer) (vm.CallResult, error) {
 	start := time.Now()
 	defer func() {
 		v2.TxnStatementInsertS3DurationHistogram.Observe(time.Since(start).Seconds())
@@ -108,7 +109,7 @@ func (insert *Insert) insert_s3(proc *process.Process, analyzer process.Analyzer
 
 	if insert.ctr.state == vm.Build {
 		for {
-			input, err := vm.ChildrenCall(insert.GetChildren(0), proc, analyzer)
+			input, err := insert.getInput(proc, analyzer)
 			if err != nil {
 				return input, err
 			}
@@ -133,6 +134,9 @@ func (insert *Insert) insert_s3(proc *process.Process, analyzer process.Analyzer
 				insert.ctr.state = vm.End
 				return vm.CancelResult, err
 			}
+			result := vm.NewCallResult()
+			result.Batch = batch.EmptyBatch
+			return result, nil
 		}
 	}
 
@@ -143,12 +147,8 @@ func (insert *Insert) insert_s3(proc *process.Process, analyzer process.Analyzer
 		// handle the last Batch that batchSize less than DefaultBlockMaxRows
 		// for more info, refer to the comments about reSizeBatch
 		err := flushTailBatch(proc, writer, &result, analyzer)
-		if err != nil {
-			insert.ctr.state = vm.End
-			return result, err
-		}
 		insert.ctr.state = vm.End
-		return result, nil
+		return result, err
 	}
 
 	if insert.ctr.state == vm.End {
@@ -158,21 +158,15 @@ func (insert *Insert) insert_s3(proc *process.Process, analyzer process.Analyzer
 	panic("bug")
 }
 
-func (insert *Insert) insert_table(proc *process.Process, analyzer process.Analyzer) (vm.CallResult, error) {
-	if !insert.delegated {
-		input, err := vm.ChildrenCall(insert.GetChildren(0), proc, analyzer)
-		if err != nil {
-			return input, err
-		}
-
-		if input.Batch == nil || input.Batch.IsEmpty() {
-			return input, nil
-		}
-
-		insert.input = input
+func (insert *Insert) writeToWorkspace(proc *process.Process, analyzer process.Analyzer) (vm.CallResult, error) {
+	input, err := insert.getInput(proc, analyzer)
+	if err != nil {
+		return input, err
+	}
+	if input.Batch == nil || input.Batch.IsEmpty() {
+		return input, nil
 	}
 
-	input := insert.input
 	affectedRows := uint64(input.Batch.RowCount())
 	insert.ctr.buf.CleanOnlyData()
 	for i := range insert.ctr.buf.Attrs {
@@ -189,7 +183,7 @@ func (insert *Insert) insert_table(proc *process.Process, analyzer process.Analy
 	newCtx := perfcounter.AttachS3RequestKey(proc.Ctx, crs)
 
 	// insert into table, insertBat will be deeply copied into txn's workspace.
-	err := insert.ctr.source.Write(newCtx, insert.ctr.buf)
+	err = insert.ctr.source.Write(newCtx, insert.ctr.buf)
 	if err != nil {
 		return input, err
 	}
@@ -203,6 +197,22 @@ func (insert *Insert) insert_table(proc *process.Process, analyzer process.Analy
 	}
 	// `insertBat` does not include partition expression columns
 	return input, nil
+}
+
+func (insert *Insert) getInput(
+	proc *process.Process,
+	analyzer process.Analyzer,
+) (vm.CallResult, error) {
+	if !insert.delegated {
+		input, err := vm.ChildrenCall(insert.GetChildren(0), proc, analyzer)
+		if err != nil {
+			return input, err
+		}
+
+		insert.input = input
+	}
+
+	return insert.input, nil
 }
 
 func writeBatch(proc *process.Process, writer *colexec.S3Writer, bat *batch.Batch, analyzer process.Analyzer) error {

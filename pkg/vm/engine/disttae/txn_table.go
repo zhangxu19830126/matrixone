@@ -1650,7 +1650,7 @@ func (tbl *txnTable) ensureSeqnumsAndTypesExpectRowid() {
 func (tbl *txnTable) compaction(ctx context.Context,
 	compactedBlks map[objectio.ObjectLocation][]int64,
 ) ([]objectio.BlockInfo, objectio.ObjectStats, error) {
-	s3writer, err := colexec.NewS3Writer(tbl.tableDef, 0)
+	s3writer, err := colexec.NewS3Writer(tbl.tableDef)
 	if err != nil {
 		return nil, objectio.ObjectStats{}, err
 	}

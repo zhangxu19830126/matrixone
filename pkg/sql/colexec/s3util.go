@@ -43,10 +43,9 @@ import (
 // scenario 1 is insert operator directly go s3, when a one-time insert/load data volume is relatively large will trigger the scenario.
 // scenario 2 is txn.workspace exceeds the threshold value, in the txn.dumpBatch function trigger a write s3
 type S3Writer struct {
-	sortIndex      int // When writing table data, if table has sort key, need to sort data and then write to S3
-	pk             int
-	partitionIndex int16 // This value is aligned with the partition number
-	isClusterBy    bool
+	sortIndex   int // When writing table data, if table has sort key, need to sort data and then write to S3
+	pk          int
+	isClusterBy bool
 
 	schemaVersion uint32
 	seqnums       []uint16
@@ -110,14 +109,13 @@ func NewS3TombstoneWriter() (*S3Writer, error) {
 	}, nil
 }
 
-func NewS3Writer(tableDef *plan.TableDef, partitionIdx int16) (*S3Writer, error) {
+func NewS3Writer(tableDef *plan.TableDef) (*S3Writer, error) {
 	writer := &S3Writer{
-		tablename:      tableDef.GetName(),
-		seqnums:        make([]uint16, 0, len(tableDef.Cols)),
-		schemaVersion:  tableDef.Version,
-		sortIndex:      -1,
-		pk:             -1,
-		partitionIndex: partitionIdx,
+		tablename:     tableDef.GetName(),
+		seqnums:       make([]uint16, 0, len(tableDef.Cols)),
+		schemaVersion: tableDef.Version,
+		sortIndex:     -1,
+		pk:            -1,
 	}
 
 	writer.ResetBlockInfoBat()
@@ -189,7 +187,7 @@ func (w *S3Writer) Output(proc *process.Process, result *vm.CallResult) error {
 func (w *S3Writer) writeBatsToBlockInfoBat(mpool *mpool.MPool) error {
 	for _, bat := range w.batches {
 		if err := vector.AppendFixed(
-			w.blockInfoBat.Vecs[0], -w.partitionIndex-1,
+			w.blockInfoBat.Vecs[0], -1,
 			false, mpool); err != nil {
 			return err
 		}
@@ -419,7 +417,7 @@ func (w *S3Writer) FillBlockInfoBat(blkInfos []objectio.BlockInfo, stats objecti
 	for _, blkInfo := range blkInfos {
 		if err := vector.AppendFixed(
 			w.blockInfoBat.Vecs[0],
-			w.partitionIndex,
+			0,
 			false,
 			mpool); err != nil {
 			return err
