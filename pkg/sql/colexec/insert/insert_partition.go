@@ -30,6 +30,7 @@ type PartitionInsert struct {
 
 	raw     *Insert
 	tableID uint64
+	writers map[uint64]*colexec.S3Writer
 }
 
 func NewPartitionInsert(
@@ -71,6 +72,9 @@ func (op *PartitionInsert) Prepare(
 
 	op.raw.delegated = true
 	op.raw.OperatorBase = op.OperatorBase
+	if op.raw.ToWriteS3 {
+		op.writers = make(map[uint64]*colexec.S3Writer)
+	}
 	return op.raw.Prepare(proc)
 }
 
@@ -131,6 +135,8 @@ func (op *PartitionInsert) Call(
 			}
 			input.Batch = bat
 			op.raw.ctr.source = rel
+			op.raw.getS3WriterFunc = op.getS3Writer
+			op.raw.getFlushableS3WriterFunc = op.getFlushableS3Writer
 			_, e := op.raw.Call(proc)
 			if e != nil {
 				err = e
@@ -142,6 +148,7 @@ func (op *PartitionInsert) Call(
 	if err != nil {
 		return vm.CallResult{}, err
 	}
+
 	return input, nil
 }
 
@@ -170,9 +177,39 @@ func (op *PartitionInsert) Reset(
 	pipelineFailed bool,
 	err error,
 ) {
+	for _, w := range op.writers {
+		w.Free(proc.Mp())
+	}
 	op.raw.Reset(proc, pipelineFailed, err)
 }
 
 func (op *PartitionInsert) GetOperatorBase() *vm.OperatorBase {
 	return &op.OperatorBase
+}
+
+func (op *PartitionInsert) getS3Writer(
+	id uint64,
+) (*colexec.S3Writer, error) {
+	var err error
+	w, ok := op.writers[id]
+	if !ok {
+		w, err = colexec.NewS3Writer(op.raw.InsertCtx.TableDef)
+		if err != nil {
+			return nil, err
+		}
+		op.writers[id] = w
+	}
+	return w, nil
+}
+
+func (op *PartitionInsert) getFlushableS3Writer() *colexec.S3Writer {
+	for k, w := range op.writers {
+		delete(op.writers, k)
+		return w
+	}
+	return nil
+}
+
+func (op *PartitionInsert) GetAffectedRows() uint64 {
+	return op.affectedRows
 }

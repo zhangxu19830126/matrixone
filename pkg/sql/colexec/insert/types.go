@@ -50,6 +50,9 @@ type Insert struct {
 	ToWriteS3 bool // mark if this insert's target is S3 or not.
 	InsertCtx *InsertCtx
 
+	getS3WriterFunc          func(id uint64) (*colexec.S3Writer, error)
+	getFlushableS3WriterFunc func() *colexec.S3Writer
+
 	vm.OperatorBase
 }
 
@@ -99,7 +102,10 @@ func (insert *Insert) Reset(proc *process.Process, pipelineFailed bool, err erro
 		insert.ctr.s3Writer.Free(proc.Mp())
 		insert.ctr.s3Writer = nil
 	}
+
 	insert.ctr.state = vm.Build
+	insert.getFlushableS3WriterFunc = insert.getFlushableS3Writer
+	insert.getS3WriterFunc = insert.getS3Writer
 
 	if insert.ctr.buf != nil {
 		insert.ctr.buf.CleanOnlyData()

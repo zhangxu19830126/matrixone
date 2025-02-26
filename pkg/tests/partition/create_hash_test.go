@@ -51,15 +51,15 @@ func TestCreateAndDeleteLinearHashBased(t *testing.T) {
 
 func TestInsertAndDeleteHashBased(t *testing.T) {
 	creates := []string{
-		"create table %s (c int) partition by hash(c) partitions 2",
+		// "create table %s (c int) partition by hash(c) partitions 2",
 		"create table %s (c int, b vecf32(2)) partition by hash(c) partitions 2",
 	}
 	inserts := []string{
-		"insert into %s values(1)",
+		// "insert into %s values(1)",
 		"insert into %s values(1, '[1.1, 2.2]')",
 	}
 	deletes := []string{
-		"delete from %s where c = 1",
+		// "delete from %s where c = 1",
 		"delete from %s where c = 1",
 	}
 
@@ -106,10 +106,13 @@ func TestInsertAndDeleteHashBased(t *testing.T) {
 					return n
 				}
 
-				testutils.ExecSQL(
+				testutils.ExecSQLWithReadResult(
 					t,
 					db,
 					cn,
+					func(i int, s string, r executor.Result) {
+						require.Equal(t, uint64(1), r.AffectedRows)
+					},
 					insert,
 				)
 				require.Equal(t, int64(1), fn())

@@ -48,6 +48,8 @@ func (insert *Insert) Prepare(proc *process.Process) error {
 
 	insert.ctr.state = vm.Build
 	insert.ctr.affectedRows = 0
+	insert.getFlushableS3WriterFunc = insert.getFlushableS3Writer
+	insert.getS3WriterFunc = insert.getS3Writer
 
 	if insert.ToWriteS3 {
 		s3Writer, err := colexec.NewS3Writer(insert.InsertCtx.TableDef)
@@ -108,47 +110,59 @@ func (insert *Insert) writeToS3(proc *process.Process, analyzer process.Analyzer
 	}()
 
 	if insert.ctr.state == vm.Build {
-		for {
-			input, err := insert.getInput(proc, analyzer)
-			if err != nil {
-				return input, err
-			}
+		input, err := insert.getInput(proc, analyzer)
+		if err != nil {
+			return input, err
+		}
 
+		if input.Batch == nil || input.Batch.IsEmpty() {
 			if input.Batch == nil {
 				insert.ctr.state = vm.Eval
-				break
-			}
-			if input.Batch.IsEmpty() {
-				continue
-			}
-
-			if insert.InsertCtx.AddAffectedRows {
-				affectedRows := uint64(input.Batch.RowCount())
-				atomic.AddUint64(&insert.ctr.affectedRows, affectedRows)
-			}
-
-			// write to s3.
-			input.Batch.Attrs = append(input.Batch.Attrs[:0], insert.InsertCtx.Attrs...)
-			err = writeBatch(proc, insert.ctr.s3Writer, input.Batch, analyzer)
-			if err != nil {
-				insert.ctr.state = vm.End
-				return vm.CancelResult, err
 			}
 			result := vm.NewCallResult()
 			result.Batch = batch.EmptyBatch
 			return result, nil
 		}
+
+		if insert.InsertCtx.AddAffectedRows {
+			affectedRows := uint64(input.Batch.RowCount())
+			atomic.AddUint64(&insert.ctr.affectedRows, affectedRows)
+		}
+
+		// write to s3.
+		w, err := insert.getS3WriterFunc(insert.getTableID(proc))
+		if err != nil {
+			return input, err
+		}
+
+		input.Batch.Attrs = append(input.Batch.Attrs[:0], insert.InsertCtx.Attrs...)
+		err = writeBatch(proc, w, input.Batch, analyzer)
+		if err != nil {
+			insert.ctr.state = vm.End
+			return vm.CancelResult, err
+		}
+		result := vm.NewCallResult()
+		result.Batch = batch.EmptyBatch
+		return result, nil
 	}
 
 	result := vm.NewCallResult()
 	result.Batch = insert.ctr.buf
 	if insert.ctr.state == vm.Eval {
-		writer := insert.ctr.s3Writer
-		// handle the last Batch that batchSize less than DefaultBlockMaxRows
-		// for more info, refer to the comments about reSizeBatch
-		err := flushTailBatch(proc, writer, &result, analyzer)
-		insert.ctr.state = vm.End
-		return result, err
+		for {
+			writer := insert.getFlushableS3WriterFunc()
+			if writer == nil {
+				insert.ctr.state = vm.End
+				return result, nil
+			}
+
+			// handle the last Batch that batchSize less than DefaultBlockMaxRows
+			// for more info, refer to the comments about reSizeBatch
+			err := flushTailBatch(proc, writer, &result, analyzer)
+			if err != nil {
+				return result, err
+			}
+		}
 	}
 
 	if insert.ctr.state == vm.End {
@@ -215,6 +229,16 @@ func (insert *Insert) getInput(
 	return insert.input, nil
 }
 
+func (insert *Insert) getS3Writer(id uint64) (*colexec.S3Writer, error) {
+	return insert.ctr.s3Writer, nil
+}
+
+func (insert *Insert) getFlushableS3Writer() *colexec.S3Writer {
+	w := insert.ctr.s3Writer
+	insert.ctr.s3Writer = nil
+	return w
+}
+
 func writeBatch(proc *process.Process, writer *colexec.S3Writer, bat *batch.Batch, analyzer process.Analyzer) error {
 	if writer.StashBatch(proc, bat) {
 		crs := analyzer.GetOpCounterSet()
@@ -236,7 +260,12 @@ func writeBatch(proc *process.Process, writer *colexec.S3Writer, bat *batch.Batc
 	return nil
 }
 
-func flushTailBatch(proc *process.Process, writer *colexec.S3Writer, result *vm.CallResult, analyzer process.Analyzer) error {
+func flushTailBatch(
+	proc *process.Process,
+	writer *colexec.S3Writer,
+	result *vm.CallResult,
+	analyzer process.Analyzer,
+) error {
 	crs := analyzer.GetOpCounterSet()
 	newCtx := perfcounter.AttachS3RequestKey(proc.Ctx, crs)
 
@@ -257,4 +286,14 @@ func flushTailBatch(proc *process.Process, writer *colexec.S3Writer, result *vm.
 	}
 
 	return writer.Output(proc, result)
+}
+
+func (insert *Insert) getTableID(
+	proc *process.Process,
+) uint64 {
+	id := uint64(0)
+	if insert.ctr.source != nil {
+		id = insert.ctr.source.GetTableID(proc.Ctx)
+	}
+	return id
 }
