@@ -28,9 +28,10 @@ import (
 type PartitionInsert struct {
 	vm.OperatorBase
 
-	raw     *Insert
-	tableID uint64
-	writers map[uint64]*colexec.S3Writer
+	raw          *Insert
+	tableID      uint64
+	writers      map[uint64]*colexec.S3Writer
+	affectedRows uint64
 }
 
 func NewPartitionInsert(
@@ -70,6 +71,7 @@ func (op *PartitionInsert) Prepare(
 		op.OpAnalyzer.Reset()
 	}
 
+	op.affectedRows = 0
 	op.raw.delegated = true
 	op.raw.OperatorBase = op.OperatorBase
 	if op.raw.ToWriteS3 {
@@ -90,6 +92,7 @@ func (op *PartitionInsert) Call(
 		return input, err
 	}
 	op.raw.input = input
+	op.raw.addAffectedRowsFunc = op.AddAffectedRows
 
 	if input.Batch == nil || input.Batch.IsEmpty() {
 		return op.raw.Call(proc)
@@ -164,8 +167,10 @@ func (op *PartitionInsert) Free(
 	pipelineFailed bool,
 	err error,
 ) {
+	rows := op.affectedRows
 	op.raw.Free(proc, pipelineFailed, err)
 	*op = PartitionInsert{}
+	op.affectedRows = rows
 }
 
 func (op *PartitionInsert) Release() {
@@ -212,4 +217,8 @@ func (op *PartitionInsert) getFlushableS3Writer() *colexec.S3Writer {
 
 func (op *PartitionInsert) GetAffectedRows() uint64 {
 	return op.affectedRows
+}
+
+func (op *PartitionInsert) AddAffectedRows(affectedRows uint64) {
+	op.affectedRows += affectedRows
 }

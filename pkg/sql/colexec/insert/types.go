@@ -52,6 +52,7 @@ type Insert struct {
 
 	getS3WriterFunc          func(id uint64) (*colexec.S3Writer, error)
 	getFlushableS3WriterFunc func() *colexec.S3Writer
+	addAffectedRowsFunc      func(uint64)
 
 	vm.OperatorBase
 }

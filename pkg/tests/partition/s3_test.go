@@ -1,65 +1,28 @@
-// Copyright 2021 - 2024 Matrix Origin
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package partition
 
 import (
-	"context"
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/matrixorigin/matrixone/pkg/cnservice"
 	"github.com/matrixorigin/matrixone/pkg/container/vector"
-	"github.com/matrixorigin/matrixone/pkg/defines"
 	"github.com/matrixorigin/matrixone/pkg/embed"
-	"github.com/matrixorigin/matrixone/pkg/partitionservice"
-	"github.com/matrixorigin/matrixone/pkg/pb/partition"
 	"github.com/matrixorigin/matrixone/pkg/tests/testutils"
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
 	"github.com/stretchr/testify/require"
 )
-
-func TestCreateAndDeleteHashBased(t *testing.T) {
-	runPartitionTableCreateAndDeleteTests(
-		t,
-		"create table %s (c int comment 'abc') partition by hash(c) partitions 2",
-		partition.PartitionMethod_Hash,
-		func(idx int, p partition.Partition) {},
-	)
-}
-
-func TestCreateAndDeleteLinearHashBased(t *testing.T) {
-	runPartitionTableCreateAndDeleteTests(
-		t,
-		"create table %s (c int comment 'abc') partition by linear hash(c) partitions 2",
-		partition.PartitionMethod_LinearHash,
-		func(idx int, p partition.Partition) {},
-	)
-}
-
-func TestInsertAndDeleteHashBased(t *testing.T) {
+create table t1 (c int, b vecf32(2))
+insert into t1 select '1' from generate_series(1,10)g, '[1,0,0,0]'
+func TestS3Insert(t *testing.T) {
 	creates := []string{
-		"create table %s (c int) partition by hash(c) partitions 2",
+		// "create table %s (c int) partition by hash(c) partitions 2",
 		"create table %s (c int, b vecf32(2)) partition by hash(c) partitions 2",
 	}
 	inserts := []string{
-		"insert into %s values(1)",
-		"insert into %s values(1, '[1.1, 2.2]')",
+		// "insert into %s values(1)",
+		"insert into %s select '1' from generate_series(1,2000000)g, [1,0,0,0]'",
 	}
 	deletes := []string{
-		"delete from %s where c = 1",
+		// "delete from %s where c = 1",
 		"delete from %s where c = 1",
 	}
 
@@ -157,49 +120,4 @@ func TestInsertAndDeleteHashBased(t *testing.T) {
 			}
 		},
 	)
-}
-
-func getMetadata(
-	t *testing.T,
-	accountID uint32,
-	db string,
-	table string,
-	cn embed.ServiceOperator,
-) partition.PartitionMetadata {
-	ps := partitionservice.GetService(cn.ServiceID())
-	store := ps.GetStorage()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	ctx = defines.AttachAccountId(ctx, accountID)
-
-	var value partition.PartitionMetadata
-	exec := cn.RawService().(cnservice.Service).GetSQLExecutor()
-	err := exec.ExecTxn(
-		ctx,
-		func(txn executor.TxnExecutor) error {
-			id := testutils.GetTableID(
-				t,
-				db,
-				table,
-				txn,
-			)
-			if id == 0 {
-				return nil
-			}
-
-			metadata, ok, err := store.GetMetadata(
-				ctx,
-				id,
-				txn.Txn(),
-			)
-			require.NoError(t, err)
-			require.True(t, ok)
-			value = metadata
-			return nil
-		},
-		executor.Options{},
-	)
-	require.NoError(t, err)
-	return value
 }

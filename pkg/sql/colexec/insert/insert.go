@@ -16,7 +16,6 @@ package insert
 
 import (
 	"bytes"
-	"sync/atomic"
 	"time"
 
 	"github.com/matrixorigin/matrixone/pkg/container/batch"
@@ -50,6 +49,7 @@ func (insert *Insert) Prepare(proc *process.Process) error {
 	insert.ctr.affectedRows = 0
 	insert.getFlushableS3WriterFunc = insert.getFlushableS3Writer
 	insert.getS3WriterFunc = insert.getS3Writer
+	insert.addAffectedRowsFunc = insert.addAffectedRows
 
 	if insert.ToWriteS3 {
 		s3Writer, err := colexec.NewS3Writer(insert.InsertCtx.TableDef)
@@ -126,7 +126,7 @@ func (insert *Insert) writeToS3(proc *process.Process, analyzer process.Analyzer
 
 		if insert.InsertCtx.AddAffectedRows {
 			affectedRows := uint64(input.Batch.RowCount())
-			atomic.AddUint64(&insert.ctr.affectedRows, affectedRows)
+			insert.addAffectedRowsFunc(affectedRows)
 		}
 
 		// write to s3.
@@ -207,7 +207,7 @@ func (insert *Insert) writeToWorkspace(proc *process.Process, analyzer process.A
 	analyzer.AddDiskIO(crs)
 
 	if insert.InsertCtx.AddAffectedRows {
-		atomic.AddUint64(&insert.ctr.affectedRows, affectedRows)
+		insert.addAffectedRowsFunc(affectedRows)
 	}
 	// `insertBat` does not include partition expression columns
 	return input, nil
@@ -296,4 +296,10 @@ func (insert *Insert) getTableID(
 		id = insert.ctr.source.GetTableID(proc.Ctx)
 	}
 	return id
+}
+
+func (insert *Insert) addAffectedRows(
+	affectedRows uint64,
+) {
+	insert.ctr.affectedRows += affectedRows
 }
