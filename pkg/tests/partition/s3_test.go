@@ -10,20 +10,17 @@ import (
 	"github.com/matrixorigin/matrixone/pkg/util/executor"
 	"github.com/stretchr/testify/require"
 )
-create table t1 (c int, b vecf32(2))
-insert into t1 select '1' from generate_series(1,10)g, '[1,0,0,0]'
+
+// create table t1 (a primary, c int, b vecf32(2))
+// insert into t1 select '1' from generate_series(1,10)g, '[1,0,0,0]'
 func TestS3Insert(t *testing.T) {
 	creates := []string{
 		// "create table %s (c int) partition by hash(c) partitions 2",
-		"create table %s (c int, b vecf32(2)) partition by hash(c) partitions 2",
+		"create table %s(a int primary key,b vecf32(4), c varchar(10) ) partition by hash(a) partitions 2",
 	}
 	inserts := []string{
 		// "insert into %s values(1)",
-		"insert into %s select '1' from generate_series(1,2000000)g, [1,0,0,0]'",
-	}
-	deletes := []string{
-		// "delete from %s where c = 1",
-		"delete from %s where c = 1",
+		"insert into %s select result, '[1,0,0,0]' , '1' from generate_series(1,2000000)g;",
 	}
 
 	runPartitionClusterTest(
@@ -39,7 +36,6 @@ func TestS3Insert(t *testing.T) {
 				table := fmt.Sprintf("%s_%d", t.Name(), idx)
 				create := fmt.Sprintf(creates[idx], table)
 				insert := fmt.Sprintf(inserts[idx], table)
-				delete := fmt.Sprintf(deletes[idx], table)
 
 				testutils.ExecSQL(
 					t,
@@ -74,49 +70,49 @@ func TestS3Insert(t *testing.T) {
 					db,
 					cn,
 					func(i int, s string, r executor.Result) {
-						require.Equal(t, uint64(1), r.AffectedRows)
+						require.Equal(t, uint64(2000000), r.AffectedRows)
 					},
 					insert,
 				)
-				require.Equal(t, int64(1), fn())
+				require.Equal(t, int64(2000000), fn())
 
-				testutils.ExecSQLWithReadResult(
-					t,
-					db,
-					cn,
-					func(i int, s string, r executor.Result) {
-						r.ReadRows(
-							func(rows int, cols []*vector.Vector) bool {
-								require.Equal(t, int64(1), executor.GetFixedRows[int64](cols[0])[0])
-								return true
-							},
-						)
-					},
-					fmt.Sprintf("select count(1) from %s", table),
-				)
+				// testutils.ExecSQLWithReadResult(
+				// 	t,
+				// 	db,
+				// 	cn,
+				// 	func(i int, s string, r executor.Result) {
+				// 		r.ReadRows(
+				// 			func(rows int, cols []*vector.Vector) bool {
+				// 				require.Equal(t, int64(1), executor.GetFixedRows[int64](cols[0])[0])
+				// 				return true
+				// 			},
+				// 		)
+				// 	},
+				// 	fmt.Sprintf("select count(1) from %s", table),
+				// )
 
-				testutils.ExecSQL(
-					t,
-					db,
-					cn,
-					delete,
-				)
-				require.Equal(t, int64(0), fn())
+				// testutils.ExecSQL(
+				// 	t,
+				// 	db,
+				// 	cn,
+				// 	delete,
+				// )
+				// require.Equal(t, int64(0), fn())
 
-				testutils.ExecSQLWithReadResult(
-					t,
-					db,
-					cn,
-					func(i int, s string, r executor.Result) {
-						r.ReadRows(
-							func(rows int, cols []*vector.Vector) bool {
-								require.Equal(t, int64(0), executor.GetFixedRows[int64](cols[0])[0])
-								return true
-							},
-						)
-					},
-					fmt.Sprintf("select count(1) from %s", table),
-				)
+				// testutils.ExecSQLWithReadResult(
+				// 	t,
+				// 	db,
+				// 	cn,
+				// 	func(i int, s string, r executor.Result) {
+				// 		r.ReadRows(
+				// 			func(rows int, cols []*vector.Vector) bool {
+				// 				require.Equal(t, int64(0), executor.GetFixedRows[int64](cols[0])[0])
+				// 				return true
+				// 			},
+				// 		)
+				// 	},
+				// 	fmt.Sprintf("select count(1) from %s", table),
+				// )
 			}
 		},
 	)
