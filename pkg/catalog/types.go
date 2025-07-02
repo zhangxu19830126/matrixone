@@ -330,8 +330,9 @@ const (
 	/************ 0. Regular Secondary Index ************/
 
 	// Regualar secondary index table columns
-	IndexTableIndexColName   = "__mo_index_idx_col"
-	IndexTablePrimaryColName = "__mo_index_pri_col"
+	IndexTableIndexColName     = "__mo_index_idx_col"
+	IndexTablePrimaryColName   = "__mo_index_pri_col"
+	IndexTablePartitionColName = "__mo_index_partition_col"
 
 	CPrimaryKeyColName = "__mo_cpkey_col" // Compound primary key column name, which is a hidden column
 	// FakePrimaryKeyColName for tables without a primary key, a new hidden primary key column

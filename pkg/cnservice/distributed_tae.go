@@ -110,5 +110,6 @@ func (s *service) initDistributedTAE(
 	s.initProcessCodecService()
 	s.initPartitionService()
 	s.initShardService()
+	s.initMCP()
 	return nil
 }

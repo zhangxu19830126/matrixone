@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixone/pkg/ai"
 	"github.com/matrixorigin/matrixone/pkg/bootstrap"
 	"github.com/matrixorigin/matrixone/pkg/catalog"
 	"github.com/matrixorigin/matrixone/pkg/clusterservice"
@@ -256,6 +257,12 @@ func (s *service) Start() error {
 	if err != nil {
 		return err
 	}
+
+	s.stopper.RunTask(func(ctx context.Context) {
+		if err := s.mcp.Start(); err != nil {
+			panic(err)
+		}
+	})
 
 	return s.server.Start()
 }
@@ -817,6 +824,10 @@ func (s *service) initPartitionService() {
 		runtime.PartitionService,
 		s.partitionService,
 	)
+}
+
+func (s *service) initMCP() {
+	s.mcp = ai.NewMCPServer(s.sqlExecutor)
 }
 
 func (s *service) GetSQLExecutor() executor.SQLExecutor {
